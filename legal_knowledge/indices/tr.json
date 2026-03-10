@@ -1,0 +1,20 @@
+{
+  "id": "tr",
+  "tipo": "indice_economico",
+  "descricao": "Taxa Referencial — substituída pelo IPCA-E para créditos trabalhistas",
+  "fundamento": "ADC 58 STF — julgamento 18/12/2020",
+  "aplicacao": "correcao_monetaria_revogada",
+  "regra": {
+    "status": "SUBSTITUIDA",
+    "substituida_por": "IPCA-E",
+    "obs": "TR era utilizada até 18/12/2020 para correção de créditos trabalhistas. ADC 58 declarou inconstitucional sua aplicação. Mantida no sistema apenas para cálculos de períodos anteriores à decisão."
+  },
+  "uso_retroativo": {
+    "permitido": true,
+    "ate": "2020-12-18",
+    "obs": "Pode ser aplicada em cálculos de períodos anteriores ao ADC 58 conforme determinação específica da sentença"
+  },
+  "fonte_dados": "https://www.bcb.gov.br",
+  "vigente": false,
+  "atualizado_em": "2025-01-01"
+}

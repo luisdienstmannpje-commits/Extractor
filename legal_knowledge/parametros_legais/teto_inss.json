@@ -1,0 +1,14 @@
+{
+  "id": "teto_inss_2025",
+  "tipo": "parametro_legal",
+  "descricao": "Teto do salário de contribuição ao INSS",
+  "valor": 7786.02,
+  "moeda": "BRL",
+  "fundamento": "Portaria MPS 1.419/2024",
+  "vigencia": {
+    "inicio": "2025-01-01",
+    "fim": null
+  },
+  "vigente": true,
+  "atualizado_em": "2025-01-01"
+}
