@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PJe-Calc Smart Extractor</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+          },
+          colors: {
+            bg:       '#0f1117',
+            surface:  '#1a1d27',
+            s2:       '#22263a',
+            border:   '#2e3350',
+            accent:   '#4f8ef7',
+            accent2:  '#7c5cfc',
+            muted:    '#6b7280',
+            positive: '#2dd4a0',
+            warn:     '#f5c842',
+            danger:   '#f75f5f',
+          },
+          boxShadow: {
+            card:    '0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.25)',
+            'card-lg': '0 2px 8px rgba(0,0,0,.5), 0 16px 40px rgba(0,0,0,.3)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Dynamic component styles (render.js / lab.js — do not remove) -->
+  <link rel="stylesheet" href="css/main.css" />
+
+  <style>
+    /* ── App-shell resets: override main.css body ─────────────────── */
+    body {
+      font-family: 'Inter', system-ui, sans-serif !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+    }
+
+    /* ── Sidebar active nav item ──────────────────────────────────── */
+    .nav-item[aria-current="page"] {
+      background: rgba(79, 142, 247, 0.12);
+      color: #4f8ef7;
+    }
+    .nav-item[aria-current="page"] svg { color: #4f8ef7; }
+
+    /* ── View panel fade-in ───────────────────────────────────────── */
+    .view-panel { animation: vFadeIn .16s ease; }
+    @keyframes vFadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── KPI update flash (brilho verde quando valor muda) ────────── */
+    @keyframes kpiFlash {
+      0%   { color: #e8eaf0; text-shadow: none; }
+      20%  { color: #4ade80; text-shadow: 0 0 10px rgba(74,222,128,.6); }
+      60%  { color: #4ade80; text-shadow: 0 0 6px rgba(74,222,128,.3); }
+      100% { color: #e8eaf0; text-shadow: none; }
+    }
+    .kpi-updated { animation: kpiFlash 1.8s ease forwards; }
+
+    /* ── Toast do Laboratório (animação de entrada) ───────────────── */
+    @keyframes labToastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── File input button ────────────────────────────────────────── */
+    input[type="file"]::file-selector-button {
+      background: #22263a; border: 1px solid #2e3350; color: #e8eaf0;
+      padding: 4px 10px; border-radius: 5px; cursor: pointer;
+      font-size: 11px; margin-right: 8px; font-family: inherit;
+      transition: background .15s;
+    }
+    input[type="file"]::file-selector-button:hover { background: #2a2f4a; }
+
+    /* ── Scrollbars — macOS-style thin ───────────────────────────── */
+    ::-webkit-scrollbar       { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2e3350; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3e4570; }
+
+    /* ── Override main.css max-width constraints (split-view layout) */
+    #status-bar {
+      max-width: none !important;
+      margin: 0 !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+    }
+    #export-bar {
+      max-width: none !important;
+      margin-top: 12px !important;
+    }
+    #resultado.resultado-wrap {
+      max-width: none !important;
+      margin: 0 !important;
+    }
+    #view-lab .lab-section {
+      max-width: none !important;
+      margin: 0 !important;
+      border-radius: 12px;
+    }
+
+    /* ── PDF Drop Zone: override main.css label defaults ─────────── */
+    #pdf-drop-zone {
+      font-size: inherit !important;
+      font-weight: inherit !important;
+      color: inherit !important;
+      text-transform: none !important;
+      letter-spacing: normal !important;
+      margin-bottom: 0 !important;
+      display: flex !important;
+    }
+
+    /* ── Toolbar compact input: override main.css input[type=text] ── */
+    #toolbar-user-id {
+      width: 140px !important;
+      padding: 5px 10px !important;
+      font-size: 12px !important;
+      border-radius: 6px !important;
+    }
+
+    /* ── KPI bar dividers ─────────────────────────────────────────── */
+    .kpi-card + .kpi-card { border-left: 1px solid #2e3350; }
+  </style>
+</head>
+
+<!-- ══════════════════════════════════════════════════════════════
+     BODY — h-screen workspace shell
+════════════════════════════════════════════════════════════════ -->
+<body class="h-screen w-screen overflow-hidden flex bg-bg text-[#e8eaf0] font-sans antialiased">
+
+
+<!-- ════════════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════════════ -->
+<aside class="w-60 shrink-0 flex flex-col bg-surface border-r border-border h-screen z-40">
+
+  <!-- Logo -->
+  <div class="h-[52px] flex items-center gap-3 px-5 border-b border-border shrink-0">
+    <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center text-base shrink-0 shadow-lg shadow-accent/30">⚖</div>
+    <div class="min-w-0">
+      <p class="text-[13px] font-semibold leading-tight truncate tracking-tight">PJe-Calc</p>
+      <p class="text-[10px] text-muted leading-tight mt-px">Smart Extractor</p>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
+    <p class="text-[9px] font-bold text-muted uppercase tracking-[1.2px] px-3 mb-2 mt-1">Ferramentas</p>
+
+    <button data-nav-view="extrator" aria-current="page"
+      class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-muted transition-all hover:bg-white/[.05] hover:text-[#e8eaf0] focus:outline-none">
+      <svg class="w-[15px] h-[15px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <span>Extrator</span>
+    </button>
+
+    <button data-nav-view="lab"
+      class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-muted transition-all hover:bg-white/[.05] hover:text-[#e8eaf0] focus:outline-none">
+      <svg class="w-[15px] h-[15px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/>
+      </svg>
+      <span>Laboratório</span>
+      <span class="ml-auto text-[9px] font-bold uppercase tracking-widest text-accent2 bg-accent2/10 border border-accent2/30 px-1.5 py-0.5 rounded-md">IA</span>
+    </button>
+
+    <button data-nav-view="historico"
+      class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-muted transition-all hover:bg-white/[.05] hover:text-[#e8eaf0] focus:outline-none">
+      <svg class="w-[15px] h-[15px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span>Meus Processos</span>
+    </button>
+
+    <button data-nav-view="estatisticas"
+      class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-muted transition-all hover:bg-white/[.05] hover:text-[#e8eaf0] focus:outline-none">
+      <svg class="w-[15px] h-[15px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 19h16M4 13h10M4 7h6" />
+      </svg>
+      <span>Estatísticas</span>
+    </button>
+  </nav>
+
+  <!-- Sidebar footer -->
+  <div class="px-5 py-3 border-t border-border shrink-0">
+    <div class="flex items-center justify-between">
+      <span class="text-[10px] text-muted font-mono">v5.2</span>
+      <span class="text-[9px] text-muted/50 uppercase tracking-wider">LegalTech</span>
+    </div>
+  </div>
+
+</aside>
+
+
+<!-- ════════════════════════════════════════════
+     MAIN WORKSPACE
+════════════════════════════════════════════════ -->
+<div class="flex-1 flex flex-col overflow-hidden min-w-0">
+
+  <!-- ── TOOLBAR ─────────────────────────────────────────────────── -->
+  <header class="h-[52px] shrink-0 border-b border-border bg-surface/70 backdrop-blur-sm flex items-center gap-3 px-4">
+
+    <!-- Page title (left) -->
+    <div class="flex-1 min-w-0 leading-none">
+      <h1 id="page-title" class="text-[13px] font-semibold tracking-tight truncate">Extrator de Sentenças</h1>
+      <p  id="page-sub"   class="text-[10px] text-muted mt-0.5 truncate hidden sm:block">Upload de PDF e extração automática de parâmetros</p>
+    </div>
+
+    <!-- Right controls -->
+    <div class="flex items-center gap-2 shrink-0">
+
+      <!-- User ID -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] text-muted hidden md:block select-none">Perito</span>
+        <input type="text" id="user-id" id="toolbar-user-id" value="usuario_teste" autocomplete="off" spellcheck="false"
+          class="bg-bg border border-border rounded-md px-2.5 py-[5px] text-[#e8eaf0] font-mono text-[12px] outline-none
+                 focus:border-accent focus:ring-1 focus:ring-accent/20 transition w-[130px]
+                 placeholder:text-muted">
+      </div>
+
+      <!-- Separator -->
+      <div class="w-px h-5 bg-border mx-1"></div>
+
+      <!-- Credits -->
+      <div id="credits-display"
+        class="font-mono text-[11px] bg-s2 border border-border px-2.5 py-1 rounded-full text-warn tabular-nums whitespace-nowrap">
+        — créditos
+      </div>
+
+      <!-- Avatar -->
+      <div title="Juliana Perita"
+        class="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-accent2 flex items-center justify-center text-[10px] font-bold text-white tracking-wide select-none cursor-default shadow-md shadow-accent/25">
+        JP
+      </div>
+    </div>
+
+  </header>
+
+
+  <!-- ── CONTENT ──────────────────────────────────────────────────── -->
+  <main class="flex-1 flex flex-col overflow-hidden">
+
+
+    <!-- ══════════════════════════════════════════
+         VIEW: EXTRATOR — Split View (PDF ↔ Resultados)
+    ══════════════════════════════════════════════ -->
+    <div id="view-extrator" class="view-panel flex flex-1 overflow-hidden" style="display:none">
+
+
+      <!-- ── COLUNA ESQUERDA: Upload / Visualizador (dois estados) ─────────── -->
+      <div class="w-[50%] shrink-0 flex flex-col border-r border-border overflow-hidden bg-bg min-h-0 relative">
+
+        <!-- ESTADO 1 — Upload vazio (Dropzone) -->
+        <div
+          id="upload-state"
+          class="flex-1 flex flex-col items-center justify-center p-6 m-4 border-2 border-dashed border-border rounded-xl bg-surface/50 hover:bg-surface transition cursor-pointer select-none"
+          onclick="document.getElementById('pdf-file').click()"
+        >
+          <input type="file" id="pdf-file" accept=".pdf" class="hidden">
+
+          <div class="flex flex-col items-center gap-3 text-center max-w-xs">
+            <div class="w-[60px] h-[60px] rounded-2xl bg-s2 border border-border flex items-center justify-center">
+              <svg class="w-7 h-7 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <div class="space-y-1">
+              <p class="text-[13px] font-medium text-[#e8eaf0] leading-tight">
+                Clique para selecionar o PDF da sentença
+              </p>
+              <p class="text-[11px] text-muted leading-relaxed">
+                Sentença · Acórdão · Liquidação · Embargos · Despacho
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ESTADO 2 — Visualizador + Bottom Bar -->
+        <div id="viewer-state" class="hidden flex-1 flex flex-col min-h-0">
+
+          <!-- Área do PDF -->
+          <div class="flex-1 min-h-0">
+            <object
+              id="pdf-viewer"
+              type="application/pdf"
+              class="w-full h-full"
+              style="border:none; outline:none; display:block; min-height:0;"
+            >
+              <p class="p-4 text-muted text-[13px]">
+                PDF não pôde ser renderizado neste navegador.
+              </p>
+            </object>
+          </div>
+
+          <!-- Bottom Bar: trocar arquivo + status + ação principal -->
+          <div class="flex-none px-4 py-3 border-t border-border bg-bg flex items-center justify-between gap-3">
+
+            <div class="flex items-center gap-3 min-w-0">
+              <button
+                type="button"
+                id="pdf-clear-btn"
+                class="text-[11px] text-muted hover:text-[#e8eaf0] px-2 py-1 rounded border border-transparent hover:border-border transition-colors whitespace-nowrap"
+              >
+                ↻ Trocar arquivo
+              </button>
+
+              <div id="status-bar" class="status-bar">
+                <div class="status-dot" id="status-dot"></div>
+                <div class="status-text" id="status-text">Aguardando…</div>
+                <div class="meta-tags" id="meta-tags"></div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="btn-upload"
+              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold tracking-wide
+                     hover:bg-accent/90 active:translate-y-[0.5px]
+                     disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-y-0 transition-all"
+            >
+              ⚡ Extrair Dados
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+      <!-- /Coluna esquerda -->
+
+
+      <!-- ── COLUNA DIREITA: KPIs + Resultados ──────────────────── -->
+      <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+
+        <!-- KPI Bar — 3 indicadores (compactos) -->
+        <div class="shrink-0 grid grid-cols-3 gap-2 border-b border-border bg-surface/10 px-3 py-2">
+
+          <div class="kpi-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-0.5">
+              Verbas Identificadas
+            </p>
+            <p id="kpi-verbas" class="text-[13px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+          </div>
+
+          <div class="kpi-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-0.5">
+              Alertas Jurídicos
+            </p>
+            <p id="kpi-alertas" class="text-[13px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+          </div>
+
+          <div class="kpi-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-0.5">
+              Índice Recomendado
+            </p>
+            <p id="kpi-indice" class="text-[13px] font-semibold font-mono leading-snug text-[#e8eaf0] truncate">—</p>
+          </div>
+
+        </div>
+
+        <!-- Results scroll area -->
+        <div id="results-scroll-area" class="flex-1 overflow-y-auto min-h-0 px-3 pt-3 pb-5">
+
+          <!-- Result injection target — render.js writes here -->
+          <div id="resultado" class="resultado-wrap"></div>
+
+          <!-- Export Bar — JS toggles .show (main.css controls visibility) -->
+          <div id="export-bar" class="export-bar mt-3">
+            <div class="bg-surface border border-border rounded-xl px-5 py-4 shadow-card">
+              <div class="flex flex-wrap gap-3 items-center">
+
+                <button type="button" id="btn-pjc" class="btn-pjc">
+                  ⬇ Baixar .pjc para PJeCalc
+                </button>
+
+                <button type="button" id="btn-excel" class="btn-excel">
+                  ⬇ Baixar Excel (.xlsx)
+                </button>
+
+                <!-- PJC Audit -->
+                <div class="flex items-center gap-2 ml-auto flex-wrap">
+                  <span class="text-[11px] text-muted whitespace-nowrap">📂 Auditoria .PJC:</span>
+                  <input type="file" id="pjc-file" accept=".pjc,.xml"
+                    class="text-[11px] font-mono text-[#e8eaf0] bg-bg border border-border rounded-lg px-2 py-1.5 cursor-pointer max-w-[200px]
+                           file:bg-s2 file:border-0 file:text-[#e8eaf0] file:px-2 file:py-1 file:rounded file:text-[10px] file:cursor-pointer file:mr-2">
+                  <button type="button" id="btn-pjc-audit"
+                    class="text-[11px] px-3 py-1.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors whitespace-nowrap">
+                    🔍 Auditar
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+          <!-- /Export Bar -->
+
+        </div>
+
+      </div>
+      <!-- /Coluna direita -->
+
+
+    </div>
+    <!-- /view-extrator -->
+
+
+    <!-- ══════════════════════════════════════════
+         VIEW: LABORATÓRIO
+    ══════════════════════════════════════════════ -->
+    <div id="view-lab" class="view-panel flex-1 overflow-y-auto" style="display:none">
+      <div class="w-full max-w-7xl mx-auto p-6">
+
+        <!-- btn-toggle-lab: kept in DOM for lab.js compatibility, hidden from UI -->
+        <button type="button" id="btn-toggle-lab" style="display:none">🧪 Laboratório de Aprendizado da Perita</button>
+
+        <!-- lab-section: always "open" inside this panel; styling from main.css -->
+        <section class="lab-section open" id="lab-section">
+
+          <div class="lab-header">
+            <div class="lab-header-icon">🧪</div>
+            <div>
+              <div class="lab-header-title">Laboratório de Aprendizado da Perita</div>
+              <div class="lab-header-sub">Engenharia reversa de casos reais para treinar o sistema</div>
+            </div>
+          </div>
+
+          <!-- Guia de eficiência — combinações recomendadas -->
+          <div class="mb-5 rounded-xl border border-accent/30 bg-surface/50 px-4 py-3 flex items-start gap-3">
+            <div class="text-[18px] leading-none mt-0.5">💡</div>
+            <div class="space-y-1">
+              <p class="text-[13px] font-semibold text-[#e8eaf0]">
+                Guia de Eficiência do Aprendizado
+              </p>
+              <p class="text-[12px] text-muted leading-relaxed">
+                Nenhum arquivo é obrigatório. A IA aceita qualquer combinação, mas aprende melhor com estes conjuntos:
+                <br>
+                <span class="font-semibold text-[#e8eaf0]">Nível 1 — Rápido</span>:
+                <span class="font-semibold">Processo</span> + <span class="font-semibold">Parecer</span> → fundamentos jurídicos e estilo da perita.
+                <br>
+                <span class="font-semibold text-[#e8eaf0]">Nível 2 — Auditoria</span>:
+                Processo + Parecer + <span class="font-semibold">Liquidação</span> → discrepâncias entre sentença e cálculo da empresa.
+                <br>
+                <span class="font-semibold text-[#e8eaf0]">Nível 3 — Tríade da Liquidação</span>:
+                <span class="font-semibold">Amostragem</span> + Processo + <span class="font-semibold">Cálculo .PJC</span> → detecção automática de omissões de parâmetros.
+                <br>
+                <span class="font-semibold text-[#e8eaf0]">Nível 4 — Tríade de Ouro Expandida</span>:
+                Amostragem + Processo + Cálculo .PJC + <span class="font-semibold">Manifestação</span> → máximo aprendizado de retórica de combate e regras preditivas.
+              </p>
+            </div>
+          </div>
+
+          <!-- Linha do tempo da fraude trabalhista: 7 arquivos — grid responsiva -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full" id="lab-upload-grid">
+
+            <!-- PASSO 1 — PROVA: O que a perita provou (PDF de holerites/ponto) -->
+            <div class="lab-upload-card lab-card-opcional lab-card-prova" id="card-amostragem-pdf">
+              <div class="lab-card-step lab-step-opt">1</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Prova / Ponto Eletrônico</div>
+                <div class="lab-card-title">Amostragem PDF</div>
+                <div class="lab-card-hint">PDF</div>
+                <label class="lab-file-label" for="lab-amostragem-pdf">
+                  <span class="lab-file-icon">📊</span>
+                  <span id="lab-amostragem-pdf-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-amostragem-pdf" accept=".pdf" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">opcional · tese vencedora</span>
+            </div>
+
+            <!-- PASSO 2 — ESTILO: Vocabulário e estrutura argumentativa (Word) -->
+            <div class="lab-upload-card lab-card-opcional lab-card-prova" id="card-amostragem-word">
+              <div class="lab-card-step lab-step-opt">2</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Petição / Relatório Word</div>
+                <div class="lab-card-title">Amostragem Word</div>
+                <div class="lab-card-hint">DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-amostragem-word">
+                  <span class="lab-file-icon">📝</span>
+                  <span id="lab-amostragem-word-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-amostragem-word" accept=".doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">opcional · style transfer</span>
+            </div>
+
+            <!-- PASSO 3 — DIREITO: O que o juiz deferiu -->
+            <div class="lab-upload-card" id="card-processo">
+              <div class="lab-card-step">3</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Sentença / Decisão</div>
+                <div class="lab-card-title">Processo</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-processo">
+                  <span class="lab-file-icon">⚖️</span>
+                  <span id="lab-processo-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-processo" accept=".pdf,.doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-obrig">obrigatório</span>
+            </div>
+
+            <!-- PASSO 4 — ERRO: O que a empresa calculou (omissões) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-liquidacao">
+              <div class="lab-card-step lab-step-opt">4</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Cálculo da empresa</div>
+                <div class="lab-card-title">Liquidação</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-liquidacao">
+                  <span class="lab-file-icon">🧮</span>
+                  <span id="lab-liquidacao-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-liquidacao" accept=".pdf,.doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">recomendado · detecta divergências</span>
+            </div>
+
+            <!-- PASSO 5 — CORREÇÃO: Como a perita corrigiu -->
+            <div class="lab-upload-card" id="card-parecer">
+              <div class="lab-card-step">5</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Seu parecer técnico</div>
+                <div class="lab-card-title">Parecer</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-parecer">
+                  <span class="lab-file-icon">✍️</span>
+                  <span id="lab-parecer-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-parecer" accept=".pdf,.doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-obrig">obrigatório</span>
+            </div>
+
+            <!-- PASSO 6 — CONTESTAÇÃO: Como a empresa respondeu (opcional) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-impugnacao">
+              <div class="lab-card-step lab-step-opt">6</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Contestação da parte</div>
+                <div class="lab-card-title">Impugnação</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-impugnacao">
+                  <span class="lab-file-icon">📋</span>
+                  <span id="lab-impugnacao-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-impugnacao" accept=".pdf,.doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">opcional</span>
+            </div>
+
+            <!-- PASSO 7 — AUDITORIA: Parâmetros do PJe-Calc (opcional) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-calculo-pjc">
+              <div class="lab-card-step lab-step-opt">7</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Planilha PJe-Calc</div>
+                <div class="lab-card-title">Cálculo .PJC</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX · .PJC</div>
+                <label class="lab-file-label" for="lab-calculo-pjc">
+                  <span class="lab-file-icon">🗂️</span>
+                  <span id="lab-calculo-pjc-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-calculo-pjc" accept=".pdf,.doc,.docx,.pjc,.xml" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">opcional</span>
+            </div>
+
+            <!-- PASSO 8 — COMBATE: Retórica e estratégia de defesa (Manifestação) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-manifestacao">
+              <div class="lab-card-step lab-step-opt">8</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Petição de Resposta</div>
+                <div class="lab-card-title">Manifestação</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX</div>
+                <label class="lab-file-label" for="lab-manifestacao">
+                  <span class="lab-file-icon">⚔️</span>
+                  <span id="lab-manifestacao-name" class="lab-file-name truncate">Escolher arquivo</span>
+                </label>
+                <input type="file" id="lab-manifestacao" accept=".pdf,.doc,.docx" class="lab-file-input">
+              </div>
+              <span class="lab-card-opc">opcional · retórica de combate</span>
+            </div>
+
+          </div>
+          <!-- /grid -->
+
+          <!-- Rodapé: botão centralizado em linha cheia + status -->
+          <div class="w-full mt-8 space-y-4">
+            <div class="w-full flex justify-center">
+              <button type="button" class="btn btn-lab-analisar w-full sm:w-auto sm:min-w-[320px]" id="btn-lab-analisar">
+                🔬 Analisar e Gerar Relatório de Discrepância
+              </button>
+            </div>
+            <div class="lab-status-container w-full">
+              <div class="lab-status" id="lab-status"></div>
+            </div>
+          </div>
+
+          <!-- Steps (shown after analysis) -->
+          <div class="lab-steps" id="lab-steps">
+
+            <div class="lab-step" id="lab-step-1">
+              <div class="lab-step-header">
+                <span class="lab-step-num">Resultado 1</span>
+                <span class="lab-step-title">Linha do Tempo — Prova · Direito · Cálculo</span>
+              </div>
+              <div class="lab-step-body" id="lab-step-1-body"></div>
+            </div>
+
+            <div class="lab-step" id="lab-step-2">
+              <div class="lab-step-header">
+                <span class="lab-step-num">Resultado 2</span>
+                <span class="lab-step-title">Divergências Detectadas (Liquidação vs. Sentença)</span>
+              </div>
+              <div class="lab-step-body" id="lab-step-2-body"></div>
+            </div>
+
+            <div class="lab-step" id="lab-step-3">
+              <div class="lab-step-header">
+                <span class="lab-step-num">Resultado 3</span>
+                <span class="lab-step-title">Regras Preditivas + Fundamentos da Perita</span>
+              </div>
+              <div class="lab-step-body" id="lab-step-3-body"></div>
+            </div>
+
+            <div class="lab-step" id="lab-step-4">
+              <div class="lab-step-header">
+                <span class="lab-step-num">Passo 4</span>
+                <span class="lab-step-title">Salvar Aprendizado no Sistema</span>
+              </div>
+              <div class="lab-step-body" id="lab-step-4-body">
+                <p class="lab-save-hint">Selecione os aprendizados abaixo e clique em "Salvar" para ensinar o sistema.</p>
+                <div id="lab-aprendizados-lista"></div>
+                <div class="lab-save-actions" id="lab-save-actions"></div>
+              </div>
+            </div>
+
+          </div>
+          <!-- /steps -->
+
+        </section>
+
+      </div>
+    </div>
+    <!-- /view-lab -->
+
+
+    <!-- ══════════════════════════════════════════
+         VIEW: MEUS PROCESSOS (Histórico)
+    ══════════════════════════════════════════════ -->
+    <div id="view-historico" class="view-panel flex-1 overflow-y-auto" style="display:none">
+      <div class="px-6 py-6 max-w-[920px] mx-auto w-full">
+
+        <!-- Header + search -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-[15px] font-semibold leading-tight">Meus Processos</h2>
+            <p class="text-[11px] text-muted mt-0.5">Histórico de extrações · pesquisa em tempo real</p>
+          </div>
+          <div class="relative w-full sm:w-72 shrink-0">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-[13px] h-[13px] text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+            </svg>
+            <input type="text" id="search-historico" placeholder="Buscar por nº processo ou reclamante…" onkeyup="filtrarHistorico()"
+              class="w-full bg-bg border border-border rounded-lg pl-9 pr-3 py-2 text-[13px] text-[#e8eaf0] placeholder:text-muted outline-none
+                     focus:border-accent focus:ring-1 focus:ring-accent/20 transition">
+          </div>
+          <button onclick="carregarHistorico()"
+            class="shrink-0 flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-lg border border-border text-muted
+                   hover:bg-white/[.05] hover:text-[#e8eaf0] transition-colors focus:outline-none">
+            <svg class="w-[12px] h-[12px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar
+          </button>
+        </div>
+
+        <!-- Cards list -->
+        <div id="historico-lista">
+          <div class="text-center py-16 text-muted text-[13px]">
+            <svg class="w-10 h-10 mx-auto mb-3 opacity-25" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p>Nenhuma extração encontrada.<br>Clique em <strong>Atualizar</strong> para carregar o histórico.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- /view-historico -->
+
+
+    <!-- ══════════════════════════════════════════
+         VIEW: ESTATÍSTICAS (Dashboard de IA)
+    ══════════════════════════════════════════════ -->
+    <div id="view-estatisticas" class="view-panel flex-1 overflow-y-auto" style="display:none">
+      <div class="px-6 py-6 w-full max-w-6xl mx-auto space-y-6 pb-12">
+
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div class="flex-1 min-w-0">
+            <h2 class="text-[15px] font-semibold leading-tight">Desempenho da Inteligência Artificial</h2>
+            <p class="text-[11px] text-muted mt-0.5">
+              Acompanhe o aprendizado autônomo, a saúde do motor de regras e as principais divergências detectadas.
+            </p>
+          </div>
+          <button id="btn-estatisticas-refresh" onclick="carregarEstatisticas()"
+            class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-lg border border-border text-muted
+                   hover:bg-white/[.05] hover:text-[#e8eaf0] transition-colors focus:outline-none">
+            <svg class="w-[13px] h-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Atualizar Dados
+          </button>
+        </div>
+
+        <!-- KPI Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] flex items-center gap-1.5">
+                <span>📄</span>
+                <span>Processos Únicos</span>
+              </p>
+              <button onclick="zerarContagem()" title="Zerar contagem para novo ciclo de testes"
+                class="text-[10px] text-muted hover:text-red-400 transition-colors leading-none px-1.5 py-0.5 rounded border border-transparent hover:border-red-400/30">
+                ✕ zerar
+              </button>
+            </div>
+            <p id="stats-kpi-processos" class="text-[18px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+            <p class="text-[10px] text-muted mt-1">por nº de processo (sem duplicatas)</p>
+          </div>
+
+          <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-1 flex items-center gap-1.5">
+              <span>⚖️</span>
+              <span>Regras Oficiais Ativas</span>
+            </p>
+            <p id="stats-kpi-regras-ativas" class="text-[18px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+          </div>
+
+          <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-1 flex items-center gap-1.5">
+              <span>👻</span>
+              <span>Regras em Teste (Shadow)</span>
+            </p>
+            <p id="stats-kpi-regras-shadow" class="text-[18px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+          </div>
+
+          <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card">
+            <p class="text-[10px] font-medium text-muted uppercase tracking-[0.14em] mb-1 flex items-center gap-1.5">
+              <span>🚨</span>
+              <span>Omissões Detectadas</span>
+            </p>
+            <p id="stats-kpi-omissoes" class="text-[18px] font-semibold font-mono leading-none text-[#e8eaf0]">—</p>
+          </div>
+        </div>
+
+        <!-- Split View: Últimas Regras x Top Verbas -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <!-- Últimas Regras Aprendidas -->
+          <section class="bg-surface border border-border rounded-xl px-4 py-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-[13px] font-semibold">Últimas Regras Aprendidas</h3>
+                <p class="text-[11px] text-muted mt-0.5">Autoaprendizado do motor (Knowledge Base)</p>
+              </div>
+            </div>
+            <div id="stats-ultimas-regras" class="space-y-2 text-[12px] text-muted">
+              <p class="text-[11px] text-muted py-4 text-center">Ainda não há dados de regras aprendidas.</p>
+            </div>
+          </section>
+
+          <!-- Top Verbas com Divergências -->
+          <section class="bg-surface border border-border rounded-xl px-4 py-4 shadow-card">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-[13px] font-semibold">Top Verbas com Divergências</h3>
+                <p class="text-[11px] text-muted mt-0.5">Omissões mais frequentes em liquidações</p>
+              </div>
+            </div>
+            <div id="stats-top-verbas" class="space-y-2 text-[12px] text-muted">
+              <p class="text-[11px] text-muted py-4 text-center">Nenhuma estatística disponível ainda.</p>
+            </div>
+          </section>
+
+        </div>
+
+      </div>
+    </div>
+    <!-- /view-estatisticas -->
+
+
+  </main>
+
+</div>
+<!-- /Main workspace -->
+
+
+<!-- ════════════════════════════════════════════
+     INLINE VIEW SWITCHER
+════════════════════════════════════════════════ -->
+<script>
+(function () {
+  var _TITLES = {
+    extrator:    ['Extrator de Sentenças',        'Upload de PDF e extração automática de parâmetros'],
+    lab:         ['Laboratório de Aprendizado',   'Engenharia reversa de casos reais para treinar o sistema'],
+    historico:   ['Meus Processos',               'Histórico de extrações realizadas · pesquisa em tempo real'],
+    estatisticas:['Dashboard de IA',              'Métricas de aprendizado e eficiência do motor'],
+  };
+
+  function showView(v) {
+    // Toggle panels — view-extrator is a flex container; others are block scrollers
+    ['extrator', 'lab', 'historico', 'estatisticas'].forEach(function (name) {
+      var el = document.getElementById('view-' + name);
+      if (!el) return;
+      if (name === v) {
+        el.style.display = '';
+        el.classList.add('view-panel');
+      } else {
+        el.style.display = 'none';
+      }
+    });
+
+    // Lab section always open
+    if (v === 'lab') {
+      var labSec = document.getElementById('lab-section');
+      if (labSec) labSec.classList.add('open');
+    }
+
+    // Auto-load history
+    if (v === 'historico' && typeof carregarHistorico === 'function') {
+      carregarHistorico();
+    }
+    // Auto-load stats
+    if (v === 'estatisticas' && typeof carregarEstatisticas === 'function') {
+      carregarEstatisticas();
+    }
+
+    // Sidebar active state
+    document.querySelectorAll('[data-nav-view]').forEach(function (btn) {
+      btn.setAttribute('aria-current', btn.dataset.navView === v ? 'page' : '');
+    });
+
+    // Header title
+    var t = _TITLES[v] || _TITLES.extrator;
+    var el1 = document.getElementById('page-title');
+    var el2 = document.getElementById('page-sub');
+    if (el1) el1.textContent = t[0];
+    if (el2) el2.textContent = t[1];
+
+    try { localStorage.setItem('pje_view', v); } catch (e) {}
+  }
+
+  window._showView = showView;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var saved = 'extrator';
+    try { saved = localStorage.getItem('pje_view') || 'extrator'; } catch (e) {}
+    showView(saved);
+
+    document.querySelectorAll('[data-nav-view]').forEach(function (btn) {
+      btn.addEventListener('click', function () { showView(this.dataset.navView); });
+    });
+  });
+}());
+</script>
+
+<script src="js/app.js"></script>
+<script src="js/render.js"></script>
+<script src="js/lab.js"></script>
+</body>
+</html>

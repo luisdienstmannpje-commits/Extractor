@@ -1,0 +1,17 @@
+{
+  "id": "sumula_331_tst",
+  "tipo": "sumula",
+  "numero": 331,
+  "tribunal": "TST",
+  "ementa": "Contrato de prestação de serviços. Legalidade. Revisão do Enunciado n. 256.",
+  "aplicacao": "terceirizacao",
+  "incisos": {
+    "I": "A contratação de trabalhadores por empresa interposta é ilegal, formando-se o vínculo diretamente com o tomador dos serviços, salvo no caso de trabalho temporário.",
+    "III": "Não forma vínculo de emprego com o tomador a contratação de serviços de vigilância, de conservação e limpeza, bem como a de serviços especializados ligados à atividade-meio do tomador, desde que inexistente a pessoalidade e a subordinação direta.",
+    "IV": "O inadimplemento das obrigações trabalhistas, por parte do empregador, implica a responsabilidade subsidiária do tomador dos serviços quanto àquelas obrigações, desde que haja participado da relação processual e conste também do título executivo judicial.",
+    "V": "Os entes integrantes da Administração Pública direta e indireta respondem subsidiariamente, nas mesmas condições do item IV, caso evidenciada a sua conduta culposa no cumprimento das obrigações da Lei n. 8.666/93."
+  },
+  "resultado": "RESPONSABILIDADE_SUBSIDIARIA",
+  "vigente": true,
+  "atualizado_em": "2024-01-01"
+}

@@ -1,0 +1,271 @@
+{
+  "job_id": "6e9374af-dc5f-4d69-bf01-b70f52d51966",
+  "numero_processo": "0010070-87.2020.5.03.0092",
+  "reclamante": "EDER PEREIRA MARTINS",
+  "reclamada": "PROAIR SERVICOS AUXILIARES DE TRANSPORTE AEREO LTDA",
+  "timestamp": "2026-03-12T13:23:14.932612+00:00",
+  "doc_type": "completo",
+  "pipeline": {
+    "pre_extractor": {
+      "campos_extraidos": 7,
+      "total_monitorados": 12
+    },
+    "ai_model_used": "gemini-2.0-flash",
+    "tokens_consumidos": 0
+  },
+  "regras_aplicadas": [],
+  "alertas": [
+    "[INFO] FGTS incide sobre aviso prévio (trabalhado e indenizado) — Súmula 305 TST.",
+    "[INFO] Horas extras 'HORAS EXTRAS' — reflexos adicionados por Súmula 264 TST: dsr, ferias_proporcionais, decimo_terceiro, fgts_depositos.",
+    "[INFO] Férias indenizadas não identificadas — OJ 195 SDI-I TST não aplicada.",
+    "[INFO] Multa de 40% do FGTS incide sobre aviso prévio trabalhado — OJ 42 SDI-I TST.",
+    "[AVISO] Aviso prévio proporcional não calculado — datas de admissão/demissão ausentes.",
+    "[INFO] Honorários advocatícios sucumbenciais não identificados na sentença.",
+    "[INFO] Multa art. 467 CLT não identificada nas verbas deferidas.",
+    "[INFO] Multa art. 477 CLT não identificada nas verbas deferidas.",
+    "[ERRO] [ERRO] Dígito verificador inválido: 0010070-87.2020.5.03.0092. Dígito verificador inválido: informado=87, esperado=62.",
+    "[INFO] FGTS incide sobre aviso prévio (trabalhado e indenizado) — Súmula 305 TST.",
+    "[INFO] Horas extras 'HORAS EXTRAS' — reflexos adicionados por Súmula 264 TST: dsr, ferias_proporcionais, decimo_terceiro, fgts_depositos.",
+    "[INFO] Férias indenizadas não identificadas — OJ 195 SDI-I TST não aplicada.",
+    "[INFO] Multa de 40% do FGTS incide sobre aviso prévio trabalhado — OJ 42 SDI-I TST.",
+    "[AVISO] Aviso prévio proporcional não calculado — datas de admissão/demissão ausentes.",
+    "[INFO] Honorários advocatícios sucumbenciais não identificados na sentença.",
+    "[INFO] Multa art. 467 CLT não identificada nas verbas deferidas.",
+    "[INFO] Multa art. 477 CLT não identificada nas verbas deferidas.",
+    "[ERRO] [ERRO] Dígito verificador inválido: 0010070-87.2020.5.03.0092. Dígito verificador inválido: informado=87, esperado=62.",
+    "[DEDUP] Verba duplicada removida: '13º SALÁRIO SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'AVISO PRÉVIO SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'FÉRIAS + 1/3 SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: '13º SALÁRIO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'AVISO PRÉVIO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'FÉRIAS + 1/3 SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'REPOUSO SEMANAL REMUNERADO E FERIADO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'REPOUSO SEMANAL REMUNERADO E FERIADO SOBRE INTERVALO INTRAJORNADA' (periodo: 01/02/2017 a 08/05/2019).",
+    "[DEDUP] Verba duplicada removida: 'MULTA SOBRE FGTS 40%' (periodo: 01/02/2017 a 08/05/2019)."
+  ],
+  "verbas_deferidas": 7,
+  "verbas_indeferidas": 0,
+  "deduplicacao": {
+    "duplicatas_removidas": 9,
+    "avisos": [
+      "[DEDUP] Verba duplicada removida: '13º SALÁRIO SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'AVISO PRÉVIO SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'FÉRIAS + 1/3 SOBRE ADICIONAL DE INSALUBRIDADE 40%' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: '13º SALÁRIO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'AVISO PRÉVIO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'FÉRIAS + 1/3 SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'REPOUSO SEMANAL REMUNERADO E FERIADO SOBRE HORAS EXTRAS' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'REPOUSO SEMANAL REMUNERADO E FERIADO SOBRE INTERVALO INTRAJORNADA' (periodo: 01/02/2017 a 08/05/2019).",
+      "[DEDUP] Verba duplicada removida: 'MULTA SOBRE FGTS 40%' (periodo: 01/02/2017 a 08/05/2019)."
+    ]
+  },
+  "explicacoes": [
+    {
+      "regra_id": "SUMULA_305_TST",
+      "titulo": "FGTS sobre Aviso Prévio",
+      "base_legal": "Súmula 305 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "Apuração da verba de FGTS incidente sobre o aviso prévio indenizado, com reflexos na base de cálculo da indenização de 40%, nos termos da Súmula 305 do TST, ainda que não haja efetiva prestação de serviços no período correspondente.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "SUMULA_264_TST",
+      "titulo": "Horas Extras — Reflexos em DSR",
+      "base_legal": "Súmula 264 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "Apuração das horas extras e adicionais (ADICIONAL DE INSALUBRIDADE 40%, HORAS EXTRAS), com reflexos em DSR, férias acrescidas de 1/3, 13º salário e FGTS, utilizadas as Súmulas 264 e 347 do TST, observado o divisor aplicável ao caso concreto, com percentual de 50%. Os reflexos incidem apenas nas parcelas expressamente deferidas no título executivo.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "SUMULA_91_TST",
+      "titulo": "Sumula 91 TST",
+      "base_legal": "Sumula 91 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "Regra SUMULA_91_TST aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "OJ_394_SDI1_TST",
+      "titulo": "DSR — Bis in Idem",
+      "base_legal": "OJ 394 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Apuração do repouso semanal remunerado majorado por horas extras (HORAS EXTRAS), observando-se que tais valores não refletem em férias, 13º salário nem FGTS, para evitar bis in idem, nos termos da OJ 394 da SDI‑I do TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_195_SDI1_TST",
+      "titulo": "FGTS — Férias Indenizadas",
+      "base_legal": "OJ 195 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Apuração da verba de férias indenizadas, sem incidência de FGTS, uma vez que as férias não gozadas, convertidas em pecúnia, não integram a base de cálculo do FGTS, em conformidade com a OJ 195 da SDI‑I do TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_42_SDI1_TST",
+      "titulo": "Multa 40% FGTS — Aviso Prévio Indenizado",
+      "base_legal": "OJ 42 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Apuração da multa de 40% do FGTS, excluindo-se da base de cálculo o aviso prévio indenizado, em observância à OJ 42 da SDI‑I do TST, de modo que a indenização rescisória recaia apenas sobre as parcelas de natureza salarial efetivamente devidas.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_394_SDI1_TST_REFLEXOS_PROIBIDOS",
+      "titulo": "Reflexos Proibidos entre Verbas",
+      "base_legal": "OJ 394 SDI-I TST; vedacao legal",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Regra OJ_394_SDI1_TST_REFLEXOS_PROIBIDOS aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "ART_791A_CLT",
+      "titulo": "Honorários Advocatícios Sucumbenciais",
+      "base_legal": "Art. 791-A CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Apuração dos honorários advocatícios sucumbenciais fixados, nos termos do art. 791‑A da CLT (Reforma Trabalhista de 2017), calculados sobre a base de condenação definida no título executivo.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "ART_467_CLT",
+      "titulo": "Multa Art. 467 CLT — Verbas Incontroversas",
+      "base_legal": "Art. 467 CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Apuração da multa prevista no art. 467 da CLT, correspondente a 50% das verbas rescisórias incontroversas, em razão do não pagamento no prazo legal, com incidência apenas sobre os títulos expressamente indicados na decisão.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "ART_477_CLT",
+      "titulo": "Multa Art. 477 CLT — Atraso Rescisório",
+      "base_legal": "Art. 477 §8º CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Apuração da multa do art. 477, § 6º, da CLT, em razão do atraso no pagamento das verbas rescisórias (equivalente a 1 salário), calculada sobre a remuneração mensal do trabalhador, conforme parâmetros fixados na sentença.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "CONSISTENCIA_AVISO_PREVIO_DIAS",
+      "titulo": "Dias de aviso prévio",
+      "base_legal": "Art. 487 CLT (mínimo 30 dias) e Lei 12.506/2011 (máximo 90 dias).",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera avisos quando o número de dias de aviso prévio está abaixo de 30 ou acima de 90, sugerindo revisão do cálculo ou da extração.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_AVISO_PREVIO_SEM_JUSTA_CAUSA",
+      "titulo": "Aviso prévio em dispensa sem justa causa",
+      "base_legal": "Consistência — dispensa sem justa causa exige previsão de aviso prévio (campo ou verba deferida).",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera aviso quando motivo_rescisao indica 'sem justa causa' mas não há aviso_previo_dias nem verba de aviso nas verbas_deferidas.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_BIS_IN_IDEM_REFLEXOS",
+      "titulo": "Bis in idem em reflexos",
+      "base_legal": "Consistência de cálculo — vedação a reflexos em si mesmos",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera alerta de erro quando uma verba aparece como reflexo de si mesma, evitando bis in idem nos reflexos trabalhistas.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_DATAS",
+      "titulo": "Consistência das datas do processo",
+      "base_legal": "Consistência cronológica — ordem lógica entre admissão, demissão, saída em CTPS, ajuizamento e sentença.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Verifica incoerências básicas entre datas (ex.: admissão depois da demissão, sentença antes da demissão, ajuizamento depois da sentença).",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_DANO_MORAL_EM_VERBAS",
+      "titulo": "Dano moral não deve constar em verbas_deferidas",
+      "base_legal": "Consistência de modelagem — dano moral possui campo próprio e não deve ser tratado como verba comum na lista de verbas_deferidas.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera aviso quando 'Dano Moral' aparece entre as verbas deferidas, orientando a usar o campo estruturado específico de dano moral.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_INTEGRACAO_SEM_REFLEXOS",
+      "titulo": "Verba integrada sem reflexos",
+      "base_legal": "Consistência de cálculo — verbas que integram salário normalmente geram reflexos em outras parcelas",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Alerta quando uma verba com integracao_salarial=True está sem reflexos informados, indicando possível omissão de reflexos na extração.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_MULTA_477_VALOR",
+      "titulo": "Multa art. 477 — valor equivalente a 1 salário",
+      "base_legal": "Art. 477 CLT — multa = 1 salário base.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Aviso quando o valor da multa art. 477 difere do salário base em mais de 5%.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_SALARIO_BASE_MINIMO",
+      "titulo": "Salário base mínimo",
+      "base_legal": "Consistência de dados — salário base positivo e compatível com o salário mínimo vigente.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera erro se salário base é inválido (<= 0) e aviso se está abaixo do salário mínimo configurado no sistema.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_VERBAS_DUPLICADAS",
+      "titulo": "Verbas duplicadas",
+      "base_legal": "Consistência de dados — mesma verba e mesmo período não deve aparecer duas vezes.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Aviso quando existe mais de uma verba com o mesmo nome canônico e período.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CNJ_DIGITO_VERIFICADOR",
+      "titulo": "Validacao CNJ",
+      "base_legal": "Resolucao CNJ n 65/2008",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Validação formal do número do processo informado, de acordo com o dígito verificador previsto na Resolução CNJ 65/2008, assegurando a correta identificação do feito para fins de liquidação.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "CONSISTENCIA_SALARIO",
+      "titulo": "Consistencia salario base",
+      "base_legal": "Art. 7 IV CF/88 - Decreto 12.302/2025",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Regra CONSISTENCIA_SALARIO aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "S9_VERBA_DEDUPLICATOR",
+      "titulo": "Deduplicacao de Verbas Pos-IA",
+      "base_legal": "Boas praticas de calculo",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Regra S9_VERBA_DEDUPLICATOR aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "BIS_IN_IDEM_VERBAS",
+      "titulo": "Bis in idem — verba não pode refletir em si mesma",
+      "base_legal": "Vedação ao bis in idem — jurisprudência TST",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Detecta verbas que aparecem como reflexo de si mesmas. Configura bis in idem e deve ser corrigido antes dos cálculos.",
+      "tem_template": false
+    }
+  ]
+}

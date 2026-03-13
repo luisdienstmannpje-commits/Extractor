@@ -1,0 +1,1 @@
+from memoria_calculo.generator import gerar_memoria

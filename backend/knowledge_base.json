@@ -1,0 +1,406 @@
+{
+  "rules": [
+    {
+      "rule_id": "DYN_20260313_120438_9684",
+      "descricao": "Verba 'Horas Extras' deferida na sentença e ausente no cálculo.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "HORAS EXTRAS",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'HORAS EXTRAS', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
+      },
+      "base_legal": "Título executivo judicial (Coisa julgada)",
+      "confidence_score": 3,
+      "status": "active",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 2,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:04:38.968437",
+      "updated_at": "2026-03-13T12:04:38.985257"
+    },
+    {
+      "rule_id": "DYN_20260313_120438_9852",
+      "descricao": "Verba 'Intervalo Intrajornada' deferida e ausente no cálculo.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "INTERVALO INTRAJORNADA",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'INTERVALO INTRAJORNADA', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
+      },
+      "base_legal": "Art. 71, § 4º, CLT; Título executivo judicial (Coisa julgada)",
+      "confidence_score": 2,
+      "status": "active",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092",
+        "0011219-69.2024.5.15.0052",
+        "1002192-49.2025.5.02.0221",
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 6,
+      "punicoes": 5,
+      "created_at": "2026-03-13T12:04:38.985257",
+      "updated_at": "2026-03-13T15:26:36.891610"
+    },
+    {
+      "rule_id": "DYN_20260313_120438_9852",
+      "descricao": "Índice de correção monetária aplicado diverge da sentença.",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": null,
+        "campo": "indice_correcao",
+        "valor_esperado": "IPCA-E até 27/01/2020 e Sem Correção a partir de 28/01/2020"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção monetária deve seguir a determinação da sentença: IPCA-E até 27/01/2020 e Sem Correção a partir de 28/01/2020. O cálculo aplicou IPCA-E em todo o período."
+      },
+      "base_legal": "ADC 58 STF; Título executivo judicial (Coisa julgada)",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:04:38.985257",
+      "updated_at": "2026-03-13T12:04:38.985257"
+    },
+    {
+      "rule_id": "DYN_20260313_120913_8764",
+      "descricao": "Ausência da verba 'saldo de salário'",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "saldo de salário",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'saldo de salário', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": -7,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 4,
+      "punicoes": 12,
+      "created_at": "2026-03-13T12:09:13.876415",
+      "updated_at": "2026-03-13T15:26:36.900922"
+    },
+    {
+      "rule_id": "DYN_20260313_120913_8764",
+      "descricao": "Ausência da verba '13º salário proporcional'",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "13º salário proporcional",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba '13º salário proporcional', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:09:13.876415",
+      "updated_at": "2026-03-13T12:09:13.876415"
+    },
+    {
+      "rule_id": "DYN_20260313_120913_8764",
+      "descricao": "Ausência da verba 'férias proporcionais + 1/3'",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "férias proporcionais + 1/3",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'férias proporcionais + 1/3', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:09:13.876415",
+      "updated_at": "2026-03-13T12:09:13.876415"
+    },
+    {
+      "rule_id": "DYN_20260313_120913_8764",
+      "descricao": "Ausência da verba 'aviso-prévio indenizado'",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "aviso-prévio indenizado",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'aviso-prévio indenizado', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:09:13.876415",
+      "updated_at": "2026-03-13T12:09:13.876415"
+    },
+    {
+      "rule_id": "DYN_20260313_124103_6919",
+      "descricao": "Cálculo de horas extras não previstas na sentença",
+      "condicao": {
+        "tipo": "verba_presente",
+        "verba": "horas extras",
+        "campo": null,
+        "valor_esperado": "ausente"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'horas extras' foi calculada na liquidação, mas não consta na condenação. Favor revisar os cálculos para se ater aos limites da coisa julgada."
+      },
+      "base_legal": "Art. 509, § 4º, CPC; Art. 879, § 1º, CLT",
+      "confidence_score": 2,
+      "status": "shadow",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221",
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 1,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:41:03.691977",
+      "updated_at": "2026-03-13T15:26:36.882607"
+    },
+    {
+      "rule_id": "DYN_20260313_124103_6960",
+      "descricao": "Apuração de dano moral sem condenação correspondente",
+      "condicao": {
+        "tipo": "verba_presente",
+        "verba": "dano moral",
+        "campo": null,
+        "valor_esperado": "ausente"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "Foi identificada a apuração de 'dano moral' na liquidação, verba que não foi objeto da condenação. O cálculo deve ser excluído."
+      },
+      "base_legal": "Art. 509, § 4º, CPC; Art. 879, § 1º, CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:41:03.696017",
+      "updated_at": "2026-03-13T12:41:03.696017"
+    },
+    {
+      "rule_id": "DYN_20260313_124103_6980",
+      "descricao": "Cálculo de FGTS sobre verbas não deferidas",
+      "condicao": {
+        "tipo": "verba_presente",
+        "verba": "FGTS",
+        "campo": null,
+        "valor_esperado": "ausente"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O FGTS está sendo calculado como verba acessória, porém as verbas principais (ex: horas extras, 13º salário) não foram deferidas na sentença. Revisar a base de cálculo."
+      },
+      "base_legal": "Súmula 63 TST",
+      "confidence_score": 2,
+      "status": "shadow",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221",
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 1,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:41:03.698016",
+      "updated_at": "2026-03-13T15:26:36.888609"
+    },
+    {
+      "rule_id": "DYN_20260313_124425_7160",
+      "descricao": "Verbas deferidas em sentença ausentes no cálculo",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": null,
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "Identificamos que verbas deferidas na sentença (itens 05 a 10 da fundamentação) não constam na liquidação. É necessário incluir todos os títulos deferidos no cálculo."
+      },
+      "base_legal": "Verificar fundamentação na manifestação",
+      "confidence_score": 0,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 1,
+      "punicoes": 2,
+      "created_at": "2026-03-13T12:44:25.716014",
+      "updated_at": "2026-03-13T15:26:36.903922"
+    },
+    {
+      "rule_id": "DYN_20260313_124425_7160",
+      "descricao": "Índice de correção no arquivo PJe-Calc está incorreto",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": null,
+        "campo": "pje_calc_indice",
+        "valor_esperado": "IPCA"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção configurado no arquivo PJe-Calc (.PJC) como 'IPCAE' diverge da decisão judicial (IPCA). Corrija a configuração do índice no sistema."
+      },
+      "base_legal": "ADC 58, Súmula 439 TST",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T12:44:25.716014",
+      "updated_at": "2026-03-13T12:44:25.716014"
+    },
+    {
+      "rule_id": "DYN_20260313_150536_7908",
+      "descricao": "[Manifestação] Quando empresa alega 'Apresentou cálculos de horas extras sem fornecer a documentação comprobatória da', aplicar: A ausência dos registros de jornada torna os cálculos inválidos e sem credibilidade, pois a origem das horas não pode se",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "campo": "argumento_empresa",
+        "valor_esperado": "Apresentou cálculos de horas extras sem fornecer a documentação comprobatória da"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "AVISO",
+        "mensagem": "Sugerir fundamento: Princípio da prova documental (implícito) — Rebate: A ausência dos registros de jornada torna os cálculos inválidos e sem credibilidade, pois a origem das horas não pode se"
+      },
+      "base_legal": "Princípio da prova documental (implícito)",
+      "confidence_score": 8,
+      "status": "active",
+      "casos_vistos": [],
+      "acertos": 7,
+      "punicoes": 0,
+      "created_at": "2026-03-13T15:05:36.790828",
+      "updated_at": "2026-03-13T15:26:30.241515"
+    },
+    {
+      "rule_id": "DYN_20260313_150545_4577",
+      "descricao": "Diferença entre o índice de correção monetária utilizado na sentença (inexistente) e na liquidação (IPCA-E).",
+      "condicao": {
+        "tipo": "indice_ausente",
+        "campo": "indice_correcao",
+        "valor_esperado": "Não definido na sentença"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção monetária utilizado na liquidação (IPCA-E) difere do índice definido na sentença (inexistente). Verificar qual índice deve ser aplicado."
+      },
+      "base_legal": "Art. 39 da Lei 8.177/91",
+      "confidence_score": 0,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 1,
+      "punicoes": 2,
+      "created_at": "2026-03-13T15:05:45.457799",
+      "updated_at": "2026-03-13T15:26:36.904924"
+    },
+    {
+      "rule_id": "DYN_20260313_150545_4734",
+      "descricao": "Inexistência de verbas na sentença, enquanto a liquidação apresenta diversas verbas.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Todas as verbas"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A sentença não contém verbas, enquanto a liquidação apresenta horas extras, intervalo intrajornada, insalubridade, férias, 13º salário, aviso prévio e FGTS. Confirmar se a liquidação está calculando verbas indevidas ou se houve omissão na sentença."
+      },
+      "base_legal": "Art. 879, § 1º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-13T15:05:45.473428",
+      "updated_at": "2026-03-13T15:26:36.904924"
+    },
+    {
+      "rule_id": "DYN_20260313_152636_8846",
+      "descricao": "Inconsistência na apuração do intervalo intrajornada na liquidação.",
+      "condicao": {
+        "tipo": "verba_presente",
+        "verba": "intervalo intrajornada"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "AVISO",
+        "mensagem": "Conferir se o cálculo do intervalo intrajornada na liquidação corresponde ao período devido conforme a sentença e a legislação, considerando a duração do trabalho e os intervalos usufruídos."
+      },
+      "base_legal": "Art. 71 CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010070-87.2020.5.03.0092"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-13T15:26:36.884610",
+      "updated_at": "2026-03-13T15:26:36.884610"
+    }
+  ],
+  "_meta": {
+    "version": "1.0",
+    "created_at": "2026-03-13T12:04:38.968437",
+    "updated_at": "2026-03-13T15:26:36.904924"
+  }
+}

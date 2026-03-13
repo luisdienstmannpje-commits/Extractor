@@ -1,0 +1,62 @@
+# PJeCalc Smart Extractor — Regras para IA (Cursor Chat e Composer)
+
+Este projeto segue uma arquitetura definida. Antes de propor código, consulte a documentação em `backend/docs/` e respeite os padrões abaixo.
+
+---
+
+## Arquitetura em uma frase
+
+**Extração de PDF → LLM (Gemini) → Motor de Regras Python (Legal Rule Engine) → Frontend Vanilla JS → Excel / .PJC**
+
+- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`. Não altere a ordem dos passos sem atualizar `docs/PIPELINE.md` e testes.
+- **Frontend**: Vanilla JavaScript (sem React/Vue). `frontend/js/app.js` (API, upload, export); `frontend/js/render.js` (renderização dos dados e parecer). Não introduzir frameworks SPA.
+- **Motor de regras**: Toda regra jurídica herda de `LegalRule` em `services/legal_engine/rule_base.py`. Uma regra por arquivo em `services/legal_engine/rules/`. Prioridade: 10=STF, 20=Súmulas TST, 30=OJs TST, 40=CLT, 50=Consistência.
+- **Modelo de dados**: `ProcessoTrabalhista` e `VerbaDeferida` em `backend/models.py`. Novos campos exigem atualizar `SCHEMA_VERSION`, `schema_version_guard.py` e, se a regra ler o campo, `engine._dict_para_contexto`.
+
+---
+
+## Onde ler primeiro (por tipo de tarefa)
+
+| Tarefa | Ler primeiro |
+|--------|--------------|
+| Visão geral | `backend/docs/AI_NAVIGATION_LAYER.md` → `docs/SYSTEM_OVERVIEW.md`, `docs/PIPELINE.md` |
+| Qual arquivo faz o quê | `backend/docs/CODE_MAP.md` |
+| Adicionar/modificar regra jurídica | README (seção Motor de regras), `legal_engine/rule_base.py`, um `.py` em `legal_engine/rules/` como template |
+| Alterar pipeline ou contrato | `docs/PIPELINE.md`, `workers/processor.py` |
+| Alterar modelo (campos) | `models.py`, `SCHEMA_VERSION`, `legal_engine/engine.py` (_dict_para_contexto) |
+| Export (Excel, PJC, memória) | `docs/CODE_INTELLIGENCE_MAP.md` § 5, `excel_exporter.py`, `memoria_calculo/generator.py` |
+| Regras de conduta da IA | `backend/docs/AI_RULES.md` |
+
+---
+
+## Regras críticas — nunca fazer
+
+- Não quebrar a ordem ou os contratos dos 10 passos do pipeline sem análise de impacto e atualização de documentação e testes.
+- Não remover lógica jurídica (regras, explanation_engine, validações) sem substituição equivalente e testes.
+- Não introduzir regressões: após mudanças, rodar `pytest -q` (a partir de `backend/`) e garantir 0 falhas.
+- Não sugerir React, Vue ou outro framework no frontend; o projeto usa Vanilla JS.
+- Validação jurídica é feita **exclusivamente** pelo Legal Rule Engine; `legal_validator.py` apenas delega. Não reintroduzir lógica de validação fora do engine.
+
+---
+
+## Convenções de código
+
+- **Regras jurídicas**: herdar de `LegalRule`; definir `id`, `titulo`, `base_legal`, `prioridade`; implementar `aplicar(contexto: ContextoJuridico) -> ContextoJuridico`; usar `self._alerta(contexto, msg, nivel)` e `self._registrar(contexto)`; nunca lançar exceção — capturar e logar.
+- **Pydantic**: modelos em `models.py`; validadores `mode="before"` para normalizar tipos (ex.: bool → str em campos de texto). Manter compatibilidade com cache (SCHEMA_VERSION).
+- **.PJC**: é XML (ISO-8859-1). Parser em `services/pjc_parser.py`; auditoria em `services/pjc_auditor.py`. Compatibilidade com PJeCalc 2.14.0 ao alterar export/patch.
+- **Playbooks IA**: `backend/skills/*.md` (ex.: `sentenca_ordinaria.md`). Enriquecer sem sobrescrever blocos existentes; evitar regressão.
+
+---
+
+## Testes
+
+- Testes do motor de regras em `backend/tests/jurisprudencia/` (um arquivo por regra ou domínio). Padrão: construir `ContextoJuridico` com dados mínimos, chamar `regra.aplicar(ctx)`, assertar `alertas` e `regras_aplicadas`.
+- Rodar: `cd backend && pytest -q` ou `pytest tests/jurisprudencia/ -v`. Manter todos os testes verdes antes de concluir alterações.
+
+---
+
+## Resumo para o Cursor
+
+- Use `backend/docs/AI_NAVIGATION_LAYER.md` como ponto de entrada e siga o roteiro da tarefa.
+- Respeite `AI_RULES.md` e este `.cursorrules` em toda sugestão de código.
+- Prefira alterações incrementais e sem regressão; documente impacto ao propor mudanças arquiteturais.

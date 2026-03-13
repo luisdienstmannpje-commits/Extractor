@@ -1,0 +1,279 @@
+{
+  "job_id": "5b7f48f9-902a-4a57-835e-9f8597b27717",
+  "numero_processo": "0010250-64.2024.5.03.0092",
+  "reclamante": "LUIZ AUGUSTO BATISTA SANTOS",
+  "reclamada": "INTERNATIONAL MEAL COMPANY ALIMENTACAO S.A.",
+  "timestamp": "2026-03-12T06:30:47.098992+00:00",
+  "doc_type": "embargos",
+  "pipeline": {
+    "pre_extractor": {
+      "campos_extraidos": 5,
+      "total_monitorados": 12
+    },
+    "ai_model_used": "gemini-2.0-flash",
+    "tokens_consumidos": 0
+  },
+  "regras_aplicadas": [],
+  "alertas": [
+    "[INFO] FGTS incide sobre aviso prévio (trabalhado e indenizado) — Súmula 305 TST.",
+    "[INFO] Horas extras 'horas extras' — reflexos adicionados por Súmula 264 TST: dsr, ferias_proporcionais, decimo_terceiro, fgts_depositos.",
+    "[INFO] Férias indenizadas não identificadas — OJ 195 SDI-I TST não aplicada.",
+    "[INFO] Multa de 40% do FGTS incide sobre aviso prévio trabalhado — OJ 42 SDI-I TST.",
+    "[AVISO] Aviso prévio proporcional não calculado — datas de admissão/demissão ausentes.",
+    "[INFO] Honorários advocatícios sucumbenciais não identificados na sentença.",
+    "[INFO] Multa art. 467 CLT não identificada nas verbas deferidas.",
+    "[INFO] Multa art. 477 CLT não identificada nas verbas deferidas.",
+    "[ERRO] [ERRO] Dígito verificador inválido: 0010250-64.2024.5.03.0092. Dígito verificador inválido: informado=64, esperado=22.",
+    "[INFO] FGTS incide sobre aviso prévio (trabalhado e indenizado) — Súmula 305 TST.",
+    "[INFO] Horas extras 'horas extras' — reflexos adicionados por Súmula 264 TST: dsr, ferias_proporcionais, decimo_terceiro, fgts_depositos.",
+    "[INFO] Férias indenizadas não identificadas — OJ 195 SDI-I TST não aplicada.",
+    "[INFO] Multa de 40% do FGTS incide sobre aviso prévio trabalhado — OJ 42 SDI-I TST.",
+    "[AVISO] Aviso prévio proporcional não calculado — datas de admissão/demissão ausentes.",
+    "[INFO] Honorários advocatícios sucumbenciais não identificados na sentença.",
+    "[INFO] Multa art. 467 CLT não identificada nas verbas deferidas.",
+    "[INFO] Multa art. 477 CLT não identificada nas verbas deferidas.",
+    "[ERRO] [ERRO] Dígito verificador inválido: 0010250-64.2024.5.03.0092. Dígito verificador inválido: informado=64, esperado=22."
+  ],
+  "verbas_deferidas": 1,
+  "verbas_indeferidas": 0,
+  "deduplicacao": {
+    "duplicatas_removidas": 0,
+    "avisos": []
+  },
+  "explicacoes": [
+    {
+      "regra_id": "SUMULA_305_TST",
+      "titulo": "FGTS sobre Aviso Prévio",
+      "base_legal": "Súmula 305 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "FGTS incide sobre o aviso prévio indenizado, ainda que não haja efetiva prestação de serviços — Súmula 305 do TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "SUMULA_264_TST",
+      "titulo": "Horas Extras — Reflexos em DSR",
+      "base_legal": "Súmula 264 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "Horas extras e adicionais (horas extras) integram o salário para fins de reflexos. Incidência em DSR, férias acrescidas de 1/3, 13º salário e FGTS — Súmula 264 do TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "SUMULA_91_TST",
+      "titulo": "Sumula 91 TST",
+      "base_legal": "Sumula 91 TST",
+      "nivel": "Súmula TST",
+      "prioridade": 20,
+      "explicacao": "Regra SUMULA_91_TST aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "OJ_394_SDI1_TST",
+      "titulo": "DSR — Bis in Idem",
+      "base_legal": "OJ 394 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "DSR majorado por horas extras (horas extras) não reflete em férias, 13º salário nem FGTS — evitado o bis in idem. OJ 394 SDI-I TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_195_SDI1_TST",
+      "titulo": "FGTS — Férias Indenizadas",
+      "base_legal": "OJ 195 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "FGTS não incide sobre férias indenizadas. Férias não gozadas convertidas em pecúnia não integram a base de cálculo do FGTS — OJ 195 SDI-I TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_42_SDI1_TST",
+      "titulo": "Multa 40% FGTS — Aviso Prévio Indenizado",
+      "base_legal": "OJ 42 SDI-I TST",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Multa de 40% do FGTS não incide sobre o aviso prévio indenizado. A base de cálculo da multa rescisória exclui o aviso prévio indenizado — OJ 42 SDI-I TST.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "OJ_394_SDI1_TST_REFLEXOS_PROIBIDOS",
+      "titulo": "Reflexos Proibidos entre Verbas",
+      "base_legal": "OJ 394 SDI-I TST; vedacao legal",
+      "nivel": "Orientação Jurisprudencial TST",
+      "prioridade": 30,
+      "explicacao": "Regra OJ_394_SDI1_TST_REFLEXOS_PROIBIDOS aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "ART_791A_CLT",
+      "titulo": "Honorários Advocatícios Sucumbenciais",
+      "base_legal": "Art. 791-A CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Honorários advocatícios sucumbenciais fixados — Art. 791-A da CLT (Reforma Trabalhista 2017).",
+      "tem_template": true
+    },
+    {
+      "regra_id": "ART_467_CLT",
+      "titulo": "Multa Art. 467 CLT — Verbas Incontroversas",
+      "base_legal": "Art. 467 CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Multa de 50% sobre as verbas rescisórias incontroversas não pagas no prazo legal — Art. 467 da CLT.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "ART_477_CLT",
+      "titulo": "Multa Art. 477 CLT — Atraso Rescisório",
+      "base_legal": "Art. 477 §8º CLT",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "Multa por atraso no pagamento das verbas rescisórias (equivalente a 1 salário). Descumprimento do prazo previsto no Art. 477, § 6º da CLT.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "ART_223G_DANO_EXTRAPATRIMONIAL",
+      "titulo": "Tarifação de Dano Extrapatrimonial — Art. 223-G CLT",
+      "base_legal": "Art. 223-G §1º CLT (Lei 13.467/2017); ADI 6050/6069/6082 STF",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "O art. 223-G §1º CLT define faixas de tarifação para dano extrapatrimonial: leve (3x), médio (5x), grave (20x) e gravíssimo (50x) o salário contratual. O STF (ADI 6050) entendeu que esses valores são parâmetros orientativos. Valores acima de 50x indicam risco recursal.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "ART_477A_HOMOLOGACAO",
+      "titulo": "Dispensa de Homologação Sindical — Art. 477-A CLT",
+      "base_legal": "Art. 477-A CLT, inserido pela Lei 13.467/2017",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "O art. 477-A da CLT, inserido pela Reforma Trabalhista (Lei 13.467/2017), dispensa expressamente a assistência sindical ou homologação perante autoridade para rescisões individuais e coletivas de contratos admitidos a partir de 11/11/2017. Qualquer exigência de homologação como condição de validade contraria a norma vigente.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "ART_58_ITINERE_REFORMA",
+      "titulo": "Horas In Itinere — extintas pela Reforma Trabalhista",
+      "base_legal": "Art. 58 §2º CLT revogado pela Lei 13.467/2017, art. 1º",
+      "nivel": "CLT",
+      "prioridade": 40,
+      "explicacao": "A Reforma Trabalhista (Lei 13.467/2017) revogou o §2º do art. 58 da CLT, extinguindo o direito a horas in itinere para contratos iniciados a partir de 11/11/2017. Verbas com este nome deferidas nesse período indicam risco de reforma em grau de recurso.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_AVISO_PREVIO_DIAS",
+      "titulo": "Dias de aviso prévio",
+      "base_legal": "Art. 487 CLT (mínimo 30 dias) e Lei 12.506/2011 (máximo 90 dias).",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera avisos quando o número de dias de aviso prévio está abaixo de 30 ou acima de 90, sugerindo revisão do cálculo ou da extração.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_AVISO_PREVIO_SEM_JUSTA_CAUSA",
+      "titulo": "Aviso prévio em dispensa sem justa causa",
+      "base_legal": "Consistência — dispensa sem justa causa exige previsão de aviso prévio (campo ou verba deferida).",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera aviso quando motivo_rescisao indica 'sem justa causa' mas não há aviso_previo_dias nem verba de aviso nas verbas_deferidas.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_BIS_IN_IDEM_REFLEXOS",
+      "titulo": "Bis in idem em reflexos",
+      "base_legal": "Consistência de cálculo — vedação a reflexos em si mesmos",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera alerta de erro quando uma verba aparece como reflexo de si mesma, evitando bis in idem nos reflexos trabalhistas.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_DATAS",
+      "titulo": "Consistência das datas do processo",
+      "base_legal": "Consistência cronológica — ordem lógica entre admissão, demissão, saída em CTPS, ajuizamento e sentença.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Verifica incoerências básicas entre datas (ex.: admissão depois da demissão, sentença antes da demissão, ajuizamento depois da sentença).",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_DANO_MORAL_EM_VERBAS",
+      "titulo": "Dano moral não deve constar em verbas_deferidas",
+      "base_legal": "Consistência de modelagem — dano moral possui campo próprio e não deve ser tratado como verba comum na lista de verbas_deferidas.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera aviso quando 'Dano Moral' aparece entre as verbas deferidas, orientando a usar o campo estruturado específico de dano moral.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_INTEGRACAO_SEM_REFLEXOS",
+      "titulo": "Verba integrada sem reflexos",
+      "base_legal": "Consistência de cálculo — verbas que integram salário normalmente geram reflexos em outras parcelas",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Alerta quando uma verba com integracao_salarial=True está sem reflexos informados, indicando possível omissão de reflexos na extração.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_MULTA_477_VALOR",
+      "titulo": "Multa art. 477 — valor equivalente a 1 salário",
+      "base_legal": "Art. 477 CLT — multa = 1 salário base.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Aviso quando o valor da multa art. 477 difere do salário base em mais de 5%.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_SALARIO_BASE_MINIMO",
+      "titulo": "Salário base mínimo",
+      "base_legal": "Consistência de dados — salário base positivo e compatível com o salário mínimo vigente.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Gera erro se salário base é inválido (<= 0) e aviso se está abaixo do salário mínimo configurado no sistema.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CONSISTENCIA_VERBAS_DUPLICADAS",
+      "titulo": "Verbas duplicadas",
+      "base_legal": "Consistência de dados — mesma verba e mesmo período não deve aparecer duas vezes.",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Aviso quando existe mais de uma verba com o mesmo nome canônico e período.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "CNJ_DIGITO_VERIFICADOR",
+      "titulo": "Validacao CNJ",
+      "base_legal": "Resolucao CNJ n 65/2008",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Número do processo (informado) validado conforme dígito verificador da Resolução CNJ 65/2008.",
+      "tem_template": true
+    },
+    {
+      "regra_id": "CONSISTENCIA_SALARIO",
+      "titulo": "Consistencia salario base",
+      "base_legal": "Art. 7 IV CF/88 - Decreto 12.302/2025",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Regra CONSISTENCIA_SALARIO aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "S9_VERBA_DEDUPLICATOR",
+      "titulo": "Deduplicacao de Verbas Pos-IA",
+      "base_legal": "Boas praticas de calculo",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Regra S9_VERBA_DEDUPLICATOR aplicada.",
+      "tem_template": false
+    },
+    {
+      "regra_id": "BIS_IN_IDEM_VERBAS",
+      "titulo": "Bis in idem — verba não pode refletir em si mesma",
+      "base_legal": "Vedação ao bis in idem — jurisprudência TST",
+      "nivel": "Consistência",
+      "prioridade": 50,
+      "explicacao": "Detecta verbas que aparecem como reflexo de si mesmas. Configura bis in idem e deve ser corrigido antes dos cálculos.",
+      "tem_template": false
+    }
+  ]
+}

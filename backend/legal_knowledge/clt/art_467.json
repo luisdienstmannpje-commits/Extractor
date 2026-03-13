@@ -1,0 +1,16 @@
+{
+  "id": "clt_art_467",
+  "tipo": "artigo_clt",
+  "artigo": 467,
+  "descricao": "Multa por verbas incontroversas não pagas na rescisão",
+  "ementa": "Em caso de rescisão de contrato de trabalho, havendo controvérsia sobre o montante das verbas rescisórias, o empregador é obrigado a pagar ao trabalhador, à data do comparecimento à Justiça do Trabalho, a parte incontroversa dessas verbas, sob pena de pagá-las acrescidas de cinquenta por cento.",
+  "aplicacao": "multa_verbas_incontroversas",
+  "regra": {
+    "percentual_multa": 0.50,
+    "base_calculo": "verbas_incontroversas_nao_pagas",
+    "momento_aplicacao": "data_comparecimento_justica",
+    "obs": "Incide apenas sobre a parcela incontroversa — não sobre o total da condenação"
+  },
+  "vigente": true,
+  "atualizado_em": "2024-01-01"
+}

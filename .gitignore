@@ -1,0 +1,63 @@
+# ── Ambiente virtual Python ──────────────────────────────────────────────────
+venv/
+.venv/
+env/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Variáveis de ambiente / segredos ─────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Banco de dados local ──────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Arquivos gerados em runtime ───────────────────────────────────────────────
+backend/learning_log.jsonl
+backend/services/knowledge_base.json
+backend/legal_engine/rules/lab_*.py
+
+# ── Uploads / documentos temporários ─────────────────────────────────────────
+*.pdf
+*.doc
+*.docx
+*.pjc
+*.xml
+
+# ── Cache e logs ──────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.cache
+.cache/
+
+# ── IDEs e editores ───────────────────────────────────────────────────────────
+.cursor/
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── Sistema operacional ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Node (caso frontend tenha dependências) ───────────────────────────────────
+node_modules/
+dist/
+build/
+
+# ── pytest / coverage ─────────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
