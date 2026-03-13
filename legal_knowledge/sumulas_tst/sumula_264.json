@@ -1,0 +1,17 @@
+{
+  "id": "sumula_264_tst",
+  "tipo": "sumula",
+  "numero": 264,
+  "tribunal": "TST",
+  "ementa": "O valor das horas extras habitualmente prestadas integra o cálculo dos haveres trabalhistas, inclusive o descanso semanal remunerado, com reflexos no décimo terceiro salário, férias e FGTS.",
+  "aplicacao": "reflexos_horas_extras",
+  "resultado": "REFLETE",
+  "reflexos": [
+    "dsr",
+    "decimo_terceiro",
+    "ferias",
+    "fgts"
+  ],
+  "vigente": true,
+  "atualizado_em": "2024-01-01"
+}
