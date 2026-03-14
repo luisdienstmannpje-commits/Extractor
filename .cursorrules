@@ -1,6 +1,7 @@
 # PJeCalc Smart Extractor — Regras para IA (Cursor Chat e Composer)
 
-Este projeto segue uma arquitetura definida. Antes de propor código, consulte a documentação em `backend/docs/` e respeite os padrões abaixo.
+Este projeto segue uma arquitetura definida. Antes de propor código, consulte a documentação em
+`backend/docs/` e respeite os padrões abaixo.
 
 ---
 
@@ -8,10 +9,42 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 
 **Extração de PDF → LLM (Gemini) → Motor de Regras Python (Legal Rule Engine) → Frontend Vanilla JS → Excel / .PJC**
 
-- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`. Não altere a ordem dos passos sem atualizar `docs/PIPELINE.md` e testes.
-- **Frontend**: Vanilla JavaScript (sem React/Vue). `frontend/js/app.js` (API, upload, export); `frontend/js/render.js` (renderização dos dados e parecer). Não introduzir frameworks SPA.
+- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`.
+- **Frontend**: Vanilla JavaScript (sem React/Vue). `app.js` (API, upload, export, estatísticas); `render.js` (dados); `lab.js` (Laboratório 8 cards).
 - **Motor de regras**: Toda regra jurídica herda de `LegalRule` em `services/legal_engine/rule_base.py`. Uma regra por arquivo em `services/legal_engine/rules/`. Prioridade: 10=STF, 20=Súmulas TST, 30=OJs TST, 40=CLT, 50=Consistência.
 - **Modelo de dados**: `ProcessoTrabalhista` e `VerbaDeferida` em `backend/models.py`. Novos campos exigem atualizar `SCHEMA_VERSION`, `schema_version_guard.py` e, se a regra ler o campo, `engine._dict_para_contexto`.
+
+---
+
+## Laboratório de Aprendizado (features recentes — impacto em múltiplos arquivos)
+
+### Título Executivo Complexo (Card 3)
+- Frontend: `_processoFiles[]` acumula múltiplos arquivos; `_classifyDecisaoTier(filename)` classifica badge; `_renderProcessoFiles()` atualiza UI; `form.append("processo", f)` em loop.
+- API: `processo: List[UploadFile] = File(default=[])` em `main.py`; `processo_arquivos: List[tuple]` passado para `processar_sete_arquivos`.
+- Backend: `_classificar_tier_decisao(filename) → "TST"|"TRT"|"1GRAU"`; `_extrair_titulo_executivo_multiplos([(bytes, fn)])` ordena por hierarquia, concatena texto, injeta prompt de Análise de Reforma de Decisão.
+
+### Duplo Style Transfer (Cards 6 + 8)
+- `_extrair_manifestacao_pericial(bytes, filename)` é chamado para **impugnacao (Card 6) E manifestacao (Card 8)**.
+- `_merge_dados_manifestacao(base, novo)` funde os resultados sem duplicatas em `relatorio["manifestacao_pericial"]`.
+- Ambos alimentam `skills/manifestacao_style.md`.
+
+### Guardrails anti-alucinação "verba_ausente" (3 camadas)
+- `_canon_empresa_e_verba_esta(relatorio)` — helper compartilhado: constrói set canônico da liquidação + PJC.
+- `_filtrar_falsos_positivos_verba_ausente(relatorio)` — remove discrepâncias falsas **após enriquecimento, antes do return**.
+- `_filtrar_logicas_verba_ausente_falsas(logicas, relatorio)` — filtra hipóteses Gemini antes do Knowledge Base.
+- `_filtrar_aprendizados_verba_ausente_falsas(relatorio)` — limpa `aprendizados` **antes do return ao frontend**.
+- Nunca duplicar lógica de canonização; sempre usar `LegalRule._canonizar_verba(nome)`.
+
+### Prompt Gemini (_extrair_logica_correcao_gemini)
+- REGRA 1: proibido `verba_ausente` não listado nas discrepâncias filtradas.
+- REGRA 2: priorizar argumentos matemáticos/jurídicos da impugnação (avos, frações, métodos).
+- REGRA 3: retornar `[]` se discrepâncias vazias e sem tese matemática.
+- Early-exit Python antes de chamar Gemini se não há base.
+
+### Validação .doc no frontend
+- `_isDocAntigo(file)` detecta extensão `.doc` ou MIME `application/msword`.
+- `_showLabToastDocNaoSuportado()` exibe toast de bloqueio com instrução de conversão.
+- Arquivos `.docx` continuam aceitos normalmente.
 
 ---
 
@@ -21,42 +54,48 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 |--------|--------------|
 | Visão geral | `backend/docs/AI_NAVIGATION_LAYER.md` → `docs/SYSTEM_OVERVIEW.md`, `docs/PIPELINE.md` |
 | Qual arquivo faz o quê | `backend/docs/CODE_MAP.md` |
-| Adicionar/modificar regra jurídica | README (seção Motor de regras), `legal_engine/rule_base.py`, um `.py` em `legal_engine/rules/` como template |
+| Adicionar/modificar regra jurídica | README (§ Motor de regras), `legal_engine/rule_base.py`, template em `legal_engine/rules/` |
 | Alterar pipeline ou contrato | `docs/PIPELINE.md`, `workers/processor.py` |
-| Alterar modelo (campos) | `models.py`, `SCHEMA_VERSION`, `legal_engine/engine.py` (_dict_para_contexto) |
-| Export (Excel, PJC, memória) | `docs/CODE_INTELLIGENCE_MAP.md` § 5, `excel_exporter.py`, `memoria_calculo/generator.py` |
+| Alterar modelo (campos) | `models.py`, `SCHEMA_VERSION`, `legal_engine/engine.py` |
+| Export (Excel, PJC, memória) | `docs/CODE_INTELLIGENCE_MAP.md` § 5 |
 | Regras de conduta da IA | `backend/docs/AI_RULES.md` |
+| Laboratório / guardrails / Style Transfer | `backend/docs/AI_NAVIGATION_LAYER.md` § 5 |
+| Diretrizes de prompt e boas práticas | `backend/docs/guia_eficiencia.md` |
 
 ---
 
 ## Regras críticas — nunca fazer
 
-- Não quebrar a ordem ou os contratos dos 10 passos do pipeline sem análise de impacto e atualização de documentação e testes.
-- Não remover lógica jurídica (regras, explanation_engine, validações) sem substituição equivalente e testes.
-- Não introduzir regressões: após mudanças, rodar `pytest -q` (a partir de `backend/`) e garantir 0 falhas.
+- Não quebrar a ordem ou os contratos dos 10 passos do pipeline.
+- Não remover guardrails (`_filtrar_*`) nem mover sua posição no fluxo de `processar_cinco_arquivos`/`processar_sete_arquivos`.
+- Não duplicar lógica de canonização fora de `LegalRule._canonizar_verba`.
+- Não introduzir regressões: após mudanças, `pytest -q` (de `backend/`) com 0 falhas.
 - Não sugerir React, Vue ou outro framework no frontend; o projeto usa Vanilla JS.
-- Validação jurídica é feita **exclusivamente** pelo Legal Rule Engine; `legal_validator.py` apenas delega. Não reintroduzir lógica de validação fora do engine.
+- Validação jurídica é feita **exclusivamente** pelo Legal Rule Engine.
+- Não gerar ou editar `legal_engine/rules/lab_*.py` manualmente; deixar o fluxo `codify_insight` decidir.
 
 ---
 
 ## Convenções de código
 
-- **Regras jurídicas**: herdar de `LegalRule`; definir `id`, `titulo`, `base_legal`, `prioridade`; implementar `aplicar(contexto: ContextoJuridico) -> ContextoJuridico`; usar `self._alerta(contexto, msg, nivel)` e `self._registrar(contexto)`; nunca lançar exceção — capturar e logar.
-- **Pydantic**: modelos em `models.py`; validadores `mode="before"` para normalizar tipos (ex.: bool → str em campos de texto). Manter compatibilidade com cache (SCHEMA_VERSION).
-- **.PJC**: é XML (ISO-8859-1). Parser em `services/pjc_parser.py`; auditoria em `services/pjc_auditor.py`. Compatibilidade com PJeCalc 2.14.0 ao alterar export/patch.
-- **Playbooks IA**: `backend/skills/*.md` (ex.: `sentenca_ordinaria.md`). Enriquecer sem sobrescrever blocos existentes; evitar regressão.
+- **Regras jurídicas**: herdar de `LegalRule`; definir `id`, `titulo`, `base_legal`, `prioridade`; implementar `aplicar(contexto: ContextoJuridico)`; usar `self._alerta` e `self._registrar`; nunca lançar exceção.
+- **Pydantic**: modelos em `models.py`; validadores `mode="before"` para normalizar tipos. Manter compatibilidade com cache (SCHEMA_VERSION).
+- **.PJC**: é XML (ISO-8859-1). Compatibilidade com PJeCalc 2.14.0.
+- **Playbooks IA**: `backend/skills/*.md`. Enriquecer sem sobrescrever blocos existentes.
+- **Comentários**: somente para intenção não óbvia. Nunca comentar o óbvio.
 
 ---
 
 ## Testes
 
-- Testes do motor de regras em `backend/tests/jurisprudencia/` (um arquivo por regra ou domínio). Padrão: construir `ContextoJuridico` com dados mínimos, chamar `regra.aplicar(ctx)`, assertar `alertas` e `regras_aplicadas`.
-- Rodar: `cd backend && pytest -q` ou `pytest tests/jurisprudencia/ -v`. Manter todos os testes verdes antes de concluir alterações.
+- `backend/tests/jurisprudencia/` — um arquivo por regra. Padrão: construir `ContextoJuridico` mínimo, aplicar regra, assertar alertas e regras_aplicadas.
+- `cd backend && pytest -q` — manter todos verdes antes de concluir alterações.
 
 ---
 
 ## Resumo para o Cursor
 
-- Use `backend/docs/AI_NAVIGATION_LAYER.md` como ponto de entrada e siga o roteiro da tarefa.
-- Respeite `AI_RULES.md` e este `.cursorrules` em toda sugestão de código.
-- Prefira alterações incrementais e sem regressão; documente impacto ao propor mudanças arquiteturais.
+1. Leia `backend/docs/AI_NAVIGATION_LAYER.md` primeiro — tem roteiros por tarefa e mapa completo do `learning_engine.py`.
+2. Use `docs/CODE_MAP.md` para localizar arquivos sem abrir código desnecessário.
+3. Respeite `docs/AI_RULES.md` e este `.cursorrules` em toda sugestão.
+4. Alterações incrementais sem regressão; documente impacto ao propor mudanças arquiteturais.

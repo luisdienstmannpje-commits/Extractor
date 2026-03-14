@@ -21,6 +21,9 @@ Por que isso é mais robusto:
 
 import re
 import io
+import os
+import sys
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
@@ -28,6 +31,12 @@ from typing import Optional, List, Tuple
 import pdfplumber
 import pytesseract
 from config import settings
+
+# No Windows, apontar sempre para o executável padrão (evita TesseractNotFoundError fora do PATH)
+if sys.platform == "win32":
+    _tesseract_exe = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    if os.path.isfile(_tesseract_exe):
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_exe
 
 # ---------------------------------------------------------------------------
 # Padrões de detecção

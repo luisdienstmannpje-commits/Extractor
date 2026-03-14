@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Garante que backend/.env seja carregado mesmo quando o processo roda da raiz do projeto
+_env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(_env_path)
 
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

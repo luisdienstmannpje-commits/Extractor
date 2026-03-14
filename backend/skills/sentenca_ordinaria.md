@@ -552,3 +552,421 @@ artigo 467 e 477 da CLT
 
 **Interpretação correta:**
 A determinação judicial é clara quanto à necessidade de considerar o vale-alimentação como parte integrante do salário para todos os efeitos, inclusive no cálculo das verbas rescisórias. A ausência de tal consideração implica em erro no cálculo. O valor mensal do vale-alimentação deve ser somado ao salário base para cálculo das verbas rescisórias mencionadas na sentença.
+---
+## Engenharia Reversa — Regra Preditiva: Horas Extras — Realização de jornada de tra
+<!-- Laboratório de Aprendizado | 13/03/2026 21:45 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da parametrização para apuração de horas extras no sistema PJe-Calc, mesmo quando a verba é expressamente deferida em sentença. A reclamada falha em configurar o sistema para calcular as horas que excedem a 8ª diária, resultando em uma liquidação de sentença com valor a menor.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença em busca de expressões como "condeno ao pagamento de horas extras", "deferimento de horas extras", "excedentes à 8ª diária" ou "jornada superior à legal". A presença destes termos, aliada à ausência de pagamento correspondente nos holerites, sinaliza a alta probabilidade de erro de parametrização no cálculo de liquidação.
+
+### Correção correta
+Auditar a configuração da verba "Horas Extras" no PJe-Calc, assegurando que o sistema esteja parametrizado para apurar todo o labor que excede a 8ª hora diária, aplicando o adicional legal ou convencional pertinente. Utilizar os cartões de ponto e holerites anexados ao processo como contraprova para validar a jornada efetivamente praticada e a ausência do devido pagamento.
+
+### Base legal
+Art. 59 da Consolidação das Leis do Trabalho (CLT).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Julgo PROCEDENTE o pedido para condenar a reclamada ao pagamento de horas extras, assim consideradas as excedentes da 8ª diária e 44ª semanal, com adicional de 50% e reflexos em DSR, aviso prévio, 13º salários, férias acrescidas de 1/3 e FGTS com multa de 40%.
+
+**Interpretação correta:**
+O deferimento explícito de "horas extras excedentes da 8ª diária" impõe a verificação compulsória da parametrização no PJe-Calc. O sistema deve ser configurado para quantificar todas as horas registradas nos cartões de ponto que ultrapassem a oitava hora de trabalho em um mesmo dia. A ausência dessa configuração caracteriza erro material no cálculo, que deve ser corrigido para refletir a condenação judicial na sua integralidade.
+---
+## Engenharia Reversa — Regra Preditiva: Reflexos em DSR, Férias, 13º e FGTS — Não integração das horas extras habituais na base de cálculo
+<!-- Laboratório de Aprendizado | 13/03/2026 21:46 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da integração da média das horas extras habituais na base de cálculo das verbas reflexas, como Descanso Semanal Remunerado (DSR), férias acrescidas do terço constitucional, 13º salário e Fundo de Garantia por Tempo de Serviço (FGTS). A falha ocorre na parametrização do sistema de cálculos (PJe-Calc), onde a base de cálculo das verbas principais não é configurada para incluir os valores apurados a título de sobrelabor.
+
+### Como identificar na sentença
+Buscar no dispositivo da sentença condenações que contenham a expressão-chave "reflexos em DSR, férias, 13º e FGTS" ou variações similares, associadas ao deferimento de horas extras. A presença desta determinação exige a verificação imediata da configuração da base de cálculo das verbas reflexas no sistema de liquidação.
+
+### Correção correta
+Auditar a parametrização do PJe-Calc para garantir que o valor médio das horas extras habitualmente prestadas, já majorado pelo DSR, seja efetivamente integrado à base de cálculo de férias + 1/3, 13º salário e FGTS. O processo envolve:
+1. Apurar a média física ou duodecimal das horas extras, conforme período apuratório.
+2. Calcular o reflexo em DSR sobre o valor apurado.
+3. Somar o valor principal da remuneração, a média das horas extras e o DSR sobre horas extras para compor a base de cálculo final das demais verbas deferidas.
+4. Utilizar holerites e cartões de ponto como prova documental para validar a habitualidade e os valores.
+
+### Base legal
+- **Súmula nº 45 do TST:** "A remuneração do serviço suplementar, habitualmente prestado, integra o cálculo da gratificação natalina, nos termos da Lei nº 4.090/62."
+- **Súmula nº 172 do TST:** "Computam-se no cálculo do repouso remunerado as horas extras habitualmente prestadas."
+- **Súmula nº 376, II, do TST:** "O valor das horas extras habitualmente prestadas integra o cálculo dos haveres trabalhistas, inclusive para fins de cálculo do FGTS."
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Condeno a reclamada ao pagamento de horas extras excedentes à 8ª diária e 44ª semanal, com adicional de 50%, divisor 220, observada a evolução salarial. Deferem-se, pela habitualidade, os reflexos em DSR, aviso prévio, férias + 1/3, 13º salários e FGTS (8% + 40%)."
+
+**Interpretação correta:**
+A determinação "reflexos em DSR, férias + 1/3, 13º salários e FGTS" impõe uma cadeia de cálculos sucessivos. A base de cálculo para Férias, 13º Salário e FGTS não é apenas o salário base, mas sim o salário base acrescido da média mensal do valor total das horas extras e do DSR apurado sobre essas horas extras.
+- **Ação para o sistema:** Parametrizar o cálculo de "Férias" para que sua base de apuração seja `[Salário Base] + [Média Duodecimal de Horas Extras] + [Média Duodecimal de DSR sobre Horas Extras]`. Repetir a mesma lógica de composição da base para 13º Salário e FGTS.
+---
+## Exemplo de Aprendizado — 13/03/2026 21:45
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Existência de horas extras não remuneradas
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Existência de horas extras não remuneradas. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 13/03/2026 21:45
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento dos reflexos das horas extras em DSR, 13º salário, férias, aviso p
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento dos reflexos das horas extras em DSR, 13º salário, férias, aviso prévio e FGTS. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:56 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão, no cálculo de liquidação, de verba rescisória expressamente deferida no dispositivo da sentença. O sistema pode falhar em extrair e processar todos os itens de uma enumeração de condenações, resultando em um cálculo incompleto.
+
+### Como identificar na sentença
+Verificar no dispositivo da sentença (capítulo "Do Dispositivo" ou "Isto Posto") a lista de verbas deferidas. Procurar por termos como "condeno a Reclamada ao pagamento de", "são devidas as seguintes verbas", seguido de uma enumeração de parcelas (ex: saldo de salário, aviso prévio, férias + 1/3). A verba "saldo de salário" é frequentemente listada junto às demais verbas rescisórias.
+
+### Correção correta
+Incluir a verba "Saldo de Salário" na planilha de cálculos de liquidação. A apuração deve considerar os dias efetivamente trabalhados no mês da rescisão, utilizando como base de cálculo a última remuneração do Reclamante, conforme holerites ou o valor fixado em sentença.
+
+### Base legal
+Artigo 467 e 477 da Consolidação das Leis do Trabalho (CLT). A omissão do saldo de salário, verba rescisória por excelência, impacta diretamente a pontualidade e integralidade do pagamento das verbas rescisórias, atraindo a incidência das multas previstas nos referidos artigos.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> ...julgo procedentes os pedidos para condenar a reclamada na obrigação de pagar as seguintes verbas rescisórias: saldo de salário, férias proporcionais + 1/3, 13º salário proporcional, multa do artigo 467 e 477 da CLT e FGTS + 40%.
+
+**Interpretação correta:**
+O cálculo deve incluir, obrigatoriamente, a verba "saldo de salário". A extração de dados deve identificar e processar cada item da enumeração de condenação. Se o cálculo inicial apresentou apenas férias, 13º e multas, ele está incompleto e deve ser corrigido para adicionar a apuração do saldo de salário correspondente aos dias trabalhados no mês da rescisão.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:57 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão no cálculo de verba rescisória expressamente deferida no dispositivo da sentença. O sistema de cálculo não reconhece ou não inclui o 13º Salário Proporcional na planilha de liquidação, apesar de sua menção inequívoca no julgado como parcela procedente.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença (parte conclusiva) em busca das palavras-chave: "13º salário proporcional", "décimo terceiro proporcional", "13º/proporcional". A identificação ocorre ao cruzar a presença desses termos associados a verbos condenatórios ("deferir", "julgar procedente", "condenar") com a ausência da rubrica correspondente na memória de cálculo gerada.
+
+### Correção correta
+Incluir a rubrica "13º Salário Proporcional" na liquidação de sentença. O cálculo deve apurar a proporção de avos devidos (1/12 por mês de trabalho ou fração igual ou superior a 15 dias) com base no período trabalhado no ano da rescisão, aplicando-a sobre a base de cálculo da última remuneração do reclamante, conforme fixado em sentença.
+
+### Base legal
+Atraso ou não pagamento das verbas rescisórias devidas, como o 13º salário proporcional, atrai a aplicação das penalidades previstas nos artigos 467 e 477 da CLT.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> ...julgo PROCEDENTES EM PARTE os pedidos formulados na inicial para condenar a reclamada ao pagamento das seguintes parcelas: (...) c) 13º salário proporcional (7/12); d) Férias proporcionais + 1/3...
+
+**Interpretação correta:**
+O comando "condenar a reclamada ao pagamento [...] c) 13º salário proporcional (7/12)" é diretivo e mandatório. O modelo deve:
+1.  Identificar a verba `13º salário proporcional`.
+2.  Extrair a proporção `(7/12)`.
+3.  Inserir uma linha de cálculo específica para esta verba na planilha de liquidação.
+4.  Calcular o valor correspondente (base de cálculo * 7 / 12).
+A não inserção desta linha de cálculo, mesmo com o comando explícito, constitui o erro a ser corrigido.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:57 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão, no cálculo liquidando, de verba rescisória expressamente deferida no dispositivo da sentença. O erro consiste na ausência da apuração e inclusão das "Férias Proporcionais + 1/3", resultando em uma liquidação de valor inferior ao devido.
+
+### Como identificar na sentença
+Verificar o dispositivo (parte conclusiva) da sentença em busca de palavras-chave como "defiro", "condeno", "julgo procedente o pedido de". Mapear todas as verbas listadas, especialmente "férias proporcionais", "férias + 1/3" ou "férias acrescidas do terço constitucional". Confrontar a lista de verbas deferidas com as rubricas presentes na planilha de cálculos. A ausência de uma rubrica correspondente na planilha indica a discrepância.
+
+### Correção correta
+Realizar a apuração da verba "Férias Proporcionais + 1/3" utilizando a base de cálculo definida na sentença (geralmente a última remuneração) e o período de avos determinado. O valor apurado para as férias deve ser acrescido de um terço (1/3), e o total inserido como um item distinto na planilha de liquidação, com a devida incidência de reflexos, se houver.
+
+### Base legal
+artigo 467 e 477 da CLT
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "...julgo PROCEDENTES EM PARTE os pedidos para condenar a reclamada a pagar ao reclamante as seguintes parcelas: ... c) Férias proporcionais (10/12 avos), acrescidas do terço constitucional;"
+
+**Interpretação correta:**
+Ao processar o trecho acima, o modelo deve identificar a condenação expressa em "Férias proporcionais (10/12 avos), acrescidas do terço constitucional". Em seguida, deve verificar se a planilha de cálculo contém uma linha para essa verba. Se ausente, o sistema deve calcular o valor correspondente a 10/12 avos do salário base, somar 1/3 a esse resultado e incluir o montante final no resumo de débitos.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:57 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão, na planilha de liquidação, da verba "Aviso Prévio Indenizado", apesar de seu deferimento explícito no dispositivo da sentença. Tal falha resulta em apuração a menor do crédito exequendo e, consequentemente, no cálculo incorreto de seus reflexos e das multas legais aplicáveis.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença em busca de termos como "deferir", "condenar", "pagamento de" ou "procedente" associados às expressões "aviso prévio indenizado", "aviso prévio" ou "projeção do aviso prévio". A análise da fundamentação também pode revelar o deferimento, mesmo que o dispositivo seja sucinto.
+
+### Correção correta
+Incluir a verba "Aviso Prévio Indenizado" na memória de cálculo. O valor deve ser apurado com base na última remuneração do reclamante, observando a proporcionalidade legal. É imperativo projetar o período correspondente para fins de cálculo dos reflexos deferidos em férias + 1/3, 13º salário, e FGTS + 40%, bem como para a correta apuração da base de cálculo das multas dos artigos 467 e 477 da CLT.
+
+### Base legal
+Fundamento normativo: artigo 467 e 477 da CLT. A omissão do aviso prévio indenizado impacta diretamente a base de cálculo para a incidência das penalidades previstas nos referidos artigos, que versam sobre o pagamento de verbas rescisórias incontroversas e o prazo para quitação da rescisão.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Pelo exposto, julgo PROCEDENTES EM PARTE os pedidos formulados para condenar a reclamada ao pagamento das seguintes parcelas: saldo de salário (5 dias), aviso prévio indenizado (33 dias), férias proporcionais + 1/3, 13º salário proporcional e multa do art. 477 da CLT.
+
+**Interpretação correta:**
+A expressão "condenar a reclamada ao pagamento [...] aviso prévio indenizado (33 dias)" é um comando de liquidação direto e obrigatório. O cálculo deve apurar o valor correspondente a 33 dias de remuneração a título de aviso prévio e, adicionalmente, projetar este período para recalcular a proporcionalidade de férias e 13º salário. A base de cálculo da multa do art. 477 também deve considerar o valor do aviso prévio não pago no prazo legal.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:58 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão, na fase de liquidação, da apuração da multa prevista no artigo 467 da CLT, apesar de seu deferimento explícito no dispositivo da sentença. O erro consiste na não inclusão da parcela de 50% sobre as verbas rescisórias incontroversas, resultando em um cálculo a menor do crédito exequendo.
+
+### Como identificar na sentença
+Verificar o dispositivo (parte conclusiva) da sentença em busca de palavras-chave como "defiro a multa do art. 467 da CLT", "procedente o pedido de multa do artigo 467", "condeno ao pagamento da multa do 467", "multa celetista do artigo 467". A presença de condenação em verbas rescisórias (saldo de salário, aviso prévio, férias + 1/3, 13º salário) é um pré-requisito para a incidência da multa.
+
+### Correção correta
+Calcular o valor correspondente a 50% (cinquenta por cento) do montante das verbas rescisórias de natureza incontroversa (aquelas reconhecidas como devidas pela própria decisão). O valor apurado deve ser somado ao principal da condenação, sob uma rubrica específica: "Multa do Art. 467 da CLT".
+
+### Base legal
+Artigo 467 da Consolidação das Leis do Trabalho (CLT). A identificação das verbas rescisórias sobre as quais a multa incide é contextualizada pelo Artigo 477 da CLT.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Diante do exposto, condeno a Reclamada ao pagamento das seguintes parcelas: saldo de salário, aviso prévio indenizado, férias proporcionais acrescidas de 1/3 e 13º salário proporcional. Defiro, outrossim, a aplicação da multa do art. 467 da CLT sobre as verbas rescisórias incontroversas."
+
+**Interpretação correta:**
+O comando judicial é explícito. O cálculo deve apurar os valores individuais de "saldo de salário", "aviso prévio", "férias + 1/3" e "13º salário". A soma desses valores formará a base de cálculo da multa. Sobre essa base, aplica-se o percentual de 50%. O resultado é uma nova verba, "Multa do Art. 467 da CLT", que deve ser incluída no cálculo final.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:58 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão, na planilha de liquidação, de verba expressamente deferida no dispositivo da sentença. O erro consiste na falha em transpor um título condenatório (neste caso, a Multa do Art. 477 da CLT) para a memória de cálculo, resultando em apuração de crédito a menor para o exequente.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença (parte conclusiva) em busca de termos condenatórios como "defiro", "julgo procedente o pedido de", "condeno a reclamada ao pagamento de" associados a palavras-chave como "multa do art. 477", "multa do artigo 477", "multa do § 8º do art. 477 da CLT" ou "penalidade por atraso no pagamento das verbas rescisórias". Após identificar o deferimento, cruzar a informação com as rubricas listadas na planilha de cálculo para confirmar a ausência da verba.
+
+### Correção correta
+Incluir a rubrica "Multa do Art. 477 da CLT" na planilha de liquidação. O valor a ser atribuído deve corresponder ao último salário-base ou à remuneração base do reclamante, conforme definido no título executivo judicial. A base de cálculo deve ser apurada a partir dos documentos dos autos (e.g., TRCT, holerites) na data da rescisão.
+
+### Base legal
+Art. 477, § 6º e § 8º, da Consolidação das Leis do Trabalho (CLT). O § 8º estabelece a aplicação de multa em valor equivalente ao salário do empregado em caso de inobservância do prazo para pagamento das verbas rescisórias estipulado no § 6º. O Art. 467 da CLT trata de verbas incontroversas e não se confunde com esta penalidade, embora ambos tratem de sanções por inadimplemento.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> [...] Pelo exposto, condeno a reclamada ao pagamento da multa prevista no § 8º do artigo 477 da CLT, uma vez que o pagamento das verbas rescisórias incontroversas se deu fora do prazo legal.
+
+**Interpretação correta:**
+O comando sentencial "condeno a reclamada ao pagamento da multa prevista no § 8º do artigo 477 da CLT" é um título executivo claro e direto. O modelo de IA deve:
+1.  Identificar o deferimento explícito da verba.
+2.  Mapear a rubrica "Multa do Art. 477 da CLT".
+3.  Verificar a existência desta rubrica na planilha de cálculo.
+4.  Na ausência, sinalizar a discrepância `verba_ausente` e proceder com a inclusão da verba, calculada com base no último salário do autor constante nos autos.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 13/03/2026 21:58 | Processo: 0011219-69.2024.5.15.0052 -->
+
+### Padrão de erro identificado
+Omissão no cômputo de verba de natureza indenizatória (Vale-Alimentação) expressamente deferida no dispositivo da sentença, resultando em liquidação a menor do crédito exequendo. O erro comum é a não inclusão de benefícios que não compõem a base salarial principal, mas que são parte da condenação.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença em busca de palavras-chave como "Vale-Alimentação", "ticket alimentação", "auxílio alimentação", associadas a termos de condenação ("defiro", "condeno", "julgo procedente"). Confrontar a lista de verbas deferidas no dispositivo com as verbas efetivamente incluídas na planilha de cálculos. A ausência da verba na memória de cálculo, apesar de sua presença na condenação, confirma a discrepância.
+
+### Correção correta
+Proceder à apuração do valor devido a título de Vale-Alimentação, observando os parâmetros definidos na decisão (valor diário/mensal, período de apuração) e, se aplicável, as normas coletivas (CCT/ACT). Incluir a verba apurada como um item distinto na memória de cálculo, especificando sua natureza indenizatória e o período correspondente.
+
+### Base legal
+A obrigação de incluir a verba decorre da própria força da coisa julgada material (art. 502, CPC). A base legal para as multas decorrentes do atraso ou incorreção no pagamento das verbas rescisórias, que podem ser impactadas pela ausência do Vale-Alimentação, são os artigos 467 e 477, § 8º, da Consolidação das Leis do Trabalho (CLT).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Ante o exposto, julgo PROCEDENTE EM PARTE o pedido para condenar a reclamada ao pagamento das seguintes parcelas: ... [outras verbas] ...; e Vale-Alimentação, no valor de R$ 30,00 (trinta reais) por dia de trabalho efetivo, durante todo o pacto laboral, conforme CCT.
+
+**Interpretação correta:**
+Identificada a condenação expressa em "Vale-Alimentação". Extrair os parâmetros de cálculo: valor (R$ 30,00/dia) e período ("todo o pacto laboral"). O sistema deve apurar o número de dias efetivamente trabalhados no período contratual, multiplicar pelo valor diário e lançar o montante total como uma verba indenizatória na planilha de cálculo. A verba deve ser adicionada à base de cálculo do FGTS (se a CCT assim determinar) mas não deve integrar a base para férias, 13º salário ou RSR, salvo disposição expressa em contrário.
+---
+## Engenharia Reversa — Regra Preditiva: Horas Extras — Não pagamento de horas traba
+<!-- Laboratório de Aprendizado | 13/03/2026 22:58 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+A omissão sistemática, na fase de liquidação, do lançamento e parametrização da verba "Horas Extras" no sistema PJe-Calc, mesmo quando há condenação expressa na sentença. O erro consiste na falha em apurar e remunerar o labor extraordinário que excede a jornada legal ou contratual, quantificado diariamente através dos controles de ponto.
+
+### Como identificar na sentença
+Verificar o dispositivo da sentença em busca de expressões-chave como "defiro horas extras", "julgo procedente o pedido de horas extraordinárias", "pagamento de sobrejornada" ou "labor excedente à jornada legal". Em seguida, auditar a planilha de cálculos no PJe-Calc para confirmar se a verba correspondente foi omitida ou se seus parâmetros (base de cálculo, divisor, adicional) estão zerados ou ausentes.
+
+### Correção correta
+Inserir ou corrigir a verba "Horas Extras" no PJe-Calc. A apuração deve ser configurada para utilizar os cartões de ponto como fonte, calculando as horas que excedem os limites diários e semanais definidos na condenação. A base de cálculo deve ser composta por todas as parcelas de natureza salarial, conforme holerites e Súmula 264 do TST. O divisor e o adicional aplicáveis devem seguir o dispositivo sentencial ou a norma coletiva e, na sua ausência, os padrões legais (divisor 220, adicional de 50%).
+
+### Base legal
+Art. 59 da Consolidação das Leis do Trabalho (CLT).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Julgo PROCEDENTE o pedido para condenar a reclamada ao pagamento de horas extras, assim consideradas as excedentes à 8ª diária e 44ª semanal, com adicional de 50%, a serem apuradas com base nos cartões de ponto juntados aos autos, com reflexos em DSR, aviso prévio, 13º salários, férias + 1/3 e FGTS (8% + 40%).
+
+**Interpretação correta:**
+A sentença defere o pagamento de horas extras. Se a planilha de cálculos no PJe-Calc não contiver a apuração desta verba, a ação corretiva é:
+1.  **Incluir a verba:** "Horas Extras com adicional de 50%".
+2.  **Parametrizar a apuração:** Configurar o sistema para quantificar as horas excedentes à 8ª diária e 44ª semanal, utilizando os controles de frequência como fonte de dados.
+3.  **Definir a base de cálculo:** Compor com o salário-base e demais verbas salariais.
+4.  **Configurar os reflexos:** Parametrizar o cálculo dos reflexos sobre as verbas deferidas (DSR, aviso prévio, 13º, etc.), conforme dispositivo.
+---
+## Engenharia Reversa — Regra Preditiva: Reflexos em DSR, 13º Salário, Férias, Aviso
+<!-- Laboratório de Aprendizado | 13/03/2026 22:58 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Ausência de integração das horas extras habituais na base de cálculo do Descanso Semanal Remunerado (DSR), 13º Salário, Férias acrescidas de 1/3, Aviso Prévio e FGTS. A parametrização no sistema PJe-Calc frequentemente não reflete a natureza salarial das horas extras, resultando em apuração a menor das verbas reflexas.
+
+### Como identificar na sentença
+Identificar no dispositivo da sentença a condenação em 'horas extras' e seus 'reflexos' ou 'integrações' em DSR, 13º salário, férias + 1/3, aviso prévio e FGTS. A presença desta condenação é o gatilho para uma auditoria rigorosa da base de cálculo das verbas acessórias no PJe-Calc.
+
+### Correção correta
+No sistema PJe-Calc, na aba 'Verbas', assegurar que a base de cálculo para '13º Salário', 'Férias + 1/3', 'Aviso Prévio' e 'FGTS' inclua a verba 'Horas Extras' e os 'Reflexos de Horas Extras em DSR'. A base de cálculo do FGTS deve incidir sobre todas as verbas de natureza salarial apuradas. Realizar contraprova com a média das horas extras extraída dos holerites e cartões de ponto.
+
+### Base legal
+Súmula 172 do TST (Repouso Remunerado. Horas Extras. Cálculo.), Súmula 45 do TST (Serviço Suplementar), Súmula 151 do TST (Férias) e Súmula 63 do TST (Fundo de Garantia).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> '...julgo PROCEDENTE EM PARTE o pedido para condenar a reclamada ao pagamento de horas extras excedentes à 8ª diária e 44ª semanal, com adicional de 50%, e reflexos em DSR, 13º salário, férias + 1/3, aviso prévio e FGTS (8% + 40%).'
+
+**Interpretação correta:**
+A expressão 'reflexos em' determina que o valor apurado a título de horas extras habituais, já majorado pelo DSR, deve compor a base de cálculo de todas as demais verbas elencadas. O cálculo do 13º salário, por exemplo, não será apenas sobre o salário-base, mas sim sobre o [salário-base + média duodecimal das horas extras + DSR sobre horas extras]. Esta integração deve ser configurada explicitamente no PJe-Calc para cada verba reflexa.
+---
+## Exemplo de Aprendizado — 13/03/2026 22:58
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento de horas extras
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento de horas extras. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 13/03/2026 22:58
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento dos reflexos de horas extras sobre outras verbas trabalhistas
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento dos reflexos de horas extras sobre outras verbas trabalhistas. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Engenharia Reversa — Regra Preditiva: Horas Extras — Não pagamento das horas trab
+<!-- Laboratório de Aprendizado | 13/03/2026 23:09 | Processo: 1003964-47.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da parametrização da verba 'Horas Extras' no sistema PJe-Calc, mesmo quando a condenação judicial defere expressamente o pagamento das horas laboradas além da jornada contratual de 8 horas diárias. A parte reclamada, ao apresentar os cálculos de liquidação, deixa de configurar a apuração do sobrelabor, resultando em liquidação a menor do julgado.
+
+### Como identificar na sentença
+Verificar no dispositivo da sentença a presença de termos como "horas extras", "sobrejornada", "jornada extraordinária", "excedentes da 8ª diária" ou "além da jornada legal/contratual". Cruzar a existência desta condenação com a ausência da verba correspondente na planilha de cálculos ou nos parâmetros de configuração do PJe-Calc apresentados pela parte contrária.
+
+### Correção correta
+Acessar o PJe-Calc, na aba 'Verbas', e incluir ou ajustar a verba 'Horas Extras'. Parametrizar o cálculo para apurar as horas que excedam a 8ª diária, utilizando os cartões de ponto anexados ao processo como fonte de dados para a quantidade de horas. Aplicar o adicional normativo ou o definido em sentença (e.g., 50%). Utilizar os holerites como contraprova para dedução de valores eventualmente já pagos sob a mesma rubrica.
+
+### Base legal
+Art. 59 da CLT, que estabelece a duração normal do trabalho e as condições para a prestação de horas suplementares, remuneradas com acréscimo de, no mínimo, 50% (cinquenta por cento) sobre o valor da hora normal.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Ante o exposto, condeno a reclamada ao pagamento de horas extras, consideradas como tais as que ultrapassarem a 8ª hora diária e a 44ª hora semanal, de forma não cumulativa, com adicional de 50% (cinquenta por cento) e reflexos em DSR, aviso prévio, 13º salários, férias + 1/3 e FGTS + 40%. Apuração a partir dos controles de frequência carreados aos autos."
+
+**Interpretação correta:**
+A decisão é cogente. O cálculo de liquidação deve, obrigatoriamente, conter a apuração das horas que excedem a jornada diária de 8 horas, conforme os registros de ponto. No PJe-Calc, deve-se criar uma verba específica para 'Horas Extras 50%', configurando-a para apurar a quantidade de horas excedentes da 8ª diária e aplicar o adicional. A ausência desta configuração no cálculo da reclamada é um erro material que deve ser impugnado e corrigido, pois desobedece a um comando sentencial explícito.
+---
+## Engenharia Reversa — Regra Preditiva: Reflexos das Horas Extras — Não integração
+<!-- Laboratório de Aprendizado | 13/03/2026 23:09 | Processo: 1003964-47.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da inclusão da média das horas extras habitualmente prestadas na base de cálculo das verbas reflexas, como Repouso Semanal Remunerado (RSR), 13º Salário, Férias acrescidas do terço constitucional e Aviso Prévio. A discrepância decorre de uma parametrização incorreta ou incompleta no sistema PJe-Calc, que desconsidera a natureza salarial da média das horas extras para compor a remuneração base dessas parcelas.
+
+### Como identificar na sentença
+Analisar o dispositivo da sentença em busca de comandos como "reflexos das horas extras", "integração das horas extras" ou "repercussão das horas extras" em verbas contratuais e rescisórias. A auditoria deve focar na parametrização do PJe-Calc, verificando se a base de cálculo configurada para RSR, 13º Salário, Férias + 1/3 e Aviso Prévio inclui uma rubrica correspondente à "Média de Horas Extras". A ausência desta rubrica na composição é o indicador primário do erro.
+
+### Correção correta
+No sistema PJe-Calc, acessar a aba "Verbas" e editar a "Base de Cálculo" de cada parcela reflexa deferida (RSR, 13º Salário, Férias + 1/3, Aviso Prévio). Adicionar à base a verba correspondente à média mensal das horas extras apuradas. Essa média deve ser calculada com base nos valores totais de horas extras (valor da hora normal + adicional) apurados em cada mês da contratualidade, conforme demonstrado nos cartões de ponto e holerites utilizados como contraprova.
+
+### Base legal
+- **Súmula nº 45 do TST:** A remuneração do serviço suplementar, habitualmente prestado, integra o cálculo da gratificação natalina.
+- **Súmula nº 172 do TST:** Computam-se no cálculo do repouso remunerado as horas extras habitualmente prestadas.
+- **Súmula nº 376, II, do TST:** O valor das horas extras habitualmente prestadas integra o cálculo dos haveres trabalhistas, independentemente da limitação prevista no "caput" do art. 59 da CLT.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Condeno a reclamada ao pagamento de horas extras excedentes à 8ª diária e 44ª semanal, com adicional de 50%, apuradas com base nos cartões de ponto, e seus respectivos reflexos em aviso prévio, 13º salários, férias + 1/3 e RSR."
+
+**Interpretação correta:**
+O comando "respectivos reflexos" impõe que a média das horas extras habituais, e não apenas o salário base, componha a base de cálculo das verbas mencionadas. A execução correta do cálculo é:
+1.  **Apurar:** Calcular o valor total mensal das horas extras devidas.
+2.  **Calcular Média:** Obter a média duodecimal (ou pelo número de meses trabalhados no período de apuração) desses valores.
+3.  **Integrar:** Somar essa média ao salário base para formar a base de cálculo final de cada verba reflexa.
+    -   **Exemplo (Férias):** Base de Cálculo = (Último Salário + Média das Horas Extras do período aquisitivo) * 1/3.
+A simples aplicação do percentual de reflexo sobre o total de horas extras, sem a devida integração na base de cálculo das verbas principais, está incorreta e deve ser ajustada.
+---
+## Engenharia Reversa — Regra Preditiva: FGTS e Multa de 40% — Ausência de recolhime
+<!-- Laboratório de Aprendizado | 13/03/2026 23:09 | Processo: 1003964-47.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática na parametrização do sistema PJe-Calc, onde a base de cálculo para o FGTS e a multa de 40% não inclui as horas extras deferidas e seus reflexos (descanso semanal remunerado, 13º salário, férias + 1/3), apesar da natureza salarial incontroversa destas verbas. A empresa executada tende a configurar o cálculo considerando apenas as verbas principais, ignorando a incidência sobre as acessórias.
+
+### Como identificar na sentença
+Buscar pela condenação simultânea de "horas extras" e seus "reflexos" juntamente com "FGTS e multa de 40%". A ausência de uma ressalva expressa na sentença para excluir as horas extras da base de cálculo do FGTS é o principal indicador para auditar a parametrização. Frases-chave incluem: "recolhimento do FGTS sobre as verbas salariais da condenação", "FGTS incidente sobre as parcelas deferidas".
+
+### Correção correta
+No sistema PJe-Calc, acessar a configuração da verba "FGTS e Multa de 40%". Na aba "Base de Cálculo", marcar explicitamente as verbas de "Horas Extras" e todos os seus reflexos calculados (e.g., "Reflexos de Horas Extras em DSR", "Reflexos de Horas Extras em 13º Salário", etc.) como incidentes para o FGTS. A contraprova deve ser feita utilizando os holerites e cartões de ponto para validar os valores das horas extras que servem de base.
+
+### Base legal
+Art. 15 da Lei nº 8.036/90, que estabelece que para os fins de apuração do FGTS, considera-se remuneração todas as parcelas de natureza salarial pagas ou devidas ao trabalhador, incluindo as horas extras e seus reflexos.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Condeno a reclamada ao pagamento de horas extras excedentes à 8ª diária, com adicional de 50% e reflexos em DSRs, 13º salários e férias acrescidas de 1/3. Defiro, outrossim, o recolhimento do FGTS e multa de 40% sobre as parcelas de natureza salarial ora deferidas."
+
+**Interpretação correta:**
+A expressão "sobre as parcelas de natureza salarial ora deferidas" determina que o valor total apurado para as horas extras, bem como o valor de cada um dos seus reflexos (DSRs, 13º, férias + 1/3), deve compor a base de cálculo sobre a qual incidirá a alíquota de 8% do FGTS. O montante resultante do FGTS apurado servirá, então, como base para o cálculo da multa de 40%. A parametrização no sistema de cálculo deve refletir essa inclusão integral.
+---
+## Exemplo de Aprendizado — 13/03/2026 23:09
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento de horas extras
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento de horas extras. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 13/03/2026 23:09
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento dos reflexos das horas extras em verbas salariais e rescisórias
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento dos reflexos das horas extras em verbas salariais e rescisórias. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 13/03/2026 23:09
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não recolhimento do FGTS sobre as verbas apuradas
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não recolhimento do FGTS sobre as verbas apuradas. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->

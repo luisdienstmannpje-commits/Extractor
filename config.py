@@ -1,7 +1,12 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Carrega .env: primeiro no mesmo diretório do config, depois em backend/ (quando se roda main.py da raiz)
+_root = Path(__file__).resolve().parent
+load_dotenv(_root / ".env")
+if not os.getenv("GEMINI_API_KEY"):
+    load_dotenv(_root / "backend" / ".env")
 
 class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

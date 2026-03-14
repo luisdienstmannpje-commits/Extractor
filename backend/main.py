@@ -18,6 +18,7 @@ v2.2 — base:
 """
 
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
+from typing import List
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from workers.processor import process_lawsuit_pdf
@@ -394,7 +395,7 @@ _PJC_EXTS  = [".pdf", ".doc", ".docx", ".pjc", ".xml"]
 
 @app.post("/lab/analisar")
 async def lab_analisar(
-    processo:         UploadFile = File(None),
+    processo:         List[UploadFile] = File(default=[]),
     liquidacao:       UploadFile = File(None),
     parecer:          UploadFile = File(None),
     impugnacao:       UploadFile = File(None),
@@ -432,8 +433,9 @@ async def lab_analisar(
     _WORD_ONLY = [".doc", ".docx"]
 
     # Validações de formato — todos opcionais
-    if processo and processo.filename and not _ext_ok(processo.filename, _DOCS_EXTS):
-        raise HTTPException(400, "Campo 'processo' aceita PDF, DOC ou DOCX")
+    for _pf in (processo or []):
+        if _pf and _pf.filename and not _ext_ok(_pf.filename, _DOCS_EXTS):
+            raise HTTPException(400, f"Campo 'processo' aceita PDF, DOC ou DOCX (arquivo: {_pf.filename})")
     if parecer and parecer.filename and not _ext_ok(parecer.filename, _DOCS_EXTS):
         raise HTTPException(400, "Campo 'parecer' aceita PDF, DOC ou DOCX")
     if liquidacao and liquidacao.filename and not _ext_ok(liquidacao.filename, _DOCS_EXTS):
@@ -449,15 +451,25 @@ async def lab_analisar(
     if manifestacao and manifestacao.filename and not _ext_ok(manifestacao.filename, _DOCS_EXTS):
         raise HTTPException(400, "Campo 'manifestacao' aceita PDF, DOC ou DOCX")
 
-    # Leitura dos bytes
-    processo_bytes        = await processo.read()    if (processo    and processo.filename)    else None
+    # Leitura dos bytes (cada campo é opcional — só lê se enviado com filename)
+    # Card 3: lista de documentos decisórios (sentença + acórdãos TRT/TST)
+    processo_arquivos = []
+    for _pf in (processo or []):
+        if _pf and _pf.filename:
+            _pb = await _pf.read()
+            if _pb:
+                processo_arquivos.append((_pb, _pf.filename))
+    # Compatibilidade retroativa: expõe o primeiro arquivo como processo_bytes
+    processo_bytes    = processo_arquivos[0][0]        if processo_arquivos else None
+    processo_filename_first = processo_arquivos[0][1]  if processo_arquivos else ""
     liquidacao_bytes      = await liquidacao.read()  if (liquidacao  and liquidacao.filename)  else None
-    parecer_bytes         = await parecer.read()
+    parecer_bytes         = await parecer.read()     if (parecer     and parecer.filename)     else None
     impugnacao_bytes      = await impugnacao.read()      if (impugnacao      and impugnacao.filename)      else None
     calculo_pjc_bytes     = await calculo_pjc.read()     if (calculo_pjc     and calculo_pjc.filename)     else None
     amostragem_pdf_bytes  = await amostragem_pdf.read()  if (amostragem_pdf  and amostragem_pdf.filename)  else None
     amostragem_word_bytes = await amostragem_word.read() if (amostragem_word and amostragem_word.filename) else None
     manifestacao_bytes    = await manifestacao.read()    if (manifestacao    and manifestacao.filename)    else None
+    manifestacao_filename = (manifestacao.filename or "") if manifestacao else ""
 
     from services.learning_engine import processar_sete_arquivos
     from services.database import save_extraction
@@ -465,11 +477,12 @@ async def lab_analisar(
     try:
         relatorio = processar_sete_arquivos(
             processo_bytes=processo_bytes,
-            processo_filename=processo.filename or "",
+            processo_filename=processo_filename_first,
+            processo_arquivos=processo_arquivos,
             liquidacao_bytes=liquidacao_bytes,
             liquidacao_filename=(liquidacao.filename or "") if liquidacao else "",
             parecer_bytes=parecer_bytes,
-            parecer_filename=parecer.filename or "",
+            parecer_filename=(parecer.filename or "") if parecer else "",
             impugnacao_bytes=impugnacao_bytes,
             impugnacao_filename=(impugnacao.filename or "") if impugnacao else "",
             calculo_pjc_bytes=calculo_pjc_bytes,
@@ -479,7 +492,7 @@ async def lab_analisar(
             amostragem_word_bytes=amostragem_word_bytes,
             amostragem_word_filename=(amostragem_word.filename or "") if amostragem_word else "",
             manifestacao_bytes=manifestacao_bytes,
-            manifestacao_filename=(manifestacao.filename or "") if manifestacao else "",
+            manifestacao_filename=manifestacao_filename,
         )
 
         # Registra na tabela extracoes para contagem de processos únicos.

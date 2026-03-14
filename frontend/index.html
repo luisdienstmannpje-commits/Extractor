@@ -494,18 +494,20 @@
               <span class="lab-card-opc">opcional · style transfer</span>
             </div>
 
-            <!-- PASSO 3 — DIREITO: O que o juiz deferiu -->
+            <!-- PASSO 3 — DIREITO: Título Executivo (múltiplos documentos) -->
             <div class="lab-upload-card" id="card-processo">
               <div class="lab-card-step">3</div>
               <div class="lab-card-body">
-                <div class="lab-card-label">Sentença / Decisão</div>
-                <div class="lab-card-title">Processo</div>
-                <div class="lab-card-hint">PDF · DOC · DOCX</div>
-                <label class="lab-file-label" for="lab-processo">
+                <div class="lab-card-label">Título Executivo Complexo</div>
+                <div class="lab-card-title">Sentença · Acórdão TRT/TST</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX · múltiplos</div>
+                <label class="lab-file-label" for="lab-processo" id="lab-processo-label" title="Clique para adicionar documentos decisórios (acumula)">
                   <span class="lab-file-icon">⚖️</span>
-                  <span id="lab-processo-name" class="lab-file-name truncate">Escolher arquivo</span>
+                  <span id="lab-processo-name" class="lab-file-name truncate">Escolher arquivo(s)</span>
                 </label>
-                <input type="file" id="lab-processo" accept=".pdf,.doc,.docx" class="lab-file-input">
+                <input type="file" id="lab-processo" accept=".pdf,.doc,.docx" class="lab-file-input" multiple>
+                <!-- Indicador de arquivos acumulados -->
+                <div id="lab-processo-lista" style="display:none;margin-top:8px;display:none"></div>
               </div>
               <span class="lab-card-obrig">obrigatório</span>
             </div>

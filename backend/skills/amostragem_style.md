@@ -109,3 +109,170 @@ JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de
 I. DIFERENÇAS:
 Caso o MM. Juízo não reconheça os horários conforme explanado na exordial, que não foram considerados nos cartões de ponto, mesmo assi
 ```
+
+
+---
+
+## Amostragem Analisada — 2026-03-13 21:42 | 1002192-49.2025.5.02.0221 - AMOSTRAGEM (1).docx
+
+**Resumo do estilo:**
+O estilo é formal e objetivo, utilizando vocabulário técnico-jurídico para apresentar argumentos de forma direta. A escrita é estruturada na apresentação de uma tese (diferenças devidas) seguida de prova documental quantitativa por amostragem para fundamentar a conclusão.
+
+**Tom:** formal|técnico|objetivo
+**Estrutura argumentativa:** Qualificação → Tese (existência de diferenças) → Prova documental por amostragem (comparação de cartões de ponto e contracheques) → Quantificação da diferença → Conclusão (afirmação do direito).
+**Tabelas comparativas:** Sim
+
+**Vocabulário técnico identificado:**
+- Assistente Técnica
+- Reclamante
+- Reclamada
+- Parecer técnico
+- MM. Juízo
+- Exordial
+- Cartões de ponto
+- Horas extras
+- Jornada contratada
+- Labor extraordinário
+- Contraprestação
+- Contracheques
+- Período apurado
+- Montante devido
+- Múnus
+- Cálculos Judiciais Trabalhistas
+
+**Expressões características da perita:**
+- vem, respeitosamente, à presença de Vossa Senhoria
+- conforme explanado na exordial
+- Por amostragem
+- sem a devida contraprestação
+- Conforme se verifica dos cartões de ponto
+- Faz jus, portanto, a reclamante ao pagamento
+- Esperando haver se desincumbido do múnus
+- coloca-se à disposição para esclarecimentos adicionais
+
+**Exemplo de abertura:**
+> JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica da Reclamante MARINA RODRIGUES DE ALMEIDA FURLAN, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+
+**Exemplo de conclusão de irregularidade:**
+> Faz jus, portanto, a reclamante ao pagamento das horas extras correspondentes às jornadas efetivamente registradas nos cartões de ponto e não quitadas pela reclamada.
+
+**Trecho original (referência):**
+```
+EXM. SR. DR. JUIZ DA VARA DO TRABALHO DE CAJAMAR/SP
+PROCESSO: 1002192-49.2025.5.02.0221
+JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica da Reclamante MARINA RODRIGUES DE ALMEIDA FURLAN, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+I. DIFERENÇAS:
+Caso o MM. Juízo não reconheça os horários conforme explanado na exordial, que não foram considerados nos cartões de ponto, mesmo assi
+```
+
+
+---
+
+## Amostragem Analisada — 2026-03-13 22:56 | 1002192-49.2025.5.02.0221 - AMOSTRAGEM (1).docx
+
+**Resumo do estilo:**
+O estilo é formal e objetivo, empregando terminologia jurídica e contábil precisa. A argumentação é construída de forma linear e probatória, partindo da alegação, passando pela demonstração com dados quantitativos e concluindo com a afirmação do direito pleiteado.
+
+**Tom:** misto
+**Estrutura argumentativa:** Afirmação da irregularidade → Apresentação de evidências (amostragem de documentos) → Quantificação das diferenças (comparativo de valores pagos vs. devidos) → Conclusão sobre o direito ao pagamento.
+**Tabelas comparativas:** Sim
+
+**Vocabulário técnico identificado:**
+- Vossa Senhoria
+- Parecer técnico
+- MM. Juízo
+- Exordial
+- Cartões de ponto
+- Horas extras
+- Amostragem
+- Jornada contratada
+- Labor extraordinário
+- Contraprestação
+- Contracheques
+- Montante devido
+- Reclamante
+- Reclamada
+- Múnus
+- Perícia
+- Faz jus
+- Quitadas
+
+**Expressões características da perita:**
+- vem, respeitosamente, à presença de Vossa Senhoria
+- Caso o MM. Juízo não reconheça
+- por simples amostragem
+- Conforme se verifica dos cartões de ponto
+- não houve o correto pagamento
+- Faz jus, portanto, a reclamante ao pagamento
+- Esperando haver se desincumbido do múnus
+- coloca-se à disposição para esclarecimentos adicionais
+
+**Exemplo de abertura:**
+> JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica da Reclamante MARINA RODRIGUES DE ALMEIDA FURLAN, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+
+**Exemplo de conclusão de irregularidade:**
+> Faz jus, portanto, a reclamante ao pagamento das horas extras correspondentes às jornadas efetivamente registradas nos cartões de ponto e não quitadas pela reclamada.
+
+**Trecho original (referência):**
+```
+EXM. SR. DR. JUIZ DA VARA DO TRABALHO DE CAJAMAR/SP
+PROCESSO: 1002192-49.2025.5.02.0221
+JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica da Reclamante MARINA RODRIGUES DE ALMEIDA FURLAN, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+I. DIFERENÇAS:
+Caso o MM. Juízo não reconheça os horários conforme explanado na exordial, que não foram considerados nos cartões de ponto, mesmo assi
+```
+
+
+---
+
+## Amostragem Analisada — 2026-03-13 23:06 | 1003964-47.2025.5.02.0221 - AMOSTRAGEM.docx
+
+**Resumo do estilo:**
+O estilo é formal e objetivo, combinando terminologia jurídica com a precisão de cálculos contábeis. A perita utiliza uma estrutura argumentativa clara, baseada na apresentação de provas por amostragem para demonstrar numericamente as irregularidades apontadas.
+
+**Tom:** misto
+**Estrutura argumentativa:** Apresentação formal → Tese da existência de diferenças → Argumento subsidiário → Apresentação de provas por amostragem (cartões de ponto vs. contracheques) → Demonstração numérica da irregularidade → Conclusão com o valor devido.
+**Tabelas comparativas:** Sim
+
+**Vocabulário técnico identificado:**
+- Assistente Técnica
+- Reclamante
+- Reclamada
+- Parecer técnico
+- MM. Juízo
+- Exordial
+- Cartões de ponto
+- Horas extras
+- Intervalos não pagos
+- Jornada contratual
+- Labor extraordinário
+- Devida contraprestação
+- Contracheques
+- Período apurado
+- Montante devido
+- Múnus
+- Cálculos Judiciais Trabalhistas
+
+**Expressões características da perita:**
+- vem, respeitosamente, à presença de Vossa Senhoria
+- Caso o MM. Juízo não reconheça...
+- Por amostragem
+- Conforme se verifica dos cartões de ponto
+- sem a devida contraprestação
+- Faz jus, portanto, a reclamante ao pagamento
+- Esperando haver se desincumbido do múnus
+
+**Exemplo de abertura:**
+> JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica do Reclamante VICTOR FELIPE SANTOS SILVA, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+
+**Exemplo de conclusão de irregularidade:**
+> Faz jus, portanto, a reclamante ao pagamento das horas extras correspondentes às jornadas efetivamente registradas nos cartões de ponto e não quitadas pela reclamada.
+
+**Trecho original (referência):**
+```
+EXM. SR. DR. JUIZ DA VARA DO TRABALHO DE CAJAMAR/SP
+PROCESSO: 1003964-47.2025.5.02.0221
+JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de Direito, na qualidade de Assistente Técnica do Reclamante VICTOR FELIPE SANTOS SILVA, vem, respeitosamente, à presença de Vossa Senhoria, apresentar o presente parecer técnico:
+I. DIFERENÇAS:
+Caso o MM. Juízo não reconheça os horários conforme explanado na exordial, que não foram considerados nos cartões de ponto, mesmo assim há hor
+```

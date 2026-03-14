@@ -40,18 +40,18 @@
         "mensagem": "A verba 'INTERVALO INTRAJORNADA', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
       },
       "base_legal": "Art. 71, § 4º, CLT; Título executivo judicial (Coisa julgada)",
-      "confidence_score": 2,
-      "status": "active",
+      "confidence_score": -13,
+      "status": "deleted",
       "casos_vistos": [
         "0010070-87.2020.5.03.0092",
         "0011219-69.2024.5.15.0052",
         "1002192-49.2025.5.02.0221",
         "0010032-85.2024.5.15.0097"
       ],
-      "acertos": 6,
-      "punicoes": 5,
+      "acertos": 13,
+      "punicoes": 27,
       "created_at": "2026-03-13T12:04:38.985257",
-      "updated_at": "2026-03-13T15:26:36.891610"
+      "updated_at": "2026-03-13T23:47:22.575902"
     },
     {
       "rule_id": "DYN_20260313_120438_9852",
@@ -93,15 +93,15 @@
         "mensagem": "A verba 'saldo de salário', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
       },
       "base_legal": "artigo 467 e 477 da CLT",
-      "confidence_score": -7,
+      "confidence_score": -41,
       "status": "deleted",
       "casos_vistos": [
         "0011219-69.2024.5.15.0052"
       ],
-      "acertos": 4,
-      "punicoes": 12,
+      "acertos": 22,
+      "punicoes": 64,
       "created_at": "2026-03-13T12:09:13.876415",
-      "updated_at": "2026-03-13T15:26:36.900922"
+      "updated_at": "2026-03-13T23:47:22.618908"
     },
     {
       "rule_id": "DYN_20260313_120913_8764",
@@ -270,15 +270,15 @@
         "mensagem": "Identificamos que verbas deferidas na sentença (itens 05 a 10 da fundamentação) não constam na liquidação. É necessário incluir todos os títulos deferidos no cálculo."
       },
       "base_legal": "Verificar fundamentação na manifestação",
-      "confidence_score": 0,
-      "status": "shadow",
+      "confidence_score": -22,
+      "status": "deleted",
       "casos_vistos": [
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 1,
-      "punicoes": 2,
+      "punicoes": 24,
       "created_at": "2026-03-13T12:44:25.716014",
-      "updated_at": "2026-03-13T15:26:36.903922"
+      "updated_at": "2026-03-13T23:47:22.631208"
     },
     {
       "rule_id": "DYN_20260313_124425_7160",
@@ -319,13 +319,13 @@
         "mensagem": "Sugerir fundamento: Princípio da prova documental (implícito) — Rebate: A ausência dos registros de jornada torna os cálculos inválidos e sem credibilidade, pois a origem das horas não pode se"
       },
       "base_legal": "Princípio da prova documental (implícito)",
-      "confidence_score": 8,
+      "confidence_score": 45,
       "status": "active",
       "casos_vistos": [],
-      "acertos": 7,
+      "acertos": 44,
       "punicoes": 0,
       "created_at": "2026-03-13T15:05:36.790828",
-      "updated_at": "2026-03-13T15:26:30.241515"
+      "updated_at": "2026-03-13T23:22:17.370091"
     },
     {
       "rule_id": "DYN_20260313_150545_4577",
@@ -341,15 +341,15 @@
         "mensagem": "O índice de correção monetária utilizado na liquidação (IPCA-E) difere do índice definido na sentença (inexistente). Verificar qual índice deve ser aplicado."
       },
       "base_legal": "Art. 39 da Lei 8.177/91",
-      "confidence_score": 0,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "0010070-87.2020.5.03.0092"
       ],
       "acertos": 1,
-      "punicoes": 2,
+      "punicoes": 3,
       "created_at": "2026-03-13T15:05:45.457799",
-      "updated_at": "2026-03-13T15:26:36.904924"
+      "updated_at": "2026-03-13T21:07:46.145896"
     },
     {
       "rule_id": "DYN_20260313_150545_4734",
@@ -396,11 +396,407 @@
       "punicoes": 0,
       "created_at": "2026-03-13T15:26:36.884610",
       "updated_at": "2026-03-13T15:26:36.884610"
+    },
+    {
+      "rule_id": "DYN_20260313_210746_0540",
+      "descricao": "Verba Saldo de Salário ausente na liquidação",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Saldo de Salário",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Saldo de Salário', deferida em sentença, não foi localizada no cálculo. É necessária sua inclusão."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:07:46.054044",
+      "updated_at": "2026-03-13T21:48:08.426666"
+    },
+    {
+      "rule_id": "DYN_20260313_210746_0806",
+      "descricao": "Verba Vale-Alimentação ausente na liquidação",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Vale-Alimentação",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Vale-Alimentação', deferida em sentença, não foi localizada no cálculo. É necessária sua inclusão."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:07:46.080699",
+      "updated_at": "2026-03-13T21:48:08.441289"
+    },
+    {
+      "rule_id": "DYN_20260313_211126_5542",
+      "descricao": "Verba 'Adicional de Insalubridade' ausente na liquidação",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Adicional de Insalubridade",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Adicional de Insalubridade', deferida na sentença, não consta nos cálculos da liquidação e deve ser incluída."
+      },
+      "base_legal": "Verificar fundamentação na manifestação",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:11:26.554288",
+      "updated_at": "2026-03-13T21:48:09.500262"
+    },
+    {
+      "rule_id": "DYN_20260313_211126_5647",
+      "descricao": "Verba 'Retificação do PPP' ausente na liquidação",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Retificação do PPP",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Retificação do PPP', deferida na sentença, não consta nos cálculos da liquidação e deve ser incluída."
+      },
+      "base_legal": "Verificar fundamentação na manifestação",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:11:26.564792",
+      "updated_at": "2026-03-13T21:48:09.515775"
+    },
+    {
+      "rule_id": "DYN_20260313_215608_0069",
+      "descricao": "Erro no cálculo do 13º salário proporcional devido à ausência da projeção do aviso prévio.",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "13º Salário Proporcional",
+        "campo": "fracao_avos",
+        "valor_esperado": "8/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo do 13º salário proporcional não considerou a projeção do aviso prévio. A fração apurada (6/12) está incorreta; a fração devida é 8/12."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT; Súmula 371 do TST",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 2,
+      "punicoes": 4,
+      "created_at": "2026-03-13T21:56:08.006948",
+      "updated_at": "2026-03-13T22:18:53.278190"
+    },
+    {
+      "rule_id": "DYN_20260313_215608_0189",
+      "descricao": "Erro no cálculo das férias proporcionais devido à ausência da projeção do aviso prévio.",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Férias Proporcionais + 1/3",
+        "campo": "fracao_avos",
+        "valor_esperado": "7/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo das férias proporcionais não considerou a projeção do aviso prévio. A fração apurada (6/12) está incorreta; a fração devida é 7/12."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT; OJ 82 da SDI-1 do TST",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 2,
+      "punicoes": 4,
+      "created_at": "2026-03-13T21:56:08.018928",
+      "updated_at": "2026-03-13T22:18:53.288852"
+    },
+    {
+      "rule_id": "DYN_20260313_215608_0363",
+      "descricao": "Ausência de apuração da Multa do Art. 467 da CLT, deferida em sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Multa do Art. 467 da CLT"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A Multa do Art. 467 da CLT, correspondente a 50% sobre as verbas rescisórias incontroversas, não foi incluída no cálculo de liquidação."
+      },
+      "base_legal": "Art. 467 da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:56:08.036345",
+      "updated_at": "2026-03-13T22:18:53.301356"
+    },
+    {
+      "rule_id": "DYN_20260313_215608_0449",
+      "descricao": "Ausência de apuração da Multa do Art. 477 da CLT, deferida em sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Multa do Art. 477 da CLT"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A Multa do Art. 477 da CLT, por atraso no pagamento das verbas rescisórias, não foi incluída no cálculo de liquidação."
+      },
+      "base_legal": "Art. 477, § 8º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-13T21:56:08.044971",
+      "updated_at": "2026-03-13T22:18:53.313305"
+    },
+    {
+      "rule_id": "DYN_20260313_220604_9160",
+      "descricao": "Ausência do cálculo de Vale-Alimentação deferido em sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Vale-Alimentação",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Vale-Alimentação', deferida em sentença, não foi localizada nos cálculos da liquidação. Favor incluir."
+      },
+      "base_legal": "Conforme decisão judicial",
+      "confidence_score": 7,
+      "status": "active",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 6,
+      "punicoes": 0,
+      "created_at": "2026-03-13T22:06:04.916049",
+      "updated_at": "2026-03-13T22:39:12.181879"
+    },
+    {
+      "rule_id": "DYN_20260313_220604_9295",
+      "descricao": "Ausência do cálculo de Saldo de Salário deferido em sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Saldo de Salário",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Saldo de Salário', deferida em sentença, não foi encontrada nos cálculos da liquidação. Favor incluir."
+      },
+      "base_legal": "artigo 467 e 477 da CLT",
+      "confidence_score": 4,
+      "status": "active",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 3,
+      "punicoes": 0,
+      "created_at": "2026-03-13T22:06:04.929619",
+      "updated_at": "2026-03-13T22:18:53.178209"
+    },
+    {
+      "rule_id": "DYN_20260313_221140_3228",
+      "descricao": "Índice de correção monetária aplicado (IPCA-E) diverge do determinado em sentença (IPCA-E/SELIC).",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Geral",
+        "campo": "indice_correcao",
+        "valor_esperado": "IPCA-E (pré-judicial) e SELIC (pós-ajuizamento)"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo utiliza apenas o índice IPCA-E, enquanto a sentença determina a aplicação de IPCA-E na fase pré-judicial e SELIC a partir do ajuizamento."
+      },
+      "base_legal": "Decisão ADC 58 STF",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-13T22:11:40.322910",
+      "updated_at": "2026-03-13T22:18:53.327189"
+    },
+    {
+      "rule_id": "DYN_20260313_221853_1659",
+      "descricao": "Índice de correção monetária aplicado (IPCA-E) diverge do determinado em sentença (IPCA-E e SELIC).",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": null,
+        "campo": "metodo_correcao_monetaria",
+        "valor_esperado": "IPCA-E até ajuizamento, SELIC após ajuizamento"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção aplicado foi apenas o IPCA-E. A sentença determina a aplicação do IPCA-E até o ajuizamento da ação e da taxa SELIC a partir de então."
+      },
+      "base_legal": "Decisão Judicial (Coisa Julgada)",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-13T22:18:53.166001",
+      "updated_at": "2026-03-13T22:25:22.384413"
+    },
+    {
+      "rule_id": "DYN_20260313_222522_2933",
+      "descricao": "Cálculo do 13º proporcional sem a projeção do aviso prévio (esperado 8/12 avos)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "13º Salário Proporcional",
+        "campo": "avos_apurados",
+        "valor_esperado": "8/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo do 13º salário proporcional deve considerar a projeção do aviso prévio, resultando em 8/12 avos, e não 6/12 como apurado pela reclamada. Verificar o cumprimento da sentença."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT; Súmula 371 TST",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 4,
+      "punicoes": 6,
+      "created_at": "2026-03-13T22:25:22.293342",
+      "updated_at": "2026-03-13T22:56:10.182914"
+    },
+    {
+      "rule_id": "DYN_20260313_222522_3088",
+      "descricao": "Cálculo de Férias proporcionais sem a projeção do aviso prévio (esperado 7/12 avos)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Férias Proporcionais + 1/3",
+        "campo": "avos_apurados",
+        "valor_esperado": "7/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo das férias proporcionais deve considerar a projeção do aviso prévio, resultando em 7/12 avos, e não 6/12 como apurado pela reclamada. Verificar o cumprimento da sentença."
+      },
+      "base_legal": "Art. 146, parágrafo único, da CLT; Art. 487, § 1º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 4,
+      "punicoes": 6,
+      "created_at": "2026-03-13T22:25:22.308859",
+      "updated_at": "2026-03-13T22:56:10.193144"
+    },
+    {
+      "rule_id": "DYN_20260313_223249_8720",
+      "descricao": "Índice de correção monetária aplicado no cálculo diverge do determinado em sentença.",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Todas as verbas",
+        "campo": "indice_correcao",
+        "valor_esperado": "IPCA-E, SELIC e IPCA em períodos distintos"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo aplicou apenas o índice IPCA-E, enquanto a sentença determina a aplicação de IPCA-E, SELIC e IPCA, conforme os períodos definidos na decisão."
+      },
+      "base_legal": "Decisão do STF (ADC 58 e 59)",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-13T22:32:49.872035",
+      "updated_at": "2026-03-13T22:39:12.247468"
+    },
+    {
+      "rule_id": "DYN_20260313_224517_3007",
+      "descricao": "Índice de correção monetária aplicado diverge da sentença",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Principal",
+        "campo": "indice_correcao_monetaria",
+        "valor_esperado": "Fase extrajudicial: IPCA-E. Fase judicial: SELIC (até 29/08/2024), depois IPCA."
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção monetária utilizado (IPCA-E) está em desacordo com a sentença, que determina o uso de IPCA-E na fase pré-judicial, SELIC na fase judicial até 29/08/2024, e IPCA a partir de 30/08/2024."
+      },
+      "base_legal": "Decisão do STF (ADC 58, ADC 59, ADI 5867, ADI 6021)",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-13T22:45:17.300817",
+      "updated_at": "2026-03-13T22:50:53.883509"
     }
   ],
   "_meta": {
     "version": "1.0",
     "created_at": "2026-03-13T12:04:38.968437",
-    "updated_at": "2026-03-13T15:26:36.904924"
+    "updated_at": "2026-03-13T23:47:22.631554"
   }
 }

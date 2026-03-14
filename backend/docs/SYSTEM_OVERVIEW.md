@@ -1,41 +1,97 @@
 # Visão do sistema — PJeCalc Smart Extractor
 
-Documento de referência rápida para agentes de IA. Para detalhes do pipeline e do código, use `PIPELINE.md` e `CODE_MAP.md`.
+Documento de referência rápida para agentes de IA.
+Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
+
+---
 
 ## O que o sistema faz
 
-- **Entrada**: PDF de sentença ou acórdão trabalhista.
-- **Saída**: JSON estruturado (45+ campos), Excel, memória de cálculo (JSON por job), arquivo .pjc compatível com PJeCalc 2.14.0.
-- **Objetivo**: Reduzir leitura manual de sentenças de horas para segundos.
+- **Entrada**: PDF de sentença, acórdão trabalhista ou múltiplos decisórios hierárquicos.
+- **Saída**: JSON estruturado (45+ campos), Excel, memória de cálculo (JSON/job), arquivo `.pjc` compatível com PJeCalc 2.14.0.
+- **Objetivo**: Reduzir leitura manual de sentenças de horas para segundos; treinar regras preditivas de forma autônoma.
+
+---
 
 ## Componentes principais
 
 | Componente | Onde | Função |
 |------------|------|--------|
-| API | `main.py` | FastAPI: upload, jobs, WebSocket, download Excel/PJC. |
+| API | `main.py` | FastAPI: upload, jobs, WebSocket, download Excel/PJC, endpoints `/lab/*`, `GET /api/stats`. |
 | Pipeline | `workers/processor.py` | Orquestra os 10 passos (créditos → cache → texto → IA → validação → persistência → memória). |
-| Extração de texto | `services/sentence_finder.py` | PDF → texto, tipo de doc, OCR se necessário. |
-| IA | `services/ai_client.py` | Gemini (Flash → Pro), playbook, truncagem. |
+| Extração de texto | `services/sentence_finder.py` | PDF → texto, tipo de doc, OCR híbrido. |
+| IA | `services/ai_client.py` | Gemini (Flash → Pro fallback), playbook, truncagem. |
 | Validação jurídica | `services/legal_validator.py` → `legal_engine/` | Delega ao Legal Rule Engine; regras em `legal_engine/rules/` e `services/jurisprudencia/`. |
-| Explicações | `services/explanation_engine.py` | Templates jurídicos por regra (sem LLM). `gerar_parecer_tecnico_completo` usa IA (via `ai_client.gerar_parcelas_parecer` + `skills/parecer_pericial.md`) para gerar seção I do parecer no Padrão Ouro; seção II é Python fixo (IPCA-E/INSS/IRRF). |
-| Memória de cálculo | `memoria_calculo/generator.py` | Gera `memoria_{job_id}.json`. |
+| Explicações / Parecer | `services/explanation_engine.py` + `services/ai_client.py` | Templates jurídicos (sem LLM) + seção I do Parecer Padrão Ouro via Gemini. |
+| Memória de cálculo | `memoria_calculo/generator.py` | Gera `memoria_{job_id}.json` (trilha de auditoria). |
 | Persistência | `services/database.py` | SQLite: créditos, cache, extrações, jobs. |
-| Laboratório de Aprendizado | `services/learning_engine.py`, `main.py` (/lab/*) | **8 arquivos** — Tríade de Ouro Expandida (amostragem PDF/Word + sentença + liquidação + parecer + impugnação + PJC + **manifestação**) → relatório → regras preditivas via cross-reference → style transfer (skills/amostragem_style.md + skills/manifestacao_style.md) → padrões Ataque/Defesa → Shadow Rules no KB → **Self-Healing Rule Engine** (hipóteses JSON + Knowledge Base) → pré-visualização → salvar via codify_insight. |
-| Frontend | `frontend/index.html`, `frontend/css/main.css`, `frontend/js/*.js` | Workspace App (Tailwind h-screen): sidebar fixa (4 views: Extrator, Laboratório, Meus Processos, Estatísticas), toolbar compacta, split-view extrator 50/50 (upload-state/viewer-state + KPIs), Laboratório (**8 uploads** — Tríade de Ouro Expandida; Conclusão grid 2×2), Meus Processos, Dashboard Estatísticas (GET /api/stats, polling 5 s quando visível, animação .kpi-updated); app.js, render.js (acordeões), lab.js (toast pós-salvar → Estatísticas). |
+| Laboratório de Aprendizado | `services/learning_engine.py`, `main.py (/lab/*)` | Ver abaixo. |
+| Frontend | `frontend/` | Workspace App Tailwind + Vanilla JS. Ver abaixo. |
+
+---
+
+## Laboratório de Aprendizado — visão geral
+
+8 arquivos — **Tríade de Ouro Expandida**:
+
+| # | Campo | Tipo | Função |
+|---|-------|------|--------|
+| 1 | `amostragem_pdf` | PDF | Holerites/ponto → teses + irregularidades (Gemini) |
+| 2 | `amostragem_word` | DOCX | Style Transfer vocabulário perita → `skills/amostragem_style.md` |
+| 3 | `processo` | PDF/DOCX (múltiplos) | **Título Executivo Complexo**: 1–N documentos (Sentença + Acórdão TRT + Acórdão TST); classificados por tier (1GRAU/TRT/TST) e fusionados com Análise de Reforma de Decisão |
+| 4 | `liquidacao` | PDF/DOCX/.PJC | Cálculo da empresa → verbas calculadas (base dos guardrails) |
+| 5 | `parecer` | PDF/DOCX | Parecer da perita → correção |
+| 6 | `impugnacao` | PDF/DOCX | Contestação empresa → **Duplo Style Transfer** (junto com Card 8) |
+| 7 | `calculo_pjc` | PDF/.PJC/.XML | Parâmetros PJe-Calc → auditoria matemática |
+| 8 | `manifestacao` | PDF/DOCX | Petição de Resposta → **Duplo Style Transfer** → retórica combate → `skills/manifestacao_style.md` |
+
+**Duplo Style Transfer**: Card 6 (impugnação) E Card 8 (manifestação) alimentam `manifestacao_style.md`. Se ambos presentes, `_merge_dados_manifestacao` funde os resultados sem duplicatas.
+
+**Guardrails anti-alucinação** (3 camadas):
+1. Discrepâncias (`_filtrar_falsos_positivos_verba_ausente`) — remove `verba_ausente` se a verba está na liquidação.
+2. Hipóteses KB (`_filtrar_logicas_verba_ausente_falsas`) — remove hipóteses Gemini falsas antes do Knowledge Base.
+3. Aprendizados frontend (`_filtrar_aprendizados_verba_ausente_falsas`) — limpa o JSON retornado ao UI.
+
+---
 
 ## Fluxo de dados (resumido)
 
-1. PDF → hash → cache? → texto (sentence_finder) → playbook → IA → dados brutos.
-2. Dados brutos → limpeza e derivações (processor) → dedup verbas → Pydantic (ProcessoTrabalhista).
-3. Dados validados → Legal Rule Engine → alertas + regras_aplicadas + memorial_juridico.
-4. Explanation Engine → explicacoes.
-5. Persistência (cache, extração, crédito) + memória de cálculo (JSON).
+```
+PDF(s) → hash → cache? → sentence_finder (texto + doc_type) → playbook → Gemini → dados brutos
+→ _validate_result → dedup verbas → ProcessoTrabalhista (Pydantic)
+→ LegalRuleEngine (alertas + regras_aplicadas + memorial)
+→ explanation_engine (explicacoes + parecer)
+→ persistência (cache + extração + crédito)
+→ memoria_calculo/generator.py
+```
 
-## Hierarquia normativa (regras)
+---
 
-10 = STF → 20 = TST Súmulas → 30 = TST OJs → 40 = CLT → 50 = Consistência.
+## Hierarquia normativa (Legal Rule Engine)
+
+| Prioridade | Nível |
+|------------|-------|
+| 10 | STF (ADC 58) |
+| 20 | TST Súmulas |
+| 30 | TST OJs |
+| 40 | CLT / legislação federal |
+| 50 | Consistência |
+
+---
+
+## Frontend — 4 views
+
+| View | ID | Conteúdo |
+|------|-----|----------|
+| Extrator | `#view-extrator` | Upload PDF, split-view, KPIs, resultado JSON renderizado, export PJC/Excel. |
+| Laboratório | `#view-lab` | 8 cards de upload; Card 3 aceita múltiplos arquivos; resultado em 4 passos; modal de pré-visualização. |
+| Meus Processos | `#view-historico` | Histórico de extrações; busca em tempo real; download PJC/Excel por job. |
+| Estatísticas | `#view-estatisticas` | KPIs do aprendizado; polling 5 s; animação `.kpi-updated`. |
+
+---
 
 ## Versão e estado
 
-- Versão referência: v5.3.
-- Pipeline estável; não alterar sem análise. Regras críticas e restrições em `AI_RULES.md`.
+- Versão referência: v5.3+ (com Laboratório expandido, guardrails, Título Executivo Complexo).
+- Pipeline estável; não alterar sem análise. Regras críticas em `docs/AI_RULES.md`.
+- Modelos Gemini ativos: `gemini-2.5-flash` (principal), fallback `gemini-2.5-pro`.

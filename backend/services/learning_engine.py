@@ -28,6 +28,14 @@ import zipfile
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from rapidfuzz import fuzz as rapidfuzz_fuzz
+
+try:
+    from config import settings
+    _FUZZ_THRESHOLD = getattr(settings, "RAPIDFUZZ_THRESHOLD", 85)
+except Exception:
+    _FUZZ_THRESHOLD = 85
+
 # ── Caminhos de saída ─────────────────────────────────────────────────────────
 _HERE = os.path.dirname(__file__)
 _BACKEND = os.path.abspath(os.path.join(_HERE, ".."))
@@ -246,6 +254,42 @@ def _extrair_discrepancias_perita(texto: str) -> List[str]:
 
 # ── Geração do Relatório de Discrepância ─────────────────────────────────────
 
+def _verba_corresponde_na_liquidacao(
+    verba_sentenca: str,
+    verbas_liq_norm: List[str],
+    verbas_liq_canon: set,
+    threshold: int = None,
+) -> bool:
+    """
+    Verifica se a verba da sentença tem correspondente na liquidação.
+    (1) Match canonizado: obrigatório — só considera ausente se não houver match canonizado.
+    (2) Substring e fuzzy como fallback para nomes fora do mapa de canonização.
+    """
+    if not (verba_sentenca or "").strip():
+        return False
+    if not verbas_liq_norm and not verbas_liq_canon:
+        return False
+    from services.legal_engine.rule_base import LegalRule
+    nome_sent = (verba_sentenca or "").strip()
+    canon_sent = LegalRule._canonizar_verba(nome_sent)
+    # Match canonizado: se a forma canonizada da sentença existir na liquidação (também canonizada), está presente
+    if canon_sent and verbas_liq_canon and canon_sent in verbas_liq_canon:
+        return True
+    nome_norm = nome_sent.lower()
+    # Substring bidirecional
+    for v in verbas_liq_norm:
+        if v and (nome_norm in v or v in nome_norm):
+            return True
+    # Fuzzy
+    limiar = threshold if threshold is not None else _FUZZ_THRESHOLD
+    for v in verbas_liq_norm:
+        if not v:
+            continue
+        if rapidfuzz_fuzz.token_set_ratio(nome_norm, v) >= limiar:
+            return True
+    return False
+
+
 def gerar_relatorio_discrepancia(
     dados_sentenca: Dict,
     dados_liquidacao: Dict,
@@ -257,18 +301,23 @@ def gerar_relatorio_discrepancia(
     """
     discrepancias = []
 
-    # 1. Verbas deferidas na sentença vs verbas calculadas na liquidação
+    # 1. Verbas deferidas na sentença vs verbas calculadas na liquidação — só "verba_ausente" se não houver match canonizado
+    from services.legal_engine.rule_base import LegalRule as _LegalRule
     verbas_sentenca = [
-        (v.get("nome") or "") for v in (dados_sentenca.get("dados") or {}).get("verbas_deferidas", [])
-        if isinstance(v, dict)
+        (v.get("nome") or "").strip() for v in (dados_sentenca.get("dados") or {}).get("verbas_deferidas", [])
+        if isinstance(v, dict) and (v.get("nome") or "").strip()
     ]
-    verbas_liquidacao = dados_liquidacao.get("verbas_calculadas") or []
-    verbas_liq_norm = [str(v or "").lower() for v in verbas_liquidacao]
+    verbas_liquidacao_raw = dados_liquidacao.get("verbas_calculadas") or []
+    verbas_liquidacao = [str(v or "").strip() for v in verbas_liquidacao_raw if str(v or "").strip()]
+    verbas_liq_norm = [v.lower() for v in verbas_liquidacao]
+    # Conjunto de formas canonizadas da liquidação (13º SALÁRIO → 13º Salário; 13º Salário Proporcional → 13º Salário)
+    verbas_liq_canon = {_LegalRule._canonizar_verba(v) for v in verbas_liquidacao}
 
     for verba in verbas_sentenca:
-        nome_norm = (verba or "").lower()
-        presente = any(nome_norm in v or v in nome_norm for v in verbas_liq_norm)
-        if not presente and verba:
+        if not verba:
+            continue
+        presente = _verba_corresponde_na_liquidacao(verba, verbas_liq_norm, verbas_liq_canon)
+        if not presente:
             discrepancias.append({
                 "tipo": "verba_ausente",
                 "nivel": "ERRO",
@@ -1133,6 +1182,149 @@ def _extrair_processo(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         return {"erro": str(e), "doc_type": "sentenca"}
 
 
+# ── Título Executivo Complexo: fusão de decisões com hierarquia processual ───
+
+_TIER_TST = ("tst", "recurso_de_revista", "recurso de revista", "rr_", "_rr.", "acórdão_tst", "acordao_tst")
+_TIER_TRT = ("trt", "recurso_ordinario", "recurso ordinário", "ro_", "_ro.", "acórdão_trt", "acordao_trt", "acórdão", "acordao")
+
+
+def _classificar_tier_decisao(filename: str) -> str:
+    """Classifica o nível hierárquico de um documento decisório pelo nome do arquivo.
+    Retorna 'TST', 'TRT' ou '1GRAU'."""
+    n = (filename or "").lower()
+    if any(k in n for k in _TIER_TST):
+        return "TST"
+    if any(k in n for k in _TIER_TRT):
+        return "TRT"
+    return "1GRAU"
+
+
+_TIER_ORDER = {"1GRAU": 0, "TRT": 1, "TST": 2}
+_TIER_LABELS = {
+    "1GRAU": "SENTENÇA DE 1º GRAU",
+    "TRT":   "ACÓRDÃO TRT (RECURSO ORDINÁRIO)",
+    "TST":   "ACÓRDÃO TST (RECURSO DE REVISTA)",
+}
+
+
+def _extrair_titulo_executivo_multiplos(
+    arquivos: List[tuple],
+) -> Dict[str, Any]:
+    """
+    Processa múltiplos documentos decisórios (sentença + acórdãos) como Título Executivo Complexo.
+
+    Hierarquia aplicada (mais recente e de instância superior prevalece):
+      1º Grau (Sentença) → TRT (Acórdão RO) → TST (Acórdão RR)
+
+    Funde os textos com rótulos de instância e envia ao Gemini com prompt de
+    "Análise de Reforma de Decisão" — a IA prioriza as reformas das instâncias
+    superiores para definir as verbas finais devidas.
+
+    Args:
+        arquivos: lista de (bytes, filename) na ordem de upload.
+    Returns:
+        Dict com mesma estrutura de _extrair_processo mas enriquecido com
+        contexto_decisao_final, instancias_detectadas e verbas_reformadas.
+    """
+    if not arquivos:
+        return {"dados": {}, "doc_type": "titulo_executivo_vazio"}
+
+    # Se apenas 1 arquivo: caminho rápido sem fusão
+    if len(arquivos) == 1:
+        result = _extrair_processo(arquivos[0][0], arquivos[0][1])
+        result["instancias_detectadas"] = [_classificar_tier_decisao(arquivos[0][1])]
+        result["contexto_decisao_final"] = None
+        return result
+
+    # Classifica e ordena por hierarquia processual
+    docs_com_tier = [
+        (_classificar_tier_decisao(fn), b, fn)
+        for b, fn in arquivos
+    ]
+    docs_com_tier.sort(key=lambda x: _TIER_ORDER.get(x[0], 0))
+
+    instancias = [tier for tier, _, _ in docs_com_tier]
+    tem_tst = "TST" in instancias
+    tem_trt = "TRT" in instancias
+
+    print(f"[LEARNING] Título Executivo Complexo — instâncias detectadas: {instancias}")
+
+    # Extrai texto de cada documento
+    blocos_texto = []
+    for tier, b, fn in docs_com_tier:
+        label = _TIER_LABELS.get(tier, tier)
+        texto = _extrair_texto_arquivo(b, fn)
+        if texto.strip():
+            blocos_texto.append(f"{'='*60}\n{label} — {fn}\n{'='*60}\n{texto[:4000]}")
+
+    if not blocos_texto:
+        return {"dados": {}, "doc_type": "titulo_executivo", "erro": "Nenhum texto legível extraído dos documentos"}
+
+    contexto_decisao_final = "\n\n".join(blocos_texto)
+
+    # ── Prompt de Análise de Reforma de Decisão ──────────────────────────────
+    instrucao_tst = (
+        "\nCRÍTICO — RECURSO DE REVISTA DETECTADO:\n"
+        "O Acórdão do TST representa jurisprudência consolidada (Súmulas e OJs). "
+        "Dê peso DOBRADO às teses extraídas do Acórdão TST/RR. "
+        "Verbas ou parâmetros alterados pelo TST têm prioridade absoluta sobre TRT e 1º grau.\n"
+    ) if tem_tst else ""
+
+    instrucao_reforma = (
+        "\nHIERARQUIA DE REFORMA:\n"
+        "Leia os documentos na ordem: 1º Grau → TRT → TST.\n"
+        "Se um acórdão REFORMOU uma verba da instância anterior:\n"
+        "  - Marque a verba como 'reformada' com o status final (deferida/excluída/reduzida)\n"
+        "  - Somente inclua em 'verbas_deferidas' verbas com status FINAL após todas as reformas\n"
+        "  - Liste as verbas EXCLUÍDAS/REFORMADAS separadamente em 'verbas_reformadas'\n"
+    ) if (tem_trt or tem_tst) else ""
+
+    try:
+        from services.ai_client import extract_data_with_gemini
+        from services.learning_skill_loader import carregar_skill_para_lab
+
+        playbook_base = carregar_skill_para_lab("sentenca")
+
+        # Injeta a instrução de Análise de Reforma no início do playbook
+        playbook_titulo = (
+            "# ANÁLISE DE REFORMA DE DECISÃO — TÍTULO EXECUTIVO COMPLEXO\n\n"
+            "Você está analisando um TÍTULO EXECUTIVO COMPLEXO composto por múltiplas decisões judiciais.\n"
+            "TAREFA: Ler a sentença inicial e dar PRIORIDADE ABSOLUTA às reformas contidas nos "
+            "Acórdãos posteriores (TRT/TST) para definir as verbas FINAIS devidas.\n"
+            f"{instrucao_reforma}"
+            f"{instrucao_tst}"
+            "\nAlém dos campos padrão, inclua obrigatoriamente:\n"
+            '- "verbas_reformadas": lista de verbas excluídas ou alteradas pela instância superior\n'
+            '- "instancia_final": "TST", "TRT" ou "1GRAU"\n\n'
+            "────────────────────────────────────────\n"
+            "PLAYBOOK PADRÃO DE SENTENÇA:\n"
+            + (playbook_base or "")
+        )
+
+        ai_result = extract_data_with_gemini(
+            contexto_decisao_final,
+            playbook=playbook_titulo,
+        )
+
+        return {
+            "doc_type":                "titulo_executivo_complexo",
+            "instancias_detectadas":   instancias,
+            "instancia_final":         instancias[-1] if instancias else "1GRAU",
+            "tem_recurso_revista":     tem_tst,
+            "contexto_decisao_final":  contexto_decisao_final[:500] + "…" if len(contexto_decisao_final) > 500 else contexto_decisao_final,
+            "dados":                   ai_result.get("data") or {},
+            "model_used":              ai_result.get("model_used"),
+            "erro":                    ai_result.get("error"),
+        }
+    except Exception as e:
+        # Fallback: usa apenas o documento de maior instância
+        tier_final, b_final, fn_final = docs_com_tier[-1]
+        resultado = _extrair_processo(b_final, fn_final)
+        resultado["instancias_detectadas"] = instancias
+        resultado["erro_fusao"] = str(e)
+        return resultado
+
+
 # ── Extração da Impugnação ───────────────────────────────────────────────────
 
 def _extrair_impugnacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
@@ -1164,6 +1356,136 @@ def _extrair_calculo_pjc(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     - .pdf / .doc / .docx → extração de texto + regex
     """
     return _extrair_liquidacao(file_bytes, filename)
+
+
+# ── Guardrail: filtro de falsos positivos "verba ausente" ─────────────────────
+
+def _canon_empresa_e_verba_esta(relatorio: Dict[str, Any]):
+    """
+    Retorna (set de verbas canonizadas da empresa, função verba_esta(verba) -> bool).
+    Usado pelos guardrails de discrepâncias, aprendizados e hipóteses LLM.
+    """
+    from services.legal_engine.rule_base import LegalRule
+
+    verbas_liq = (relatorio.get("liquidacao") or {}).get("verbas_calculadas") or []
+    pjc = relatorio.get("calculo_pjc") or {}
+    verbas_pjc = pjc.get("verbas_calculadas") or []
+    todos = [str(v).strip() for v in verbas_liq + verbas_pjc if v]
+    canon_empresa = {LegalRule._canonizar_verba(n) for n in todos}
+    canon_empresa.discard("")
+
+    def verba_esta(verba: str) -> bool:
+        if not (verba or "").strip():
+            return False
+        canon = LegalRule._canonizar_verba(verba.strip())
+        if canon in canon_empresa:
+            return True
+        cl, ce = canon.lower(), [c.lower() for c in canon_empresa if c]
+        return any(cl in e or e in cl for e in ce)
+
+    return canon_empresa, verba_esta
+
+
+def _filtrar_falsos_positivos_verba_ausente(relatorio: Dict[str, Any]) -> None:
+    """
+    Remove da lista de discrepâncias itens em que o LLM apontou 'verba ausente'
+    mas a verba deferida (canonizada) existe nas verbas da liquidação ou do PJC.
+    Mutates relatorio["discrepancias"] e relatorio["resumo"]["discrepancias_encontradas"].
+    """
+    discrepancias = relatorio.get("discrepancias") or []
+    if not discrepancias:
+        return
+
+    _, verba_esta = _canon_empresa_e_verba_esta(relatorio)
+
+    filtradas = []
+    for d in discrepancias:
+        tipo = (d.get("tipo") or "").strip()
+        empresa_calculou = (d.get("empresa_calculou") or "").lower()
+        juiz_disse = d.get("juiz_disse") or ""
+
+        # Aplica guardrail apenas em discrepâncias de verba ausente (ou equivalente)
+        is_verba_ausente = (
+            tipo == "verba_ausente"
+            or ("ausente" in empresa_calculou and "deferido" in juiz_disse.lower())
+        )
+        if not is_verba_ausente:
+            filtradas.append(d)
+            continue
+
+        match = re.search(r"deferido:\s*(.+)", juiz_disse, re.IGNORECASE)
+        verba_deferida = match.group(1).strip() if match else ""
+        if not verba_deferida:
+            filtradas.append(d)
+            continue
+
+        if verba_esta(verba_deferida):
+            continue  # Remove: falso positivo (verba existe na liquidação/PJC canonizada)
+        filtradas.append(d)
+
+    relatorio["discrepancias"] = filtradas
+    if "resumo" in relatorio and isinstance(relatorio["resumo"], dict):
+        relatorio["resumo"]["discrepancias_encontradas"] = len(filtradas)
+
+
+def _filtrar_logicas_verba_ausente_falsas(
+    logicas: List[Dict], relatorio: Dict[str, Any]
+) -> List[Dict]:
+    """
+    Remove da lista de hipóteses (saída do Gemini) itens do tipo verba_ausente
+    cuja verba canonizada existe na liquidação/PJC. Evita que regras falsas entrem no KB.
+    """
+    if not logicas:
+        return logicas
+    _, verba_esta = _canon_empresa_e_verba_esta(relatorio)
+    filtradas = []
+    for logica in logicas:
+        cond = logica.get("condicao") or {}
+        if (cond.get("tipo") or "").strip() != "verba_ausente":
+            filtradas.append(logica)
+            continue
+        verba = (cond.get("verba") or "").strip()
+        if not verba:
+            desc = (logica.get("descricao") or "").lower()
+            match = re.search(r"deferido:\s*(.+?)(?:\s*[;.]|$)", desc, re.IGNORECASE)
+            verba = match.group(1).strip() if match else ""
+        if verba and verba_esta(verba):
+            continue  # Remove: verba existe no cálculo da empresa
+        filtradas.append(logica)
+    return filtradas
+
+
+def _filtrar_aprendizados_verba_ausente_falsas(relatorio: Dict[str, Any]) -> None:
+    """
+    Remove de relatorio["aprendizados"] itens que representam verba_ausente falsa
+    (verba canonizada existe no PJC/Liquidação). Mutates relatorio["aprendizados"].
+    """
+    aprendizados = relatorio.get("aprendizados") or []
+    if not aprendizados:
+        return
+    _, verba_esta = _canon_empresa_e_verba_esta(relatorio)
+    filtrados = []
+    for ap in aprendizados:
+        titulo = (ap.get("titulo") or "").lower()
+        descricao = (ap.get("descricao") or "") or ""
+        desc_lower = descricao.lower()
+        is_verba_ausente = (
+            "verba_ausente" in titulo
+            or "ausente" in titulo
+            or ("ausente" in desc_lower and "deferido" in desc_lower)
+        )
+        if not is_verba_ausente:
+            filtrados.append(ap)
+            continue
+        match = re.search(r"deferido:\s*(.+?)(?:\s*[;.]|$)", descricao, re.IGNORECASE)
+        verba = match.group(1).strip() if match else ""
+        if not verba:
+            filtrados.append(ap)
+            continue
+        if verba_esta(verba):
+            continue  # Remove: falso positivo
+        filtrados.append(ap)
+    relatorio["aprendizados"] = filtrados
 
 
 # ── Relatório ampliado com impugnação e cálculo PJC ──────────────────────────
@@ -1555,6 +1877,72 @@ def _resumir_triada_pericial(
 # avalia hipóteses shadow contra os pareceres reais submetidos ao laboratório.
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _montar_bloco_tese_impugnacao(relatorio: Dict) -> str:
+    """
+    Monta o bloco de texto com a tese de combate / argumento da impugnação ou parecer
+    para injetar no prompt do Gemini, de modo que a regra gerada foque no erro de
+    cálculo (ex: 6/12 vs 8/12 avos) e não apenas em 'verba ausente'.
+    """
+    partes = []
+    # Manifestação pericial (Tríade 8 arquivos): argumento vencedor
+    man_pericial = relatorio.get("manifestacao_pericial") or {}
+    arg_vencedor = (man_pericial.get("argumento_vencedor") or "").strip()
+    if arg_vencedor:
+        partes.append(f"ARGUMENTO VENCEDOR DA PERITA (use como foco da regra):\n{arg_vencedor[:1500]}")
+    # Impugnação (fluxo 5 arquivos): argumentos da parte
+    impug = relatorio.get("impugnacao") or {}
+    args_parte = impug.get("argumentos_da_parte") or []
+    if args_parte:
+        if isinstance(args_parte, list):
+            texto_args = "\n".join(str(a)[:300] for a in args_parte[:5])
+        else:
+            texto_args = str(args_parte)[:800]
+        partes.append(f"ARGUMENTOS DA IMPUGNAÇÃO (erro alegado pela empresa / rebate da perita):\n{texto_args}")
+    # Manifestação/parecer: discrepâncias levantadas (trechos que a perita corrigiu)
+    manifest = relatorio.get("manifestacao") or {}
+    disc_levant = manifest.get("discrepancias_levantadas") or []
+    if disc_levant:
+        if isinstance(disc_levant, list):
+            texto_disc = "\n".join(str(d)[:200] for d in disc_levant[:5])
+        else:
+            texto_disc = str(disc_levant)[:600]
+        partes.append(f"DISCREPÂNCIAS LEVANTADAS NO PARECER:\n{texto_disc}")
+    if not partes:
+        return "TESE DE COMBATE / ARGUMENTO DA IMPUGNAÇÃO: (não informado neste relatório)"
+    return "TESE DE COMBATE / ARGUMENTO DA IMPUGNAÇÃO OU PARECER (use como foco principal da regra):\n" + "\n\n".join(partes)
+
+
+def _tese_tem_argumento_matematico(relatorio: Dict) -> bool:
+    """
+    Detecta se a impugnação ou manifestação contém argumentos detalhados de cálculo
+    (avos, frações, projeção) para que o prompt do Gemini priorize regra sobre o erro
+    matemático e ignore discrepâncias genéricas de verba_ausente.
+    """
+    texto = ""
+    for key in ("manifestacao_pericial", "impugnacao", "manifestacao"):
+        bloc = relatorio.get(key) or {}
+        if isinstance(bloc, dict):
+            arg = bloc.get("argumento_vencedor") or bloc.get("argumentos_da_parte") or ""
+            if isinstance(arg, list):
+                arg = " ".join(str(x) for x in arg)
+            texto += " " + (arg or "")
+        else:
+            texto += " " + str(bloc)
+    texto = texto.lower()
+    padroes = [
+        r"\d+\s*/\s*12",           # 6/12, 8/12 avos
+        r"avos?\b",
+        r"proje[cç][aã]o",
+        r"proporcional",
+        r"f[eé]rias.*13|13.*f[eé]rias",
+        r"aviso\s*pr[eé]vio.*(?:f[eé]rias|13)",
+    ]
+    for pat in padroes:
+        if re.search(pat, texto, re.IGNORECASE):
+            return True
+    return False
+
+
 def _extrair_logica_correcao_gemini(relatorio: Dict) -> List[Dict]:
     """
     Usa Gemini para extrair, do relatório de discrepâncias, a lógica de correção
@@ -1575,40 +1963,66 @@ def _extrair_logica_correcao_gemini(relatorio: Dict) -> List[Dict]:
       campo_ausente   — campo obrigatório vazio
       campo_diferente — campo diverge do esperado
     """
-    discrepancias = relatorio.get("discrepancias") or []
+    # Lista já filtrada pelo guardrail (falsos positivos de verba ausente removidos)
+    discrepancias_filtradas = relatorio.get("discrepancias") or []
     verbas_sentenca = (relatorio.get("sentenca") or {}).get("verbas") or []
     verbas_liquidacao = (relatorio.get("liquidacao") or {}).get("verbas_calculadas") or []
     indice_sentenca = ((relatorio.get("sentenca") or {}).get("campos_chave") or {}).get("indice_correcao", "")
     indice_liq = (relatorio.get("liquidacao") or {}).get("indice_correcao", "")
 
-    if not discrepancias and not verbas_sentenca:
+    tese_tem_detalhe = _tese_tem_argumento_matematico(relatorio)
+
+    # REGRA 3 (early exit): sem discrepâncias filtradas e sem tese matemática → não chamar Gemini
+    if not discrepancias_filtradas and not tese_tem_detalhe:
         return []
 
-    disc_txt = json.dumps(discrepancias[:10], ensure_ascii=False)
+    if not discrepancias_filtradas and not verbas_sentenca:
+        return []
+
+    tese_bloco = _montar_bloco_tese_impugnacao(relatorio)
+    # JSON explícito das discrepâncias FILTRADAS — única fonte permitida para regras de discrepância
+    disc_filtradas_json = json.dumps(discrepancias_filtradas[:10], ensure_ascii=False)
+
+    instrucao_avos = (
+        "\nREGRA OBRIGATÓRIA: Se a TESE DE COMBATE / ARGUMENTO contiver detalhes de CÁLCULO "
+        "(avos, frações como 6/12 vs 8/12, projeção de aviso prévio em férias ou 13º), "
+        "a IA DEVE criar a regra BASEADA NESSE ARGUMENTO MATEMÁTICO/JURÍDICO. "
+        "NÃO gere hipóteses com tipo 'verba_ausente' nesse caso — ignore discrepâncias genéricas de ausência. "
+        "Use condicao tipo 'campo_diferente' com campo/valor_esperado que espelhem o erro (ex: 8/12 avos, método correto).\n\n"
+    ) if tese_tem_detalhe else ""
+
     prompt = (
         "Você é um Engenheiro de Machine Learning especializado em Direito Trabalhista.\n"
-        "Analise o relatório de discrepâncias de um processo trabalhista abaixo e extraia\n"
-        "a lógica de correção como uma lista de HIPÓTESES DE REGRA em JSON puro.\n\n"
-        "Para cada discrepância identificada, gere um objeto com:\n"
+        "Analise o relatório abaixo e extraia a lógica de correção como uma lista de HIPÓTESES DE REGRA em JSON puro.\n\n"
+        "FONTE ÚNICA PARA DISCREPÂNCIAS: Use APENAS o JSON de 'DISCREPÂNCIAS FILTRADAS' abaixo. "
+        "Essa lista já passou por um guardrail que removeu falsos positivos de verba ausente.\n\n"
+        "INSTRUÇÕES ESTRITAS:\n"
+        "REGRA 1: É ESTRITAMENTE PROIBIDO gerar regras do tipo 'verba_ausente' ou apontar falta de verbas que NÃO estejam explicitamente listadas no JSON de discrepâncias filtradas. Só use verba_ausente se a verba aparecer em alguma entrada desse JSON.\n"
+        "REGRA 2: Se houver texto na seção de IMPUGNAÇÃO/MANIFESTAÇÃO, você DEVE ignorar discrepâncias genéricas e criar regras EXCLUSIVAMENTE baseadas nos argumentos matemáticos e teses da defesa (ex: diferenças de avos 6/12 vs 8/12, bases de cálculo, exclusão de reflexos).\n"
+        "REGRA 3: Se as discrepâncias filtradas estiverem vazias e a impugnação não contiver uma tese matemática clara, retorne uma lista vazia [].\n\n"
+        "PRIORIDADE: Use a TESE DE COMBATE / ARGUMENTO DA IMPUGNAÇÃO OU PARECER como foco principal. "
+        "Quando o argumento descrever um ERRO DE CÁLCULO, gere a regra com condicao tipo campo_diferente e NÃO use verba_ausente.\n\n"
+        f"{instrucao_avos}"
+        "Para cada hipótese, gere um objeto com:\n"
         "{\n"
-        '  "descricao": "frase curta descrevendo a situação problemática",\n'
+        '  "descricao": "frase curta (preferir tese de combate quando houver)",\n'
         '  "condicao": {\n'
         '    "tipo": "verba_ausente" | "verba_presente" | "indice_ausente" | "campo_ausente" | "campo_diferente",\n'
-        '    "verba": "nome da verba se aplicável (ex: horas extras)",\n'
-        '    "campo": "nome do campo Python se aplicável (ex: indice_correcao)",\n'
-        '    "valor_esperado": "valor correto esperado se aplicável"\n'
+        '    "verba": "nome da verba somente se constar no JSON de discrepâncias filtradas",\n'
+        '    "campo": "nome do campo Python se aplicável",\n'
+        '    "valor_esperado": "valor correto esperado (ex: 8/12 avos)"\n'
         "  },\n"
-        '  "acao": {"tipo": "alerta", "nivel": "ERRO" | "AVISO", "mensagem": "texto do alerta para o perito"},\n'
+        '  "acao": {"tipo": "alerta", "nivel": "ERRO" | "AVISO", "mensagem": "texto do alerta"},\n'
         '  "base_legal": "ex: Art. 59 CLT, Súmula 264 TST"\n'
         "}\n\n"
-        "REGRAS:\n"
-        "- Gere APENAS hipóteses com fundamento nos dados abaixo (nenhuma invenção)\n"
-        "- Máximo 5 hipóteses por análise\n"
-        "- Responda APENAS com o array JSON, sem markdown\n\n"
+        "REGRAS GERAIS:\n"
+        "- Gere APENAS hipóteses com fundamento nos dados abaixo (nenhuma invenção).\n"
+        "- Máximo 5 hipóteses. Responda APENAS com o array JSON, sem markdown.\n\n"
+        f"{tese_bloco}\n\n"
         f"Verbas na sentença: {verbas_sentenca}\n"
         f"Verbas na liquidação: {verbas_liquidacao}\n"
-        f"Índice sentença: {indice_sentenca} | Índice liquidação: {indice_liq}\n"
-        f"Discrepâncias identificadas:\n{disc_txt}"
+        f"Índice sentença: {indice_sentenca} | Índice liquidação: {indice_liq}\n\n"
+        f"DISCREPÂNCIAS FILTRADAS (use somente esta lista — não invente verbas ausentes):\n{disc_filtradas_json}"
     )
 
     conteudo, model = _chamar_gemini_para_codify(prompt)
@@ -1652,6 +2066,8 @@ def processar_aprendizado_autonomo(
 
     # Fase 1: extração de novas hipóteses via Gemini
     logicas = _extrair_logica_correcao_gemini(relatorio)
+    # Guardrail: remove hipóteses verba_ausente cuja verba existe no PJC/Liquidação
+    logicas = _filtrar_logicas_verba_ausente_falsas(logicas, relatorio)
     resultados_criacao = []
 
     for logica in logicas:
@@ -1756,6 +2172,35 @@ def _evaluate_shadow_rules(relatorio: Dict, kb=None) -> Dict:
 
 
 # ── Manifestação Pericial: retórica de combate + regras de Ataque/Defesa ─────
+
+def _merge_dados_manifestacao(
+    base: Optional[Dict[str, Any]], novo: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Junta resultados de impugnação e manifestação para enriquecer o playbook."""
+    if not base:
+        return dict(novo)
+    out = {}
+    for key in ("frases_impacto", "fundamentos_juridicos", "padroes_ataque_defesa",
+                "parametros_fraudados", "verbas_em_disputa"):
+        a = (base.get(key) or []) if isinstance(base.get(key), list) else []
+        b = (novo.get(key) or []) if isinstance(novo.get(key), list) else []
+        seen = set()
+        merged = []
+        for x in a + b:
+            t = (x if isinstance(x, str) else str(x))[:200]
+            if t not in seen:
+                seen.add(t)
+                merged.append(x)
+        out[key] = merged
+    out["argumento_vencedor"] = (novo.get("argumento_vencedor") or "").strip() or (base.get("argumento_vencedor") or "").strip()
+    out["resumo"] = (base.get("resumo") or "").strip()
+    if (novo.get("resumo") or "").strip():
+        out["resumo"] = (out["resumo"] + "\n\n" + (novo.get("resumo") or "").strip()).strip()
+    out["style_atualizado"] = base.get("style_atualizado", False) or novo.get("style_atualizado", False)
+    out["model_used"] = novo.get("model_used") or base.get("model_used")
+    out["erro"] = novo.get("erro") or base.get("erro")
+    return out
+
 
 def _extrair_manifestacao_pericial(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     """
@@ -1933,6 +2378,7 @@ def _atualizar_skill_manifestacao(dados: dict, trecho_original: str, filename: s
 def processar_sete_arquivos(
     processo_bytes: Optional[bytes] = None,
     processo_filename: str = "",
+    processo_arquivos: Optional[List[tuple]] = None,
     liquidacao_bytes: Optional[bytes] = None,
     liquidacao_filename: str = "",
     parecer_bytes: Optional[bytes] = None,
@@ -1988,6 +2434,7 @@ def processar_sete_arquivos(
     relatorio = processar_cinco_arquivos(
         processo_bytes=processo_bytes,
         processo_filename=processo_filename,
+        processo_arquivos=processo_arquivos,
         liquidacao_bytes=liquidacao_bytes,
         liquidacao_filename=liquidacao_filename,
         parecer_bytes=parecer_bytes,
@@ -2051,10 +2498,19 @@ def processar_sete_arquivos(
         _calculo_pjc_raw,
     )
 
-    # ── Fase de Conhecimento 3: Manifestação (retórica de combate) ───────────
+    # ── Fase de Conhecimento 3: Duplo Style Transfer — Impugnação (Card 6) + Manifestação (Card 8) ───
+    # Analisa padrões ataque/defesa de AMBOS os arquivos e atualiza skills/manifestacao_style.md com os dois.
+    dados_manifestacao_pericial = None
+    if impugnacao_bytes:
+        print(f"[LEARNING] Analisando Impugnação (Card 6) — Style Transfer: {impugnacao_filename}")
+        dados_imp = _extrair_manifestacao_pericial(impugnacao_bytes, impugnacao_filename)
+        dados_manifestacao_pericial = _merge_dados_manifestacao(dados_manifestacao_pericial, dados_imp)
     if manifestacao_bytes:
-        print(f"[LEARNING] Analisando Manifestação Pericial: {manifestacao_filename}")
-        dados_manifestacao_pericial = _extrair_manifestacao_pericial(manifestacao_bytes, manifestacao_filename)
+        print(f"[LEARNING] Analisando Manifestação (Card 8) — Style Transfer: {manifestacao_filename}")
+        dados_man = _extrair_manifestacao_pericial(manifestacao_bytes, manifestacao_filename)
+        dados_manifestacao_pericial = _merge_dados_manifestacao(dados_manifestacao_pericial, dados_man)
+
+    if dados_manifestacao_pericial:
         relatorio["manifestacao_pericial"] = {
             "frases_impacto":       dados_manifestacao_pericial.get("frases_impacto")       or [],
             "fundamentos_juridicos": dados_manifestacao_pericial.get("fundamentos_juridicos") or [],
@@ -2067,7 +2523,6 @@ def processar_sete_arquivos(
             "model_used":           dados_manifestacao_pericial.get("model_used"),
             "erro":                 dados_manifestacao_pericial.get("erro"),
         }
-        # Enriquece a Tríade (triade_pericial já existe agora, sempre)
         relatorio["triade_pericial"]["manifestacao"] = {
             "presente":           True,
             "argumento_vencedor": dados_manifestacao_pericial.get("argumento_vencedor") or "",
@@ -2079,6 +2534,7 @@ def processar_sete_arquivos(
     arquivos["amostragem_pdf"]  = amostragem_pdf_filename  or None
     arquivos["amostragem_word"] = amostragem_word_filename or None
     arquivos["manifestacao"]    = manifestacao_filename    or None
+    arquivos["impugnacao"]      = impugnacao_filename     or None
     relatorio["arquivos_analisados"] = arquivos
 
     # ── Self-Healing Rule Engine: aprendizado autônomo ────────────────────────
@@ -2097,6 +2553,9 @@ def processar_sete_arquivos(
         print(f"[KB] Aviso: erro no aprendizado autônomo (não crítico): {e_kb}")
         relatorio["kb_aprendizado"] = {"erro": str(e_kb)}
 
+    # Guardrail: remove aprendizados de verba_ausente falsa antes de enviar ao frontend
+    _filtrar_aprendizados_verba_ausente_falsas(relatorio)
+
     total_disc = len(relatorio.get("discrepancias") or [])
     total_ap   = len(relatorio.get("aprendizados")  or [])
     print(f"[LEARNING] Análise completa — {total_disc} discrepância(s), {total_ap} aprendizado(s).")
@@ -2106,6 +2565,7 @@ def processar_sete_arquivos(
 def processar_cinco_arquivos(
     processo_bytes: Optional[bytes] = None,
     processo_filename: str = "",
+    processo_arquivos: Optional[List[tuple]] = None,
     liquidacao_bytes: Optional[bytes] = None,
     liquidacao_filename: str = "",
     parecer_bytes: Optional[bytes] = None,
@@ -2130,9 +2590,15 @@ def processar_cinco_arquivos(
           f"{processo_filename or '(sem processo)'} | {liquidacao_filename or '(sem liquidação)'} | {parecer_filename or '(sem parecer)'} "
           f"| {impugnacao_filename or '—'} | {calculo_pjc_filename or '—'}")
 
-    # 1. Processo/Sentença — extração IA (opcional)
-    if processo_bytes:
-        dados_processo = _extrair_processo(processo_bytes, processo_filename or "processo.pdf")
+    # 1. Processo/Sentença (ou Título Executivo Complexo quando há múltiplos arquivos)
+    _arqs_processo = processo_arquivos if processo_arquivos else (
+        [(processo_bytes, processo_filename or "processo.pdf")] if processo_bytes else []
+    )
+    if len(_arqs_processo) > 1:
+        print(f"[LEARNING] Título Executivo Complexo — {len(_arqs_processo)} documentos: {[fn for _, fn in _arqs_processo]}")
+        dados_processo = _extrair_titulo_executivo_multiplos(_arqs_processo)
+    elif _arqs_processo:
+        dados_processo = _extrair_processo(_arqs_processo[0][0], _arqs_processo[0][1])
     else:
         dados_processo = {"dados": {}}
         print("[LEARNING] Processo não enviado — sem dados de sentença.")
@@ -2184,6 +2650,12 @@ def processar_cinco_arquivos(
 
     # Enriquece com impugnação e cálculo PJC
     relatorio = _enriquecer_relatorio_com_extras(relatorio, dados_impugnacao, dados_calculo_pjc)
+
+    # Guardrail: remove falsos positivos de "verba ausente" (canonização vs verbas da empresa)
+    _filtrar_falsos_positivos_verba_ausente(relatorio)
+
+    # Guardrail: remove aprendizados de verba_ausente falsa antes de retornar ao frontend
+    _filtrar_aprendizados_verba_ausente_falsas(relatorio)
 
     # Metadados de origem dos arquivos
     relatorio["arquivos_analisados"] = {

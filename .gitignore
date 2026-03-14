@@ -21,8 +21,8 @@ __pycache__/
 
 # ── Arquivos gerados em runtime ───────────────────────────────────────────────
 backend/learning_log.jsonl
-backend/services/knowledge_base.json
-backend/legal_engine/rules/lab_*.py
+backend/services/legal_engine/rules/lab_*.py
+backend/memoria_calculo/memoria_*.json
 
 # ── Uploads / documentos temporários ─────────────────────────────────────────
 *.pdf

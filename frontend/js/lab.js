@@ -16,6 +16,9 @@ const LAB_API = "http://localhost:8000";
 // Estado local do laboratório
 let _relatorio = null;
 
+// Acumulador de arquivos para o Card 3 (Título Executivo Complexo)
+let _processoFiles = [];
+
 // ── Toggle da seção ──────────────────────────────────────────────────────────
 
 function initLabToggle() {
@@ -48,6 +51,122 @@ const LAB_CAMPOS = [
   { inputId: "lab-manifestacao",    nameId: "lab-manifestacao-name",    cardId: "card-manifestacao",    obrigatorio: false, formKey: "manifestacao" },
 ];
 
+// ── Validação: bloquear .doc (Word antigo) ────────────────────────────────────
+
+/**
+ * Retorna true se o ficheiro for .doc (formato antigo do Word), não suportado pelo backend.
+ */
+function _isDocAntigo(file) {
+  if (!file || !file.name) return false;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const mime = (file.type || "").toLowerCase();
+  return ext === "doc" || mime === "application/msword";
+}
+
+/**
+ * Mostra toast de aviso quando o utilizador tenta anexar um .doc.
+ */
+function _showLabToastDocNaoSuportado() {
+  const id = "lab-toast-doc-nao-suportado";
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = id;
+  toast.setAttribute("role", "alert");
+  toast.innerHTML = `
+    <span style="font-size:18px;line-height:1">⚠️</span>
+    <div style="flex:1;min-width:0">
+      <p style="margin:0;font-size:12px;font-weight:600;color:#e8eaf0">Formato não suportado</p>
+      <p style="margin:4px 0 0;font-size:11px;color:#8b92a9;line-height:1.4">O ficheiro selecionado é um .doc (versão antiga do Word). Por favor, abra o ficheiro no Word, clique em "Salvar Como" e escolha a opção "Documento do Word (*.docx)" antes de o anexar.</p>
+    </div>
+    <button type="button" aria-label="Fechar" style="background:none;border:none;cursor:pointer;color:#8b92a9;font-size:16px;line-height:1;padding:0 2px">×</button>
+  `;
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "24px",
+    right: "24px",
+    maxWidth: "380px",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "12px",
+    padding: "14px 16px",
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "10px",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+    zIndex: "10000",
+    fontFamily: "var(--sans)",
+  });
+  toast.querySelector("button").addEventListener("click", () => toast?.remove());
+  document.body.appendChild(toast);
+  setTimeout(() => toast?.remove(), 12000);
+}
+
+// ── Card 3: Título Executivo Complexo — acumulação de múltiplos documentos ───
+
+/**
+ * Renderiza a lista de arquivos acumulados no Card 3 e atualiza o label/badge.
+ */
+function _renderProcessoFiles() {
+  const nameEl  = document.getElementById("lab-processo-name");
+  const listaEl = document.getElementById("lab-processo-lista");
+  const card    = document.getElementById("card-processo");
+  const count   = _processoFiles.length;
+
+  if (!count) {
+    if (nameEl)  nameEl.textContent = "Escolher arquivo(s)";
+    if (listaEl) listaEl.style.display = "none";
+    card?.classList.remove("filled");
+    return;
+  }
+
+  // Badge no label
+  if (nameEl) {
+    nameEl.innerHTML =
+      `<span style="color:var(--purple);font-weight:600">${count} doc${count > 1 ? "s" : ""} anexado${count > 1 ? "s" : ""}</span>`;
+  }
+  card?.classList.add("filled");
+  card?.classList.remove("error");
+
+  // Lista removível
+  if (listaEl) {
+    listaEl.style.display = "block";
+    listaEl.innerHTML = _processoFiles.map((f, i) => {
+      const tier = _classifyDecisaoTier(f.name);
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;color:var(--muted)">
+        <span style="color:${tier.cor};flex-shrink:0">${tier.badge}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(f.name)}">${_esc(f.name)}</span>
+        <button type="button" data-idx="${i}" title="Remover"
+          style="background:none;border:none;cursor:pointer;color:var(--red);font-size:13px;line-height:1;padding:0 2px;flex-shrink:0">×</button>
+      </div>`;
+    }).join("");
+    listaEl.querySelectorAll("button[data-idx]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.idx, 10);
+        _processoFiles.splice(idx, 1);
+        _renderProcessoFiles();
+        _atualizarBotaoAnalisar();
+      });
+    });
+  }
+}
+
+/**
+ * Classifica o nível hierárquico de um documento decisório pelo nome do arquivo.
+ * Retorna badge emoji + cor visual.
+ */
+function _classifyDecisaoTier(filename) {
+  const n = (filename || "").toLowerCase();
+  if (n.includes("tst") || n.includes("rr") || n.includes("recurso_de_revista") || n.includes("recurso de revista")) {
+    return { badge: "🏛️ TST/RR", cor: "var(--purple)" };
+  }
+  if (n.includes("trt") || n.includes("ro") || n.includes("acordao") || n.includes("acórdão") || n.includes("recurso_ordinario") || n.includes("recurso ordinário")) {
+    return { badge: "⚖️ TRT/RO", cor: "var(--accent2, #60a5fa)" };
+  }
+  return { badge: "📄 1º Grau", cor: "var(--text)" };
+}
+
 // ── Controle dos campos de upload ────────────────────────────────────────────
 
 function initLabUploads() {
@@ -57,8 +176,40 @@ function initLabUploads() {
     const card   = document.getElementById(cardId);
     if (!input) return;
 
+    // Card 3 (processo): acumulação de múltiplos documentos decisórios
+    if (inputId === "lab-processo") {
+      input.addEventListener("change", () => {
+        const novos = Array.from(input.files || []);
+        input.value = ""; // libera o input para nova seleção
+        const docAntigos = novos.filter(_isDocAntigo);
+        if (docAntigos.length) {
+          _showLabToastDocNaoSuportado();
+        }
+        const validos = novos.filter(f => !_isDocAntigo(f));
+        // Acumula evitando duplicatas pelo nome
+        const nomesExistentes = new Set(_processoFiles.map(f => f.name));
+        validos.forEach(f => {
+          if (!nomesExistentes.has(f.name)) {
+            _processoFiles.push(f);
+            nomesExistentes.add(f.name);
+          }
+        });
+        _renderProcessoFiles();
+        _atualizarBotaoAnalisar();
+      });
+      return;
+    }
+
     input.addEventListener("change", () => {
       const file = input.files[0];
+      if (file && _isDocAntigo(file)) {
+        input.value = "";
+        if (nameEl) nameEl.textContent = "Escolher arquivo";
+        if (card) card.classList.remove("filled", "error");
+        _showLabToastDocNaoSuportado();
+        _atualizarBotaoAnalisar();
+        return;
+      }
       if (file) {
         nameEl.textContent = file.name;
         card.classList.add("filled");
@@ -89,10 +240,12 @@ async function labAnalisar() {
 
   // Nenhum campo é obrigatório: o backend aceita qualquer combinação.
   // Ainda assim, avisamos o usuário se ele for analisar totalmente vazio.
-  const totalSelecionados = LAB_CAMPOS.filter(c => {
+  const outrosSelecionados = LAB_CAMPOS.filter(c => {
+    if (c.inputId === "lab-processo") return false; // tratado via _processoFiles
     const el = document.getElementById(c.inputId);
     return el && el.files && el.files.length > 0;
   }).length;
+  const totalSelecionados = outrosSelecionados + _processoFiles.length;
   if (!totalSelecionados) {
     _labStatus(
       "Nenhum arquivo selecionado. Você pode analisar assim mesmo, mas o relatório ficará praticamente vazio.",
@@ -105,12 +258,8 @@ async function labAnalisar() {
   btn.textContent = "⏳ Analisando...";
   steps.classList.remove("open");
 
-  // Conta quantos arquivos estão sendo enviados (obrigatórios + opcionais preenchidos)
-  const total = LAB_CAMPOS.filter(c => {
-    const el = document.getElementById(c.inputId);
-    return el && el.files && el.files.length > 0;
-  }).length;
-  _labStatus(`Enviando ${total} arquivo(s) e processando... (pode levar até 2 min)`, "spin");
+  const totalArquivos = outrosSelecionados + _processoFiles.length;
+  _labStatus(`Enviando ${totalArquivos} arquivo(s) e processando... (pode levar até 2 min)`, "spin");
 
   const form = new FormData();
 
@@ -118,10 +267,13 @@ async function labAnalisar() {
   const userId = document.getElementById("user-id")?.value?.trim() || "anonimo";
   form.append("user_id", userId);
 
+  // Card 3: todos os documentos decisórios acumulados (mesma chave "processo")
+  _processoFiles.forEach(f => form.append("processo", f));
+
   LAB_CAMPOS.forEach(c => {
+    if (c.inputId === "lab-processo") return; // já tratado acima
     const el = document.getElementById(c.inputId);
     if (el && el.files && el.files.length > 0) {
-      // Usa formKey quando definido; senão deriva do inputId
       const key = c.formKey || c.inputId.replace("lab-", "").replace("-", "_");
       form.append(key, el.files[0]);
     }
@@ -151,6 +303,9 @@ async function labAnalisar() {
   } finally {
     btn.disabled    = false;
     btn.textContent = "🔬 Analisar e Gerar Relatório de Discrepância";
+    // Limpa o acumulador do Card 3 após análise
+    _processoFiles = [];
+    _renderProcessoFiles();
   }
 }
 

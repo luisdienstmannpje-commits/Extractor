@@ -210,6 +210,8 @@ class LegalRule(ABC):
             r"intervalo\s*intrajornada":        "Intervalo Intrajornada",
             r"dano\s*moral":                    "Dano Moral",
             r"dano\s*material":                 "Dano Material",
+            r"multa\s*(?:do\s*)?art\.?\s*477":  "Multa Art. 477 CLT",
+            r"multa\s*(?:do\s*)?art\.?\s*467":  "Multa Art. 467 CLT",
         }
         n = nome.lower().strip()
         for pattern, canonico in mapa.items():

@@ -36,7 +36,7 @@ backend/
 │   ├── database.py           # SQLite: créditos, cache, extrações, jobs
 │   ├── schema_version_guard.py     # Guarda de versão do schema (invalidar cache)
 │   ├── verba_deduplicator.py  # Deduplicação de verbas (assinatura nome+período)
-│   ├── learning_engine.py     # Laboratório: 8 arquivos (linha do tempo), cross-reference, style transfer, manifestação pericial, codify_insight, Self-Healing
+│   ├── learning_engine.py     # Laboratório: 8 arquivos (linha do tempo), Título Executivo Complexo (múltiplos PDFs), duplo Style Transfer (impugnação+manifestação), guardrails anti-alucinação (3 camadas), codify_insight, Self-Healing
 │   ├── learning_skill_loader.py  # Carrega playbook .md para o lab
 │   ├── knowledge_base.py      # Banco de Conhecimento das regras dinâmicas (confidence_score, status shadow/active/deleted)
 │   ├── legal_engine/dynamic_rule_loader.py  # Carrega/aplica regras dinâmicas (ativas + shadow) a partir do Knowledge Base
@@ -166,17 +166,18 @@ O **Laboratório** permite à perita treinar o sistema com a visão completa da 
 ### Upload — 8 campos — Tríade de Ouro Expandida
 
 > O botão "Analisar" fica sempre liberado. **Tríade de Ouro Expandida** (máxima inteligência): Amostragem + Processo + Cálculo .PJC + **Manifestação**. Obrigatórios mínimos: Processo + Liquidação + Parecer.
+> **Atenção:** arquivos `.doc` (Word antigo) são bloqueados no frontend com toast explicativo. Use `.docx`.
 
 | # | Campo | Tipo | Status | Função |
 |---|-------|------|--------|--------|
 | 1 | `amostragem_pdf` | PDF | opcional | Holerites/ponto → extrai tese vencedora + irregularidades via Gemini |
-| 2 | `amostragem_word` | DOC/DOCX | opcional | Petição Word → **Style Transfer** → acumula em `skills/amostragem_style.md` |
-| 3 | `processo` | PDF/DOC/DOCX | recomendado | Sentença/decisão — o que o juiz deferiu |
-| 4 | `liquidacao` | PDF/DOC/DOCX | recomendado | Cálculo da empresa — onde errou |
-| 5 | `parecer` | PDF/DOC/DOCX | recomendado | Parecer da perita — como corrigiu |
-| 6 | `impugnacao` | PDF/DOC/DOCX | opcional | Contestação da empresa |
+| 2 | `amostragem_word` | DOCX | opcional | Petição Word → **Style Transfer** → acumula em `skills/amostragem_style.md` |
+| 3 | `processo` | PDF/DOCX (**múltiplos**) | recomendado | **Título Executivo Complexo**: 1–N arquivos acumulados (Sentença + Acórdão TRT/RO + Acórdão TST/RR); classificados por tier (1GRAU/TRT/TST) → `_extrair_titulo_executivo_multiplos` → Análise de Reforma de Decisão; instâncias superiores têm prioridade absoluta |
+| 4 | `liquidacao` | PDF/DOCX | recomendado | Cálculo da empresa — onde errou; base canônica dos guardrails anti-alucinação |
+| 5 | `parecer` | PDF/DOCX | recomendado | Parecer da perita — como corrigiu |
+| 6 | `impugnacao` | PDF/DOCX | opcional | Contestação da empresa → **Duplo Style Transfer** (alimenta `manifestacao_style.md` junto com Card 8) |
 | 7 | `calculo_pjc` | PDF/.PJC/.XML | opcional | Parâmetros PJe-Calc para auditoria matemática |
-| 8 | `manifestacao` | PDF/DOC/DOCX | opcional | **Petição de Resposta** — retórica de combate, padrões Ataque/Defesa, súmulas → acumula em `skills/manifestacao_style.md` |
+| 8 | `manifestacao` | PDF/DOCX | opcional | **Petição de Resposta** — retórica de combate, padrões Ataque/Defesa, súmulas → **Duplo Style Transfer** (fundido com impugnação via `_merge_dados_manifestacao`) → `skills/manifestacao_style.md` |
 
 ### Fluxo
 
@@ -193,10 +194,10 @@ analisar → relatório enriquecido (linha do tempo + `triade_pericial` com nós
 
 ### Módulos
 
-- `learning_engine.py`: `processar_sete_arquivos` (entrada principal — 8 arquivos), `processar_cinco_arquivos` (compat.), `_extrair_amostragem_pdf/word`, `_atualizar_skill_amostragem`, `_extrair_manifestacao_pericial`, `_codificar_padroes_ataque_defesa`, `_atualizar_skill_manifestacao`, `_gerar_regras_preditivas_amostragem` + Self-Healing Rule Engine.
+- `learning_engine.py`: `processar_sete_arquivos` (entrada principal — 8 arquivos + `processo_arquivos: List[tuple]` para múltiplos arquivos do Card 3), `processar_cinco_arquivos` (compat.), `_extrair_amostragem_pdf/word`, `_atualizar_skill_amostragem`, `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_codificar_padroes_ataque_defesa`, `_atualizar_skill_manifestacao`, `_gerar_regras_preditivas_amostragem`, `_classificar_tier_decisao`, `_extrair_titulo_executivo_multiplos` + Self-Healing Rule Engine + **Guardrails anti-alucinação** (`_canon_empresa_e_verba_esta`, `_filtrar_falsos_positivos_verba_ausente`, `_filtrar_logicas_verba_ausente_falsas`, `_filtrar_aprendizados_verba_ausente_falsas`).
 - `skills/amostragem_style.md`: acumula padrões de estilo (vocab, expressões, estrutura, tom) de cada Amostragem Word. Usar no system prompt de pareceres.
-- `skills/manifestacao_style.md`: acumula retórica de combate (frases de impacto, súmulas estratégicas, padrões Ataque/Defesa) de cada Manifestação Pericial. Grow automático. Usar ao gerar futuras manifestações.
-- Frontend: `lab.js` (8 LAB_CAMPOS, formKey; Conclusão da Tríade com 4 nós em grid 2×2), `index.html`, `main.css`.
+- `skills/manifestacao_style.md`: acumula retórica de combate de **ambos** Card 6 (impugnação) E Card 8 (manifestação) — Duplo Style Transfer. Grow automático. Usar ao gerar futuras manifestações.
+- Frontend: `lab.js` (8 LAB_CAMPOS, formKey; Card 3 múltiplos arquivos com `_processoFiles` + `_classifyDecisaoTier` + `_renderProcessoFiles`; `_isDocAntigo` + toast .doc; Conclusão da Tríade com 4 nós em grid 2×2), `index.html`, `main.css`.
 
 ### Self-Healing Rule Engine (aprendizado autônomo de regras)
 
@@ -291,7 +292,7 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 - **database.py**: SQLite — créditos, cache (get/save), extrações (save/get), histórico, jobs (save/get), cleanup.
 - **schema_version_guard.py**: Guarda de versão do schema para invalidar cache quando modelos mudam.
 - **verba_deduplicator.py**: Deduplicação de verbas (assinatura nome+período); também exposta como regra no jurisprudencia.
-- **learning_engine.py**: `processar_sete_arquivos` (entrada principal — **8 arquivos**, linha do tempo completa); `processar_cinco_arquivos` (compat. — 5 arquivos); `_extrair_amostragem_pdf` / `_extrair_amostragem_word` (Gemini analisa provas e estilo); `_atualizar_skill_amostragem` (acumula em `skills/amostragem_style.md`); `_gerar_regras_preditivas_amostragem` (cross-reference → regras preditivas); **`_extrair_manifestacao_pericial`** (Gemini extrai retórica de combate — frases de impacto, súmulas, padrões Ataque/Defesa, parâmetros fraudados, argumento vencedor); **`_codificar_padroes_ataque_defesa`** (cada padrão → Shadow Rule no KB); **`_atualizar_skill_manifestacao`** (acumula em `skills/manifestacao_style.md`); `processar_aprendizado_autonomo` (Self-Healing Rule Engine: hipóteses JSON + KB + avalia shadow); `_evaluate_shadow_rules`; `preview_aprendizado`; `codify_insight`.
+- **learning_engine.py**: `processar_sete_arquivos` (entrada principal — **8 arquivos** + `processo_arquivos: List[tuple]` para Título Executivo Complexo — múltiplos documentos do Card 3); `processar_cinco_arquivos` (compat.); `_extrair_amostragem_pdf/word`; `_atualizar_skill_amostragem`; `_gerar_regras_preditivas_amostragem`; **`_extrair_manifestacao_pericial`** (Duplo Style Transfer — chamado para Card 6 E Card 8); **`_merge_dados_manifestacao`** (funde resultados dos dois cards); **`_codificar_padroes_ataque_defesa`**; **`_atualizar_skill_manifestacao`**; `_classificar_tier_decisao` + `_extrair_titulo_executivo_multiplos` (pipeline Título Executivo: N docs → hierarquia → fusão com Análise de Reforma de Decisão); **guardrails**: `_canon_empresa_e_verba_esta`, `_filtrar_falsos_positivos_verba_ausente`, `_filtrar_logicas_verba_ausente_falsas`, `_filtrar_aprendizados_verba_ausente_falsas`; `processar_aprendizado_autonomo`; `_evaluate_shadow_rules`; `preview_aprendizado`; `codify_insight`.
 - **knowledge_base.py**: `KnowledgeBase` — banco de conhecimento em JSON (`knowledge_base.json`) com campos `rule_id`, `descricao`, `condicao`, `acao`, `confidence_score`, `status` (`shadow`/`active`/`deleted`), `casos_vistos`, `acertos`, `punicoes`; métodos `adicionar_ou_incrementar`, `marcar_acerto`, `marcar_punicao`, `stats`.
 - **learning_skill_loader.py**: `carregar_skill_para_lab(doc_type)` — carrega playbook .md para o laboratório (independente do processor).
 

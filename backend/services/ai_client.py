@@ -25,12 +25,13 @@ from config import settings
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 MODELS_CASCADE = [
-    "gemini-2.0-flash",
+    "gemini-2.5-flash",      # substitui gemini-2.0-flash (deprecado)
     "models/gemini-2.5-pro",
 ]
 
 CHARS_LIMIT = {
-    "gemini-2.0-flash":      settings.MAX_CHARS_CONTEXT,
+    "gemini-2.5-flash":      settings.MAX_CHARS_CONTEXT,
+    "gemini-2.0-flash":      settings.MAX_CHARS_CONTEXT,  # fallback legado
     "models/gemini-2.5-pro": settings.MAX_CHARS_CONTEXT * 2,
 }
 
@@ -387,7 +388,7 @@ def gerar_parcelas_parecer(
     verbas: list,
     dados: dict,
     skill_parecer: str,
-    model_name: str = "gemini-2.0-flash",
+    model_name: str = "gemini-2.5-flash",
 ) -> dict:
     """
     Gera o bloco de texto da seção "I. PARCELAS APURADAS" do parecer técnico.
@@ -401,7 +402,7 @@ def gerar_parcelas_parecer(
         verbas: lista de verbas_deferidas (dicts com nome, reflexos, percentual, etc.).
         dados:  dict com dados do processo (pode ser usado em futuras versões).
         skill_parecer: conteúdo de skills/parecer_pericial.md.
-        model_name: modelo a ser usado (default: gemini-2.0-flash).
+        model_name: modelo a ser usado (default: gemini-2.5-flash).
 
     Returns:
         {"texto": str, "model_used": str, "error": str|None}
