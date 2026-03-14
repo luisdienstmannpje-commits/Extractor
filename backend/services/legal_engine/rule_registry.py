@@ -89,7 +89,7 @@ def _load_rules_from_module(module_name: str) -> list[LegalRule]:
         try:
             instance = obj()
             rules.append(instance)
-            print(f"[REGISTRY] OK {obj.id} — {obj.titulo} (prioridade {obj.prioridade})")
+            # Log por regra omitido na inicialização — terminal fica limpo até "Application startup complete"
         except Exception as e:
             print(f"[REGISTRY] Erro ao instanciar {name}: {e}")
 
@@ -109,12 +109,12 @@ def carregar_todas_as_regras() -> List[LegalRule]:
         for module_name in module_names:
             for rule in _load_rules_from_module(module_name):
                 if rule.id in ids_vistos:
-                    print(f"[REGISTRY] AVISO: ID duplicado ignorado: {rule.id} em {module_name}")
+                    # Duplicados são esperados (regras em rules/ e jurisprudencia/) — não logar na inicialização
                     continue
                 ids_vistos.add(rule.id)
                 all_rules.append(rule)
 
-    print(f"[REGISTRY] Total: {len(all_rules)} regras carregadas")
+    # Total omitido na inicialização — terminal fica limpo até "Application startup complete"
     return all_rules
 
 

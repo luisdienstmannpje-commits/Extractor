@@ -442,19 +442,15 @@
                 Guia de Eficiência do Aprendizado
               </p>
               <p class="text-[12px] text-muted leading-relaxed">
-                Nenhum arquivo é obrigatório. A IA aceita qualquer combinação, mas aprende melhor com estes conjuntos:
+                Nenhum arquivo é obrigatório. A IA aceita qualquer combinação, mas aprende melhor seguindo a marcha processual real. A cada arquivo adicionado, o sistema recalcula automaticamente a previsão de eficiência.
                 <br>
-                <span class="font-semibold text-[#e8eaf0]">Nível 1 — Rápido</span>:
-                <span class="font-semibold">Processo</span> + <span class="font-semibold">Parecer</span> → fundamentos jurídicos e estilo da perita.
+                <span class="font-semibold text-[#e8eaf0]">⚡ Nível 1 — Rápido (25%+)</span>: Processo + Parecer → fundamentos jurídicos e estilo da perita.
                 <br>
-                <span class="font-semibold text-[#e8eaf0]">Nível 2 — Auditoria</span>:
-                Processo + Parecer + <span class="font-semibold">Liquidação</span> → discrepâncias entre sentença e cálculo da empresa.
+                <span class="font-semibold text-[#e8eaf0]">🔍 Nível 2 — Auditoria (45%+)</span>: Processo + Parecer + Liquidação → discrepâncias entre sentença e cálculo da empresa.
                 <br>
-                <span class="font-semibold text-[#e8eaf0]">Nível 3 — Tríade da Liquidação</span>:
-                <span class="font-semibold">Amostragem</span> + Processo + <span class="font-semibold">Cálculo .PJC</span> → detecção automática de omissões de parâmetros.
+                <span class="font-semibold text-[#e8eaf0]">📊 Nível 3 — Tríade (65%+)</span>: Processo + Liquidação + Cálculo PJC → detecção automática de omissões de parâmetros.
                 <br>
-                <span class="font-semibold text-[#e8eaf0]">Nível 4 — Tríade de Ouro Expandida</span>:
-                Amostragem + Processo + Cálculo .PJC + <span class="font-semibold">Manifestação</span> → máximo aprendizado de retórica de combate e regras preditivas.
+                <span class="font-semibold text-[#e8eaf0]">🏆 Nível 4 — Tríade de Ouro (85%+)</span>: Todos os anteriores + Contestação + Manifestação → máximo aprendizado de retórica de combate e regras preditivas.
               </p>
             </div>
           </div>
@@ -462,36 +458,36 @@
           <!-- Linha do tempo da fraude trabalhista: 7 arquivos — grid responsiva -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full" id="lab-upload-grid">
 
-            <!-- PASSO 1 — PROVA: O que a perita provou (PDF de holerites/ponto) -->
-            <div class="lab-upload-card lab-card-opcional lab-card-prova" id="card-amostragem-pdf">
+            <!-- PASSO 1 — Petição Inicial (verbas pedidas e causa de pedir) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-peticao">
               <div class="lab-card-step lab-step-opt">1</div>
               <div class="lab-card-body">
-                <div class="lab-card-label">Prova / Ponto Eletrônico</div>
-                <div class="lab-card-title">Amostragem PDF</div>
-                <div class="lab-card-hint">PDF</div>
-                <label class="lab-file-label" for="lab-amostragem-pdf">
-                  <span class="lab-file-icon">📊</span>
-                  <span id="lab-amostragem-pdf-name" class="lab-file-name truncate">Escolher arquivo</span>
+                <div class="lab-card-label">Fase de Conhecimento</div>
+                <div class="lab-card-title">Petição Inicial</div>
+                <div class="lab-card-hint">PDF · DOCX</div>
+                <label class="lab-file-label" for="lab-peticao" title="Documento onde o reclamante lista os pedidos e a causa de pedir. Ensina ao sistema quais verbas foram reivindicadas e o fundamento jurídico de cada uma.">
+                  <span class="lab-file-icon">⚖️</span>
+                  <span id="lab-peticao-name" class="lab-file-name truncate">Escolher arquivo</span>
                 </label>
-                <input type="file" id="lab-amostragem-pdf" accept=".pdf" class="lab-file-input">
+                <input type="file" id="lab-peticao" accept=".pdf,.docx" class="lab-file-input">
               </div>
-              <span class="lab-card-opc">opcional · tese vencedora</span>
+              <span class="lab-card-opc">opcional</span>
             </div>
 
-            <!-- PASSO 2 — ESTILO: Vocabulário e estrutura argumentativa (Word) -->
-            <div class="lab-upload-card lab-card-opcional lab-card-prova" id="card-amostragem-word">
+            <!-- PASSO 2 — Contestação (argumentos de exclusão da empresa) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-contestacao">
               <div class="lab-card-step lab-step-opt">2</div>
               <div class="lab-card-body">
-                <div class="lab-card-label">Petição / Relatório Word</div>
-                <div class="lab-card-title">Amostragem Word</div>
-                <div class="lab-card-hint">DOC · DOCX</div>
-                <label class="lab-file-label" for="lab-amostragem-word">
-                  <span class="lab-file-icon">📝</span>
-                  <span id="lab-amostragem-word-name" class="lab-file-name truncate">Escolher arquivo</span>
+                <div class="lab-card-label">Resposta do empregador</div>
+                <div class="lab-card-title">Contestação</div>
+                <div class="lab-card-hint">PDF · DOCX</div>
+                <label class="lab-file-label" for="lab-contestacao" title="Resposta da empresa aos pedidos. Ensina ao sistema os argumentos de exclusão de verbas e as teses jurídicas de defesa usadas pelo empregador.">
+                  <span class="lab-file-icon">🛡️</span>
+                  <span id="lab-contestacao-name" class="lab-file-name truncate">Escolher arquivo</span>
                 </label>
-                <input type="file" id="lab-amostragem-word" accept=".doc,.docx" class="lab-file-input">
+                <input type="file" id="lab-contestacao" accept=".pdf,.docx" class="lab-file-input">
               </div>
-              <span class="lab-card-opc">opcional · style transfer</span>
+              <span class="lab-card-opc">opcional</span>
             </div>
 
             <!-- PASSO 3 — DIREITO: Título Executivo (múltiplos documentos) -->
@@ -594,6 +590,26 @@
 
           </div>
           <!-- /grid -->
+
+          <!-- Previsão de Eficiência de Aprendizado (barra em tempo real) -->
+          <div id="lab-eficiencia-container" class="mt-4 p-4 rounded-xl bg-gray-800 border border-gray-700">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm font-semibold text-gray-300">Previsão de Eficiência de Aprendizado</span>
+              <span id="lab-eficiencia-pct" class="text-lg font-bold text-gray-400">0%</span>
+            </div>
+            <div class="w-full bg-gray-700 rounded-full h-3 mb-2">
+              <div id="lab-eficiencia-bar"
+                   class="h-3 rounded-full transition-all duration-500 ease-out bg-gray-600"
+                   style="width: 0%">
+              </div>
+            </div>
+            <p id="lab-eficiencia-nivel" class="text-xs text-gray-400">
+              Aguardando arquivos...
+            </p>
+            <p id="lab-eficiencia-detalhe" class="text-xs text-gray-500 mt-1">
+              Adicione arquivos para ver a previsão atualizar em tempo real.
+            </p>
+          </div>
 
           <!-- Rodapé: botão centralizado em linha cheia + status -->
           <div class="w-full mt-8 space-y-4">

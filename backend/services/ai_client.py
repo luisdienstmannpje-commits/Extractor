@@ -77,7 +77,7 @@ def _remove_duplicatas(text: str) -> str:
     match = _RE_DUPLICATA.search(text)
     if match:
         text = text[:match.start()].rstrip()
-        print(f"   [TRUNCATE] Duplicata removida: {original_len} → {len(text)} chars")
+        print(f"   [TRUNCATE] Duplicata removida: {original_len} -> {len(text)} chars", flush=True)
         return text
     matches_disp = list(_RE_DISPOSITIVO.finditer(text))
     if len(matches_disp) >= 2:
@@ -87,14 +87,14 @@ def _remove_duplicatas(text: str) -> str:
         if pagina_match >= 0:
             corte = corte - 300 + pagina_match
         text = text[:corte].rstrip()
-        print(f"   [TRUNCATE] Duplicata (2º dispositivo) removida: {original_len} → {len(text)} chars")
+        print(f"   [TRUNCATE] Duplicata (2º dispositivo) removida: {original_len} -> {len(text)} chars", flush=True)
     return text
 
 
 def _smart_truncate(text: str, max_chars: int) -> str:
     text = _remove_duplicatas(text)
     if len(text) <= max_chars:
-        print(f"   [TRUNCATE] Texto cabe inteiro: {len(text)} chars")
+        print(f"   [TRUNCATE] Texto cabe inteiro: {len(text)} chars", flush=True)
         return text
 
     parte1_chars = int(max_chars * 0.35)
@@ -107,17 +107,17 @@ def _smart_truncate(text: str, max_chars: int) -> str:
         start2 = max(parte1_chars, disp_pos - 2000)
         end2   = min(len(text), start2 + parte2_chars)
         parte2 = text[start2:end2]
-        print(f"   [TRUNCATE] Janela cirúrgica: início={parte1_chars} + disp={start2}–{end2}")
+        print(f"   [TRUNCATE] Janela cirúrgica: início={parte1_chars} + disp={start2}-{end2}", flush=True)
     else:
         matches = list(_RE_VERBAS.finditer(text))
         start2 = max(parte1_chars, matches[-1].start() - 500) if matches \
                  else max(parte1_chars, len(text) - parte2_chars)
         end2   = min(len(text), start2 + parte2_chars)
         parte2 = text[start2:end2]
-        print(f"   [TRUNCATE] Fallback verbas: {start2}–{end2}")
+        print(f"   [TRUNCATE] Fallback verbas: {start2}–{end2}", flush=True)
 
     truncated = parte1 + "\n\n[...FUNDAMENTAÇÃO INTERMEDIÁRIA OMITIDA...]\n\n" + parte2
-    print(f"   [TRUNCATE] Total enviado: {len(truncated)} chars (original: {len(text)})")
+    print(f"   [TRUNCATE] Total enviado: {len(truncated)} chars (original: {len(text)})", flush=True)
     return truncated
 
 
@@ -276,13 +276,13 @@ def _call_model(
 
     prompt_chars = len(prompt)
     tokens_est = prompt_chars // 4
-    print(f"   [PROMPT] {prompt_chars} chars | ~{tokens_est} tokens estimados")
+    print(f"   [PROMPT] {prompt_chars} chars | ~{tokens_est} tokens estimados", flush=True)
 
     last_error = None
     for attempt in range(1, retries + 2):
         try:
             print(f"   [AI] {model_name} — tentativa {attempt}/{retries + 1} "
-                  f"({len(truncated)} chars de texto)")
+                  f"({len(truncated)} chars de texto)", flush=True)
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt
@@ -297,7 +297,7 @@ def _call_model(
 
         except json.JSONDecodeError as e:
             last_error = f"JSON inválido: {e}"
-            print(f"   [AI] {model_name} JSON inválido (tentativa {attempt}): {e}")
+            print(f"   [AI] {model_name} JSON inválido (tentativa {attempt}): {e}", flush=True)
             break
 
         except Exception as e:
@@ -306,7 +306,7 @@ def _call_model(
 
             if "429" in err_str or "quota" in err_str or "rate" in err_str:
                 wait = 10 * attempt
-                print(f"   [AI] Rate limit. Aguardando {wait}s...")
+                print(f"   [AI] Rate limit. Aguardando {wait}s...", flush=True)
                 time.sleep(wait)
                 continue
 
@@ -316,7 +316,7 @@ def _call_model(
                 time.sleep(wait)
                 continue
 
-            print(f"   [AI] Erro não recuperável em {model_name}: {e}")
+            print(f"   [AI] Erro não recuperável em {model_name}: {e}", flush=True)
             break
 
     raise RuntimeError(
@@ -356,7 +356,8 @@ def extract_data_with_gemini(
     print(
         f"[AI] Iniciando extração | Texto: {len(text)} chars "
         f"| Playbook: {len(playbook)} chars "
-        f"| Âncoras: {len(pre_fields.get('medium', {})) if pre_fields else 0} campos"
+        f"| Âncoras: {len(pre_fields.get('medium', {})) if pre_fields else 0} campos",
+        flush=True,
     )
 
     for model_name in MODELS_CASCADE:
@@ -366,10 +367,10 @@ def extract_data_with_gemini(
                 playbook=playbook,
                 anchor_section=anchor_section
             )
-            print(f"[AI] ✓ Sucesso com {model_name}")
+            print(f"[AI] OK Sucesso com {model_name}", flush=True)
             return {"data": result, "model_used": model_name, "error": None}
         except Exception as e:
-            print(f"[AI] ✗ {model_name} falhou: {e}")
+            print(f"[AI] FALHA {model_name} falhou: {e}", flush=True)
 
     return {
         "data": None,

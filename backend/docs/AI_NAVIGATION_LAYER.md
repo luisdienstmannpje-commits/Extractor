@@ -60,9 +60,9 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 4. Preservar IDs: `#resultado`, `#view-extrator`, `#view-lab`, `#view-historico`, `#view-estatisticas`, `.lab-section.open`, `.kpi-updated`.
 
 ### 2.9 Laboratório de Aprendizado da Perita
-**Backend:** `services/learning_engine.py` (ver § 5 abaixo) + `services/learning_skill_loader.py`.
-**Endpoints em main.py:** `/lab/analisar` (8 campos, `List[UploadFile]` para `processo`), `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`.
-**Frontend:** `frontend/js/lab.js` (8 cards; Card 3 múltiplos arquivos; `_processoFiles` acumulador; validação `.doc` → toast; `_classifyDecisaoTier`).
+**Backend:** `services/learning_engine.py` (§ 5) + `services/learning_skill_loader.py`.
+**Endpoints:** `/lab/analisar` (8 campos: peticao, contestacao, processo, liquidacao, parecer, impugnacao, calculo_pjc, manifestacao; `processo` = List[UploadFile]), `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`.
+**Frontend:** `lab.js` — 8 cards (LAB_CAMPOS), Card 3 múltiplos (`_processoFiles`), barra de eficiência (`_calcularEficiencia`, `_atualizarBarraEficiencia`), `.doc` → toast. **Detalhes Lab:** `docs/guia_eficiencia.md` (evite duplicar aqui).
 
 ### 2.10 Self-Healing Rule Engine
 1. README § Self-Healing.
@@ -88,8 +88,8 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 | Legal Rule Engine | `docs/CODE_INTELLIGENCE_MAP.md` § 3 | `services/legal_engine/` + `services/jurisprudencia/` |
 | Exportadores | `docs/CODE_INTELLIGENCE_MAP.md` § 5 | `services/pjc_*`, `memoria_calculo/` |
 | Testes | `docs/CODE_INTELLIGENCE_MAP.md` § 9 | `backend/tests/` |
-| Laboratório | README § Laboratório, este arquivo § 2.9 | `services/learning_engine.py`, `main.py`, `frontend/js/lab.js` |
-| Diretrizes de prompt | `docs/guia_eficiencia.md` | — |
+| Laboratório | README § Laboratório, `docs/guia_eficiencia.md` (níveis, pesos, marcha) | `learning_engine.py`, `main.py`, `lab.js` |
+| Diretrizes prompt Lab | `docs/guia_eficiencia.md` | Não duplicar em outros docs (economia tokens) |
 | Frontend layout/UI | `docs/CODE_INTELLIGENCE_MAP.md` § 7 | `frontend/index.html`, `frontend/css/main.css` |
 | Parecer Técnico | `docs/CODE_INTELLIGENCE_MAP.md` § 4.3 | `skills/parecer_pericial.md`, `explanation_engine.py` |
 | Dashboard Estatísticas | este arquivo § 2.11 | `main.py` (/api/stats), `frontend/js/app.js` |
@@ -135,7 +135,7 @@ Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0
 | `_extrair_sentenca(pdf_bytes)` | PDF sentença → pipeline completo |
 | `_extrair_processo(bytes, filename)` | Roteador: PDF → sentenca, DOC/DOCX → Gemini |
 | `_classificar_tier_decisao(filename)` | Nome do arquivo → `"TST"` / `"TRT"` / `"1GRAU"` |
-| `_extrair_titulo_executivo_multiplos([(bytes, fn)])` | **NOVO** — N documentos → fusão com Análise de Reforma de Decisão (hierarquia 1ºgrau → TRT → TST); playbook injetado instrui a IA a priorizar reformas de instâncias superiores e retornar `verbas_reformadas` e `instancia_final` |
+| `_extrair_titulo_executivo_multiplos([(bytes, fn)])` | N docs → hierarquia 1ºgrau→TRT→TST; desempate mesma instância = data extraída do texto (`_extrair_data_documento`); retorna `verbas_reformadas`, `datas_documentos`, `instancia_final` |
 | `_extrair_liquidacao(bytes, filename)` | PJC/PDF/DOCX → verbas, índice, juros |
 | `_extrair_manifestacao(bytes)` | DOCX → fundamentos + discrepâncias |
 | `_extrair_impugnacao(bytes, filename)` | PDF/DOCX → fundamentos + argumentos |

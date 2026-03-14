@@ -25,7 +25,7 @@ Documento obrigatório para agentes que alteram código. Reduz risco de regress�
 | Alterar extração de texto ou IA | `ai_client.py`, `sentence_finder.py`, `skills/*.md` |
 | Alterar modelo de dados (campos) | `models.py`, `config.SCHEMA_VERSION`, `legal_engine/engine._dict_para_contexto` |
 | Alterar memória de cálculo ou explicacoes | `memoria_calculo/generator.py`, `explanation_engine.py` |
-| Laboratório de Aprendizado (lab) | README (seção Laboratório), `services/learning_engine.py` (codify_insight), `main.py` (lab), `frontend/js/lab.js` |
+| Laboratório de Aprendizado (lab) | `docs/guia_eficiencia.md` (níveis, pesos, marcha processual), README § Laboratório, `learning_engine.py`, `main.py`, `lab.js` |
 | Alterar layout/UI do frontend (sidebar, header, painéis) | README (seção Frontend), `docs/CODE_INTELLIGENCE_MAP.md` (seção 7), `frontend/index.html`, `frontend/css/main.css` |
 | Alterar Parecer Técnico (tom, formato, slots) | `skills/parecer_pericial.md`, `explanation_engine.py` (gerar_parecer_tecnico_completo), `ai_client.py` (gerar_parcelas_parecer), `docs/CODE_INTELLIGENCE_MAP.md` (seção 4.3) |
 | Navegação rápida (qual arquivo faz o quê) | `docs/CODE_MAP.md` |
@@ -40,6 +40,7 @@ Documento obrigatório para agentes que alteram código. Reduz risco de regress�
 
 ## Redução de custo de tokens
 
-- Para tarefa pontual (ex.: “alterar regra X”), abrir apenas: `docs/AI_RULES.md`, `docs/CODE_MAP.md` (ou trecho relevante) e o arquivo da regra.
-- Evitar carregar o README inteiro se já houver contexto em `SYSTEM_OVERVIEW.md` e `PIPELINE.md`.
-- Para nova regra: usar um arquivo existente em `legal_engine/rules/` como template (ex.: `reflexos_proibidos.py`) e o teste correspondente em `tests/jurisprudencia/`.
+- **Tarefa pontual** (ex.: “alterar regra X”), abrir apenas: `docs/AI_RULES.md`, `docs/CODE_MAP.md` (ou trecho relevante) e o arquivo da regra.
+- **Lab:** ler `docs/guia_eficiencia.md` (níveis, pesos, marcha); não duplicar tabelas do Lab noutros docs.
+- Evitar README inteiro se `SYSTEM_OVERVIEW.md` + `PIPELINE.md` bastarem.
+- **Nova regra:** template em `legal_engine/rules/` + teste em `tests/jurisprudencia/`.

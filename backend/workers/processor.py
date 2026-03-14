@@ -38,7 +38,7 @@ def _load_skill(filename: str) -> str:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
-    print(f"[SKILL] Aviso: playbook não encontrado: {filename}")
+    print(f"[SKILL] Aviso: playbook não encontrado: {filename}", flush=True)
     return ""
 
 def _hash_pdf(file_bytes: bytes) -> str:
@@ -250,7 +250,7 @@ def _validate_result(data: dict) -> dict:
                 semanais  = diarias * 6
                 if 0 < diarias <= 12:
                     cleaned["jornada_contratual"] = f"{diarias:.0f}h diárias / {semanais:.0f}h semanais"
-                    print(f"[POSTP] jornada_contratual derivada: {cleaned['jornada_contratual']}")
+                    print(f"[POSTP] jornada_contratual derivada: {cleaned['jornada_contratual']}", flush=True)
             except Exception:
                 pass
 
@@ -261,7 +261,7 @@ def _validate_result(data: dict) -> dict:
         saida = cleaned.get("data_saida_ctps") or cleaned.get("data_demissao")
         if adm and saida:
             cleaned["fgts_periodo_completo"] = f"Todo o período contratual — {adm} a {saida}"
-            print(f"[POSTP] fgts_periodo_completo completado: {cleaned['fgts_periodo_completo']}")
+            print(f"[POSTP] fgts_periodo_completo completado: {cleaned['fgts_periodo_completo']}", flush=True)
 
     # 3. prescricao_quinquenal — calcula automaticamente (ajuizamento - 5 anos)
     if not cleaned.get("prescricao_quinquenal") and cleaned.get("data_ajuizamento"):
@@ -270,7 +270,7 @@ def _validate_result(data: dict) -> dict:
             ajuiz = date(int(y), int(m_n), int(d))
             prescricao = ajuiz.replace(year=ajuiz.year - 5)
             cleaned["prescricao_quinquenal"] = prescricao.strftime("%d/%m/%Y")
-            print(f"[POSTP] prescricao_quinquenal calculada: {cleaned['prescricao_quinquenal']}")
+            print(f"[POSTP] prescricao_quinquenal calculada: {cleaned['prescricao_quinquenal']}", flush=True)
         except Exception:
             pass
 
@@ -290,7 +290,7 @@ def _validate_result(data: dict) -> dict:
         m_div = re.search(r"\b(150|180|200|220)\s*(?:h(?:oras?)?|\/\s*m[eê]s)?\b", texto_concat, re.IGNORECASE)
         if m_div:
             cleaned["divisor_horas"] = m_div.group(1)
-            print(f"[POSTP] divisor_horas detectado: {cleaned['divisor_horas']}")
+            print(f"[POSTP] divisor_horas detectado: {cleaned['divisor_horas']}", flush=True)
         else:
             jornada = cleaned.get("jornada_contratual") or ""
             m_sem = re.search(r"(\d+)\s*h(?:oras?)?\s*semanais?", jornada, re.IGNORECASE)
@@ -299,12 +299,12 @@ def _validate_result(data: dict) -> dict:
                 divisores = {30: "150", 35: "175", 36: "180", 40: "200", 44: "220"}
                 if h_sem in divisores:
                     cleaned["divisor_horas"] = divisores[h_sem]
-                    print(f"[POSTP] divisor_horas inferido da jornada ({h_sem}h/sem): {cleaned['divisor_horas']}")
+                    print(f"[POSTP] divisor_horas inferido da jornada ({h_sem}h/sem): {cleaned['divisor_horas']}", flush=True)
                 else:
                     import math
                     divisor_calc = str(math.ceil((h_sem / 6) * 30))
                     cleaned["divisor_horas"] = divisor_calc
-                    print(f"[POSTP] divisor_horas calculado matematicamente ({h_sem}h/sem → {divisor_calc})")
+                    print(f"[POSTP] divisor_horas calculado matematicamente ({h_sem}h/sem -> {divisor_calc})", flush=True)
 
     # 5. evolucao_salarial — valor padrão se não extraído
     if not cleaned.get("evolucao_salarial"):
@@ -354,7 +354,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     job_id     : identificador do job vindo do main.py — usado na memória de cálculo (M1).
                  Opcional: se vazio, usa doc_id como fallback após salvar no banco.
     """
-    print(f"[PROCESSOR] user={user_id}")
+    print(f"[PROCESSOR] user={user_id}", flush=True)
 
     # 1. Freemium — verifica créditos
     credits = get_user_credits(user_id)
@@ -367,7 +367,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     if cached:
         ok, motivo = _qualidade_ok(cached)
         if ok:
-            print("[PROCESSOR] Cache hit! (qualidade ok)")
+            print("[PROCESSOR] Cache hit! (qualidade ok)", flush=True)
             cached_doc_type = cached.get("_meta_doc_type", "sentenca")
             return {
                 "status": "sucesso",
@@ -376,14 +376,14 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
                 "data": cached,
             }
         else:
-            print(f"[PROCESSOR] Cache descartado — qualidade insuficiente: {motivo}")
+            print(f"[PROCESSOR] Cache descartado — qualidade insuficiente: {motivo}", flush=True)
 
     # 3. Extração inteligente — detecta e recorta sentença/acórdão
     texto, doc_type = extract_sentence_from_pdf(file_bytes)
     if not texto.strip():
         return {"status": "erro", "msg": "PDF sem texto legível"}
 
-    print(f"[PROCESSOR] Tipo detectado: {doc_type} | Chars extraídos: {len(texto)}")
+    print(f"[PROCESSOR] Tipo detectado: {doc_type} | Chars extraídos: {len(texto)}", flush=True)
 
     # 4. Carrega o playbook correto para o tipo de documento
     _PLAYBOOK_MAP = {
@@ -400,7 +400,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     # Se dispositivo não encontrado, carrega skill extra
     dispositivo_pos = find_section_hybrid(texto, "dispositivo")
     if dispositivo_pos < 0:
-        print("[SKILL] Dispositivo não encontrado — carregando filtro_dispositivo.md")
+        print("[SKILL] Dispositivo não encontrado — carregando filtro_dispositivo.md", flush=True)
         playbook += "\n\n" + _load_skill("filtro_dispositivo.md")
 
     # 5. IA com cascata + playbook
@@ -416,7 +416,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         verbas_dedup, avisos_dedup = deduplicar_verbas(dados_limpos["verbas_deferidas"])
         dados_limpos["verbas_deferidas"] = verbas_dedup
         if avisos_dedup:
-            print(f"[DEDUP] {len(avisos_dedup)} duplicata(s) removida(s)")
+            print(f"[DEDUP] {len(avisos_dedup)} duplicata(s) removida(s)", flush=True)
     else:
         avisos_dedup = []
 
@@ -447,7 +447,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
             alertas_engine  = alertas_engine + res_dyn.get("alertas", [])
             regras_aplicadas = regras_aplicadas + res_dyn.get("regras_aplicadas", [])
     except Exception as _e_dyn:
-        print(f"[PROCESSOR] Aviso: erro nas regras dinâmicas (não crítico): {_e_dyn}")
+        print(f"[PROCESSOR] Aviso: erro nas regras dinâmicas (não crítico): {_e_dyn}", flush=True)
 
     # 8c. Explanation Engine: texto jurídico por verba (sem LLM)
     explicacoes = gerar_explicacoes(
@@ -485,19 +485,19 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         dados_finais["parecer_parcelas_ia"]        = parecer_completo.get("parcelas", "")
         dados_finais["parecer_model_used"]         = parecer_completo.get("model_used")
         if parecer_completo.get("error"):
-            print(f"[PARECER] Aviso: IA retornou erro ao gerar parcelas — {parecer_completo['error']}")
+            print(f"[PARECER] Aviso: IA retornou erro ao gerar parcelas — {parecer_completo['error']}", flush=True)
     except Exception as _e_parecer:
         dados_finais["parecer_texto"]       = ""
         dados_finais["parecer_parcelas_ia"] = ""
         dados_finais["parecer_model_used"]  = None
-        print(f"[PARECER] Erro ao gerar parecer completo (não crítico): {_e_parecer}")
+        print(f"[PARECER] Erro ao gerar parecer completo (não crítico): {_e_parecer}", flush=True)
 
     # 8d. Shadow Mode: executa regras shadow silenciosamente (métricas internas, sem output)
     # Não polui os alertas do usuário — usado apenas para coletar acertos/erros das hipóteses.
     try:
         executar_shadow_pipeline(dados_finais)
     except Exception as _e_shadow:
-        print(f"[SHADOW] Aviso: erro no shadow pipeline (não crítico): {_e_shadow}")
+        print(f"[SHADOW] Aviso: erro no shadow pipeline (não crítico): {_e_shadow}", flush=True)
 
     # 9. Só cacheia e desconta crédito se qualidade mínima atingida
     ok, motivo = _qualidade_ok(dados_finais)
@@ -506,10 +506,10 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         save_cache(pdf_hash, dados_finais)
         doc_id = save_extraction(user_id, dados_finais)
         deduct_credit(user_id)
-        print(f"[PROCESSOR] Resultado salvo (qualidade ok)")
+        print(f"[PROCESSOR] Resultado salvo (qualidade ok)", flush=True)
     else:
         doc_id = save_extraction(user_id, dados_finais)
-        print(f"[PROCESSOR] Qualidade insuficiente — NÃO cacheado: {motivo}")
+        print(f"[PROCESSOR] Qualidade insuficiente — NÃO cacheado: {motivo}", flush=True)
 
     # 10. Memória de cálculo — M1 (trilha de auditoria por extração)
     # Gerada apenas para extrações novas via IA — cache hits não reprocessam o pipeline.

@@ -7,7 +7,7 @@ from services.legal_engine.rule_base import LegalRule, ContextoJuridico, VerbaCo
 class LegalRuleEngine:
     def __init__(self, rules: List[LegalRule]):
         self.rules = sorted(rules, key=lambda r: r.prioridade)
-        print(f"[ENGINE] Motor inicializado com {len(self.rules)} regras")
+        # Log de inicialização omitido — terminal fica limpo até "Application startup complete"
 
     def executar(self, dados: dict) -> dict:
         contexto = self._dict_para_contexto(dados)
@@ -20,15 +20,15 @@ class LegalRuleEngine:
             try:
                 contexto = rule.aplicar(contexto)
             except Exception as e:
-                print(f"[ENGINE] Erro em {rule.id}: {e}")
+                print(f"[ENGINE] Erro em {rule.id}: {e}", flush=True)
                 contexto.alertas.append({"nivel": "INFO", "mensagem": f"Regra {rule.id} falhou: {type(e).__name__}", "regra_id": rule.id, "base_legal": rule.base_legal})
         alertas_str = self._alertas_para_strings(contexto.alertas)
         erros = sum(1 for a in alertas_str if "[ERRO]" in a)
         avisos = sum(1 for a in alertas_str if "[AVISO]" in a)
         if not alertas_str:
-            print("[ENGINE] Nenhum alerta")
+            print("[ENGINE] Nenhum alerta", flush=True)
         else:
-            print(f"[ENGINE] {erros} erro(s), {avisos} aviso(s)")
+            print(f"[ENGINE] {erros} erro(s), {avisos} aviso(s)", flush=True)
         return {"alertas": alertas_str, "regras_aplicadas": contexto.regras_aplicadas, "memorial_juridico": self._gerar_memorial(contexto)}
 
     def _dict_para_contexto(self, dados: dict) -> ContextoJuridico:
@@ -40,7 +40,7 @@ class LegalRuleEngine:
             try:
                 verbas.append(VerbaContexto(nome=v.get("nome") or "Verba nao identificada", status_final=v.get("status_final"), periodo=v.get("periodo"), percentual=v.get("percentual"), quantidade_diaria=v.get("quantidade_diaria"), base_calculo=v.get("base_calculo"), valor_fixado=v.get("valor_fixado"), integracao_salarial=v.get("integracao_salarial"), reflexos=v.get("reflexos") or [], observacoes=v.get("observacoes")))
             except Exception as e:
-                print(f"[ENGINE] Verba ignorada: {e}")
+                print(f"[ENGINE] Verba ignorada: {e}", flush=True)
         campos_escalares = {
             "numero_processo",
             "reclamante",

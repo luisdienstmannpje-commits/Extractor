@@ -186,11 +186,11 @@ def _extract_page_text_with_ocr(page, page_num: int) -> str:
     text = page.extract_text() or ""
     if len(text.strip()) < settings.OCR_CHARS_THRESHOLD:
         try:
-            print(f"[FINDER] Pág {page_num}: OCR ativado ({len(text)} chars nativos)")
+            print(f"[FINDER] Pag {page_num}: OCR ativado ({len(text)} chars nativos)", flush=True)
             im = page.to_image(resolution=300).original
             text = pytesseract.image_to_string(im, lang="por")
         except Exception as e:
-            print(f"[FINDER] OCR falhou pág {page_num}: {e}")
+            print(f"[FINDER] OCR falhou pag {page_num}: {e}", flush=True)
     return text
 
 
@@ -310,12 +310,12 @@ def _find_decision_block(pages: List[PageInfo]) -> Tuple[int, int, str]:
                 start = block[0].idx
                 end   = block[-1].idx
                 doc_type = _classify_doc_type(block)
-                print(f"[FINDER] Bloco decisório (PJe): págs {start+1}–{end+1} "
-                      f"| Data: {date} | Tipo: {doc_type}")
+                print(f"[FINDER] Bloco decisorio (PJe): pags {start+1}-{end+1} "
+                      f"| Data: {date} | Tipo: {doc_type}", flush=True)
                 return start, end, doc_type
 
     # ── Tentativa 2: fallback estrutural (PDFs sem assinatura PJe) ───────────
-    print("[FINDER] Sem assinatura PJe — usando fallback estrutural")
+    print("[FINDER] Sem assinatura PJe - usando fallback estrutural", flush=True)
     candidates = []
     i = 0
     while i < len(pages):
@@ -342,11 +342,11 @@ def _find_decision_block(pages: List[PageInfo]) -> Tuple[int, int, str]:
     if candidates:
         start, end, is_ac = candidates[-1]
         doc_type = "acordao" if is_ac else "sentenca"
-        print(f"[FINDER] Bloco decisório (estrutural): págs {start+1}–{end+1} | Tipo: {doc_type}")
+        print(f"[FINDER] Bloco decisorio (estrutural): pags {start+1}-{end+1} | Tipo: {doc_type}", flush=True)
         return start, end, doc_type
 
     # ── Tentativa 3: fallback simples — último DISPOSITIVO com janela adaptativa
-    print("[FINDER] Fallback simples: último dispositivo encontrado")
+    print("[FINDER] Fallback simples: ultimo dispositivo encontrado", flush=True)
     for p in reversed(pages):
         if p.has_dispositivo and not p.is_envelope:
             start = p.idx
@@ -358,11 +358,11 @@ def _find_decision_block(pages: List[PageInfo]) -> Tuple[int, int, str]:
                     break
             end = min(len(pages) - 1, p.idx + 5)
             doc_type = _classify_doc_type(pages[start:end+1])
-            print(f"[FINDER] Fallback simples: págs {start+1}–{end+1}")
+            print(f"[FINDER] Fallback simples: pags {start+1}-{end+1}", flush=True)
             return start, end, doc_type
 
     # ── Último recurso: texto completo ────────────────────────────────────────
-    print("[FINDER] Último recurso: texto completo")
+    print("[FINDER] Ultimo recurso: texto completo", flush=True)
     return 0, len(pages) - 1, "completo"
 
 
@@ -408,7 +408,7 @@ def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
     try:
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             total = len(pdf.pages)
-            print(f"[FINDER] PDF com {total} páginas — análise leve...")
+            print(f"[FINDER] PDF com {total} paginas - analise leve...", flush=True)
 
             # ── Fase 1: análise leve de TODAS as páginas (sem OCR) ────────────
             page_infos: list[PageInfo] = []
@@ -424,8 +424,8 @@ def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
             real_end   = min(total - 1, end_idx + CONTEXT_AFTER)
 
             n_pages = real_end - real_start + 1
-            print(f"[FINDER] Recorte final: págs {real_start+1}–{real_end+1} "
-                  f"({n_pages} págs de {total}) | Tipo: {doc_type}")
+            print(f"[FINDER] Recorte final: pags {real_start+1}-{real_end+1} "
+                  f"({n_pages} pags de {total}) | Tipo: {doc_type}", flush=True)
 
             # ── Fase 3: extração com OCR apenas nas páginas necessárias ─────
 
@@ -460,13 +460,13 @@ def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
                 extracted += f"\n--- PÁGINA {i+1} ---\n{text}"
 
             if tables_found:
-                print(f"[FINDER] {tables_found} tabela(s) extraída(s) e convertidas para Markdown")
+                print(f"[FINDER] {tables_found} tabela(s) extraida(s) e convertidas para Markdown", flush=True)
 
             chars = len(extracted)
-            print(f"[FINDER] Texto extraído: {chars} chars "
-                  f"(capa: {len(capa_indices)} págs + sentença: {real_end-real_start+1} págs)")
+            print(f"[FINDER] Texto extraido: {chars} chars "
+                  f"(capa: {len(capa_indices)} pags + sentenca: {real_end-real_start+1} pags)", flush=True)
             return extracted, doc_type
 
     except Exception as e:
-        print(f"[FINDER] Erro ao abrir PDF: {e}")
+        print(f"[FINDER] Erro ao abrir PDF: {e}", flush=True)
         return "", "completo"

@@ -163,21 +163,21 @@ O **rule_registry** varre `legal_engine/rules/` e `jurisprudencia/` e instancia 
 
 O **Laboratório** permite à perita treinar o sistema com a visão completa da **Linha do Tempo da Fraude Trabalhista** (até 8 arquivos). Recebe um relatório de discrepância enriquecido e pode salvar aprendizados como **regras** ou **exemplos** em skills. Nenhum arquivo binário é persistido.
 
-### Upload — 8 campos — Tríade de Ouro Expandida
+### Upload — 8 campos (marcha processual) + barra de eficiência
 
-> O botão "Analisar" fica sempre liberado. **Tríade de Ouro Expandida** (máxima inteligência): Amostragem + Processo + Cálculo .PJC + **Manifestação**. Obrigatórios mínimos: Processo + Liquidação + Parecer.
-> **Atenção:** arquivos `.doc` (Word antigo) são bloqueados no frontend com toast explicativo. Use `.docx`.
+> O botão "Analisar" fica sempre liberado. **Barra de eficiência** (frontend): score 0–100% em tempo real conforme arquivos anexados; níveis 1–4 (Rápido → Auditoria → Tríade → Tríade de Ouro). Detalhes: `docs/guia_eficiencia.md`.
+> **Atenção:** `.doc` é bloqueado no frontend; use `.pdf` ou `.docx`.
 
-| # | Campo | Tipo | Status | Função |
-|---|-------|------|--------|--------|
-| 1 | `amostragem_pdf` | PDF | opcional | Holerites/ponto → extrai tese vencedora + irregularidades via Gemini |
-| 2 | `amostragem_word` | DOCX | opcional | Petição Word → **Style Transfer** → acumula em `skills/amostragem_style.md` |
-| 3 | `processo` | PDF/DOCX (**múltiplos**) | recomendado | **Título Executivo Complexo**: 1–N arquivos acumulados (Sentença + Acórdão TRT/RO + Acórdão TST/RR); classificados por tier (1GRAU/TRT/TST) → `_extrair_titulo_executivo_multiplos` → Análise de Reforma de Decisão; instâncias superiores têm prioridade absoluta |
-| 4 | `liquidacao` | PDF/DOCX | recomendado | Cálculo da empresa — onde errou; base canônica dos guardrails anti-alucinação |
-| 5 | `parecer` | PDF/DOCX | recomendado | Parecer da perita — como corrigiu |
-| 6 | `impugnacao` | PDF/DOCX | opcional | Contestação da empresa → **Duplo Style Transfer** (alimenta `manifestacao_style.md` junto com Card 8) |
-| 7 | `calculo_pjc` | PDF/.PJC/.XML | opcional | Parâmetros PJe-Calc para auditoria matemática |
-| 8 | `manifestacao` | PDF/DOCX | opcional | **Petição de Resposta** — retórica de combate, padrões Ataque/Defesa, súmulas → **Duplo Style Transfer** (fundido com impugnação via `_merge_dados_manifestacao`) → `skills/manifestacao_style.md` |
+| # | Campo | Tipo | Função |
+|---|-------|------|--------|
+| 1 | `peticao` | PDF/DOCX | **Petição Inicial** — verbas pedidas, causa de pedir, período, valor da causa → `relatorio.peticao_inicial` |
+| 2 | `contestacao` | PDF/DOCX | **Contestação** — argumentos de exclusão, teses empresa, súmulas → `relatorio.contestacao` |
+| 3 | `processo` | PDF/DOCX (**múltiplos**) | **Título Executivo**: 1–N docs (Sentença + TRT + TST); tier + data do texto → `_extrair_titulo_executivo_multiplos` |
+| 4 | `liquidacao` | PDF/DOCX | Cálculo da empresa; base dos guardrails |
+| 5 | `parecer` | PDF/DOCX | Parecer da perita |
+| 6 | `impugnacao` | PDF/DOCX | Duplo Style Transfer (com Card 8) → `manifestacao_style.md` |
+| 7 | `calculo_pjc` | PDF/.PJC/.XML | Parâmetros PJe-Calc |
+| 8 | `manifestacao` | PDF/DOCX | Retórica de combate → Duplo Style Transfer |
 
 ### Fluxo
 
@@ -194,10 +194,9 @@ analisar → relatório enriquecido (linha do tempo + `triade_pericial` com nós
 
 ### Módulos
 
-- `learning_engine.py`: `processar_sete_arquivos` (entrada principal — 8 arquivos + `processo_arquivos: List[tuple]` para múltiplos arquivos do Card 3), `processar_cinco_arquivos` (compat.), `_extrair_amostragem_pdf/word`, `_atualizar_skill_amostragem`, `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_codificar_padroes_ataque_defesa`, `_atualizar_skill_manifestacao`, `_gerar_regras_preditivas_amostragem`, `_classificar_tier_decisao`, `_extrair_titulo_executivo_multiplos` + Self-Healing Rule Engine + **Guardrails anti-alucinação** (`_canon_empresa_e_verba_esta`, `_filtrar_falsos_positivos_verba_ausente`, `_filtrar_logicas_verba_ausente_falsas`, `_filtrar_aprendizados_verba_ausente_falsas`).
-- `skills/amostragem_style.md`: acumula padrões de estilo (vocab, expressões, estrutura, tom) de cada Amostragem Word. Usar no system prompt de pareceres.
-- `skills/manifestacao_style.md`: acumula retórica de combate de **ambos** Card 6 (impugnação) E Card 8 (manifestação) — Duplo Style Transfer. Grow automático. Usar ao gerar futuras manifestações.
-- Frontend: `lab.js` (8 LAB_CAMPOS, formKey; Card 3 múltiplos arquivos com `_processoFiles` + `_classifyDecisaoTier` + `_renderProcessoFiles`; `_isDocAntigo` + toast .doc; Conclusão da Tríade com 4 nós em grid 2×2), `index.html`, `main.css`.
+- `learning_engine.py`: `processar_sete_arquivos` / `processar_cinco_arquivos` (8 arquivos + `processo_arquivos`); `_extrair_peticao_inicial`, `_extrair_contestacao`; `_extrair_titulo_executivo_multiplos` (hierarquia + data do texto); `_extrair_amostragem_pdf/word` (retrocompat.); `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_atualizar_skill_manifestacao`; guardrails: `_canon_empresa_e_verba_esta`, `_filtrar_*_verba_ausente` (3 camadas); Self-Healing. Ver mapa em `docs/AI_NAVIGATION_LAYER.md` § 5.
+- `skills/amostragem_style.md`, `skills/manifestacao_style.md`: Style Transfer (amostragem Word + impugnação/manifestação).
+- Frontend: `lab.js` — 8 LAB_CAMPOS (peticao, contestacao, processo, …), Card 3 múltiplos (`_processoFiles`), barra de eficiência (`_EFICIENCIA_PESOS`, `_calcularEficiencia`, `_atualizarBarraEficiencia`), `_isDocAntigo` + toast .doc.
 
 ### Self-Healing Rule Engine (aprendizado autônomo de regras)
 
@@ -317,11 +316,21 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 ## Como rodar
 
 - **API** (sempre a partir da pasta `backend/`):
+
+  **Recomendado (logs no terminal):** use o script para garantir PORT + `python -u` e ver [LAB], [FINDER], [AI], [ENGINE], [KB] em tempo real:
+  ```bash
+  ./run_server.sh        # Git Bash
+  # ou
+  run_server.bat         # CMD / PowerShell
+  ```
+  Detalhes: `RUN_SERVER.md`.
+
+  **Comando manual:**
   ```bash
   cd backend
-  venv/Scripts/python.exe -u -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+  PORT=8001 venv/Scripts/python.exe -u -m uvicorn main:app --host 0.0.0.0 --port 8001
   ```
-  A flag `-u` (unbuffered) garante que os logs apareçam em tempo real no terminal. Ou, na raiz do repositório: `./run.sh` (Git Bash/Linux), que já carrega `.env` e usa `-u`.
+  A flag `-u` (unbuffered) garante que os logs apareçam em tempo real. Abra no navegador a mesma porta (ex.: http://localhost:8001/). Ou, na raiz do repositório: `./run.sh` (Git Bash/Linux), que já carrega `.env` e usa `-u`.
 
   **Importante:** não rode `uvicorn main:app` na raiz do projeto (`smart-extractor/`). O `main.py` da raiz é legado; o servidor correto está em `backend/main.py`. Rodar na raiz ainda faz o WatchFiles vigiar a pasta `venv/` e dar reload a cada alteração em pacotes.
 

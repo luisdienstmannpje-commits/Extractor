@@ -1,17 +1,21 @@
 /**
  * lab.js — Laboratório de Aprendizado da Perita
  *
- * 7 campos de upload — Linha do Tempo da Fraude Trabalhista:
- *   1. amostragem-pdf  (PDF)              — opcional  · tese vencedora (prova de holerites/ponto)
- *   2. amostragem-word (DOC/DOCX)         — opcional  · style transfer (vocabulário da perita)
- *   3. processo        (PDF/DOC/DOCX)     — obrigatório · sentença / decisão judicial
- *   4. liquidacao      (PDF/DOC/DOCX)     — obrigatório · cálculo da empresa (onde errou)
- *   5. parecer         (PDF/DOC/DOCX)     — obrigatório · correção da perita
- *   6. impugnacao      (PDF/DOC/DOCX)     — opcional  · contestação da empresa
- *   7. calculo-pjc     (PDF/.PJC/.XML)    — opcional  · parâmetros PJe-Calc para auditoria
+ * 8 campos de upload — Marcha processual (Fase de Conhecimento + Liquidação):
+ *   1. peticao        (PDF/DOCX)  — opcional · Petição Inicial (verbas pedidas, causa de pedir)
+ *   2. contestacao    (PDF/DOCX)  — opcional · Contestação (argumentos de exclusão)
+ *   3. processo       (PDF/DOC/DOCX) — obrigatório · Título Executivo (sentença + acórdãos)
+ *   4. liquidacao     (PDF/DOC/DOCX) — recomendado · cálculo da empresa
+ *   5. parecer        (PDF/DOC/DOCX) — obrigatório · parecer da perita
+ *   6. impugnacao     (PDF/DOC/DOCX) — opcional · impugnação da empresa
+ *   7. calculo-pjc    (PDF/.PJC/.XML) — opcional · parâmetros PJe-Calc
+ *   8. manifestacao   (PDF/DOC/DOCX) — opcional · manifestação da perita
  */
 
-const LAB_API = "http://localhost:8000";
+// Usa a mesma origem da página (funciona em qualquer porta: 8000, 8001, etc.)
+const LAB_API = (typeof window !== "undefined" && window.location && window.location.origin)
+  ? window.location.origin
+  : "http://localhost:8000";
 
 // Estado local do laboratório
 let _relatorio = null;
@@ -36,20 +40,32 @@ function initLabToggle() {
   });
 }
 
-// Definição dos 7 campos — linha do tempo da fraude trabalhista
+// Definição dos 8 campos — marcha processual
 const LAB_CAMPOS = [
-  // Fase de Conhecimento (opcional — alimentam cross-reference e style transfer)
-  { inputId: "lab-amostragem-pdf",  nameId: "lab-amostragem-pdf-name",  cardId: "card-amostragem-pdf",  obrigatorio: false, formKey: "amostragem_pdf"  },
-  { inputId: "lab-amostragem-word", nameId: "lab-amostragem-word-name", cardId: "card-amostragem-word", obrigatorio: false, formKey: "amostragem_word" },
+  // Fase de Conhecimento (opcional)
+  { inputId: "lab-peticao",       nameId: "lab-peticao-name",       cardId: "card-peticao",       obrigatorio: false, formKey: "peticao" },
+  { inputId: "lab-contestacao",   nameId: "lab-contestacao-name",   cardId: "card-contestacao",   obrigatorio: false, formKey: "contestacao" },
   // Obrigatórios mínimos (sentença + parecer)
-  { inputId: "lab-processo",        nameId: "lab-processo-name",        cardId: "card-processo",        obrigatorio: true  },
-  { inputId: "lab-liquidacao",      nameId: "lab-liquidacao-name",      cardId: "card-liquidacao",      obrigatorio: false },
-  { inputId: "lab-parecer",         nameId: "lab-parecer-name",         cardId: "card-parecer",         obrigatorio: true  },
+  { inputId: "lab-processo",       nameId: "lab-processo-name",     cardId: "card-processo",       obrigatorio: true },
+  { inputId: "lab-liquidacao",   nameId: "lab-liquidacao-name",   cardId: "card-liquidacao",     obrigatorio: false },
+  { inputId: "lab-parecer",      nameId: "lab-parecer-name",      cardId: "card-parecer",         obrigatorio: true },
   // Opcionais de enriquecimento
-  { inputId: "lab-impugnacao",      nameId: "lab-impugnacao-name",      cardId: "card-impugnacao",      obrigatorio: false },
-  { inputId: "lab-calculo-pjc",     nameId: "lab-calculo-pjc-name",     cardId: "card-calculo-pjc",     obrigatorio: false },
-  { inputId: "lab-manifestacao",    nameId: "lab-manifestacao-name",    cardId: "card-manifestacao",    obrigatorio: false, formKey: "manifestacao" },
+  { inputId: "lab-impugnacao",    nameId: "lab-impugnacao-name",   cardId: "card-impugnacao",     obrigatorio: false },
+  { inputId: "lab-calculo-pjc",  nameId: "lab-calculo-pjc-name",  cardId: "card-calculo-pjc",    obrigatorio: false },
+  { inputId: "lab-manifestacao",  nameId: "lab-manifestacao-name", cardId: "card-manifestacao",  obrigatorio: false, formKey: "manifestacao" },
 ];
+
+// Pesos de cada card para o score de eficiência (total 100)
+const _EFICIENCIA_PESOS = {
+  processo:    30,  // Card 3 — Título Executivo (obrigatório)
+  parecer:     20,  // Card 5 — Laudo Pericial
+  liquidacao:  15,  // Card 4 — Cálculos da empresa
+  calculo_pjc: 10,  // Card 7 — Parâmetros PJC
+  manifestacao: 10, // Card 8 — Retórica de combate
+  contestacao:  7,  // Card 2 — Argumentos de exclusão
+  impugnacao:   5,  // Card 6 — Style Transfer defesa
+  peticao:      3,  // Card 1 — Contexto dos pedidos
+};
 
 // ── Validação: bloquear .doc (Word antigo) ────────────────────────────────────
 
@@ -147,6 +163,7 @@ function _renderProcessoFiles() {
         _processoFiles.splice(idx, 1);
         _renderProcessoFiles();
         _atualizarBotaoAnalisar();
+        _atualizarBarraEficiencia();
       });
     });
   }
@@ -196,6 +213,7 @@ function initLabUploads() {
         });
         _renderProcessoFiles();
         _atualizarBotaoAnalisar();
+        _atualizarBarraEficiencia();
       });
       return;
     }
@@ -208,6 +226,7 @@ function initLabUploads() {
         if (card) card.classList.remove("filled", "error");
         _showLabToastDocNaoSuportado();
         _atualizarBotaoAnalisar();
+        _atualizarBarraEficiencia();
         return;
       }
       if (file) {
@@ -219,8 +238,65 @@ function initLabUploads() {
         card.classList.remove("filled", "error");
       }
       _atualizarBotaoAnalisar();
+      _atualizarBarraEficiencia();
     });
   });
+}
+
+function _calcularEficiencia() {
+  let score = 0;
+  const keyToInput = {};
+  LAB_CAMPOS.forEach(c => {
+    const key = c.formKey || c.inputId.replace("lab-", "").replace(/-/g, "_");
+    keyToInput[key] = c.inputId;
+  });
+  if (_EFICIENCIA_PESOS.processo && _processoFiles.length > 0) score += _EFICIENCIA_PESOS.processo;
+  ["parecer", "liquidacao", "calculo_pjc", "manifestacao", "contestacao", "impugnacao", "peticao"].forEach(key => {
+    const id = keyToInput[key] || "lab-" + key.replace(/_/g, "-");
+    const el = document.getElementById(id);
+    if (el && el.files && el.files.length > 0) score += (_EFICIENCIA_PESOS[key] || 0);
+  });
+  return Math.min(100, score);
+}
+
+function _atualizarBarraEficiencia() {
+  const score = _calcularEficiencia();
+  const bar = document.getElementById("lab-eficiencia-bar");
+  const pct = document.getElementById("lab-eficiencia-pct");
+  const nivel = document.getElementById("lab-eficiencia-nivel");
+  const detalhe = document.getElementById("lab-eficiencia-detalhe");
+
+  if (!bar) return;
+
+  bar.style.width = score + "%";
+  if (pct) pct.textContent = score + "%";
+
+  const baseClass = "h-3 rounded-full transition-all duration-500 ease-out ";
+  if (score === 0) {
+    bar.className = baseClass + "bg-gray-600";
+    if (nivel) nivel.textContent = "Aguardando arquivos...";
+    if (detalhe) detalhe.textContent = "Adicione arquivos para ver a previsão atualizar em tempo real.";
+  } else if (score < 25) {
+    bar.className = baseClass + "bg-gray-500";
+    if (nivel) nivel.textContent = "Contexto inicial — aprendizado limitado";
+    if (detalhe) detalhe.textContent = "Adicione o Título Executivo (Card 3) para iniciar o aprendizado.";
+  } else if (score < 45) {
+    bar.className = baseClass + "bg-blue-500";
+    if (nivel) nivel.textContent = "⚡ Nível 1 — Rápido: fundamentos jurídicos e estilo da perita";
+    if (detalhe) detalhe.textContent = "Adicione Liquidação ou Parecer para subir para Nível 2.";
+  } else if (score < 65) {
+    bar.className = baseClass + "bg-yellow-500";
+    if (nivel) nivel.textContent = "🔍 Nível 2 — Auditoria: detecção de discrepâncias ativa";
+    if (detalhe) detalhe.textContent = "Adicione o Cálculo PJC para ativar a detecção de omissões.";
+  } else if (score < 85) {
+    bar.className = baseClass + "bg-orange-500";
+    if (nivel) nivel.textContent = "📊 Nível 3 — Tríade: detecção automática de omissões de parâmetros";
+    if (detalhe) detalhe.textContent = "Adicione Manifestação para atingir o máximo aprendizado preditivo.";
+  } else {
+    bar.className = baseClass + "bg-green-500";
+    if (nivel) nivel.textContent = "🏆 Nível 4 — Tríade de Ouro: máximo aprendizado preditivo ativo";
+    if (detalhe) detalhe.textContent = "Todos os insumos essenciais presentes. Aprendizado completo.";
+  }
 }
 
 function _atualizarBotaoAnalisar() {
@@ -367,6 +443,41 @@ function _renderPasso1(r) {
     }
     if (amos.model_used) {
       html += `<p style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)">modelo: ${_esc(amos.model_used)}</p>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── Petição Inicial (Card 1) ───────────────────────────────────────────────────
+  const peticao = r.peticao_inicial;
+  if (peticao) {
+    html += `<div style="margin-bottom:18px">
+      <p style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px">⚖️ Petição Inicial</p>`;
+    if ((peticao.verbas_pedidas || []).length) {
+      html += `<p style="font-size:10px;color:var(--muted);margin-bottom:4px">Verbas pedidas</p><div class="lab-verbas-list">`;
+      (peticao.verbas_pedidas || []).forEach(v => { html += `<span class="lab-verba-tag" style="border-color:var(--accent);color:var(--accent)">${_esc(v)}</span>`; });
+      html += `</div>`;
+    }
+    if (peticao.causa_pedir) html += `<p style="font-size:12px;color:var(--text);margin-top:8px;line-height:1.4">${_esc(peticao.causa_pedir)}</p>`;
+    if (peticao.periodo_reivindicado) html += `<p style="font-size:11px;color:var(--muted);margin-top:4px">Período: ${_esc(peticao.periodo_reivindicado)}</p>`;
+    html += `</div>`;
+  }
+
+  // ── Contestação (Card 2) ───────────────────────────────────────────────────────
+  const contestacao = r.contestacao;
+  if (contestacao) {
+    html += `<div style="margin-bottom:18px">
+      <p style="font-size:11px;color:var(--purple);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px">🛡️ Contestação</p>`;
+    if ((contestacao.teses_empresa || []).length) {
+      html += `<p style="font-size:10px;color:var(--muted);margin-bottom:4px">Teses da empresa</p><div class="lab-verbas-list">`;
+      (contestacao.teses_empresa || []).forEach(t => { html += `<span class="lab-verba-tag" style="border-color:var(--purple);color:var(--purple)">${_esc(t)}</span>`; });
+      html += `</div>`;
+    }
+    if ((contestacao.argumentos_exclusao || []).length) {
+      html += `<div class="lab-fields-grid" style="margin-top:8px">`;
+      (contestacao.argumentos_exclusao || []).slice(0, 5).forEach(ar => {
+        html += `<div class="lab-field-item"><span class="lab-field-key">${_esc(ar.verba || "—")}</span><span class="lab-field-val">${_esc(ar.argumento || "—")}</span></div>`;
+      });
+      html += `</div>`;
     }
     html += `</div>`;
   }
@@ -1106,6 +1217,7 @@ function _esc(str) {
 function initLab() {
   initLabToggle();
   initLabUploads();
+  _atualizarBarraEficiencia();
 
   const btnAnalisar = document.getElementById("btn-lab-analisar");
   if (btnAnalisar) {

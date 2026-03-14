@@ -9,7 +9,7 @@ Para regras do motor, ver também a tabela de regras no README.
 
 | Arquivo | Responsabilidade |
 |---------|-------------------|
-| `main.py` | API FastAPI; upload PDF; jobs (memória + SQLite); WebSocket; download Excel/PJC; lab (`/lab/analisar` — `processo: List[UploadFile]`, `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`); `GET /api/stats` (dashboard: processos_analisados, regras ativas/shadow, omissoes, eficiencia_motor, ultimas_regras, top_verbas); timeout 5 min. |
+| `main.py` | API FastAPI; upload; jobs; WebSocket; export PJC/Excel; lab (`/lab/analisar` — peticao, contestacao, processo(List), liquidacao, parecer, impugnacao, calculo_pjc, manifestacao); `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`; `GET /api/stats`; timeout 5 min. |
 | `config.py` | Env: GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION, RAPIDFUZZ_THRESHOLD, etc. |
 | `models.py` | ProcessoTrabalhista, VerbaDeferida (Pydantic); validadores; SCHEMA_VERSION. |
 | `workers/processor.py` | Pipeline 10 passos: process_lawsuit_pdf; orquestra todos os serviços. |

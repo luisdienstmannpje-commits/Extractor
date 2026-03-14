@@ -3,7 +3,10 @@
  * API, upload, polling, status e export (PJC / Excel).
  */
 
-const API = "http://localhost:8000";
+// Usa a mesma origem da página (funciona em qualquer porta: 8000, 8001, etc.)
+const API = (typeof window !== "undefined" && window.location && window.location.origin)
+  ? window.location.origin
+  : "http://localhost:8000";
 let pollingInterval = null;
 let currentJobId = null;
 let _historicoDados = [];

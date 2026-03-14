@@ -17,6 +17,7 @@ v2.2 — base:
   - Jobs persistidos no SQLite, timeout 5min, threading.Lock
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 from typing import List
 from fastapi.responses import Response, FileResponse
@@ -37,6 +38,7 @@ from services.excel_exporter import exportar_excel
 from services.pjc_parser import PjcParser
 from services.pjc_auditor import auditar_pjc_vs_sentenca
 from config import settings
+import os
 import uvicorn
 import uuid
 import threading
@@ -44,10 +46,24 @@ import asyncio
 import json
 from pathlib import Path
 
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup e shutdown (substitui on_event deprecado)."""
+    # Startup
+    cleanup_old_jobs(days=7)
+    _port = os.environ.get("PORT", "8000")
+    print("[MAIN] API v3.2 iniciada. WebSocket push ativo. pjc_exporter v5.4 (XML puro + gprec fix).", flush=True)
+    print(f"[MAIN] Abra o sistema na MESMA PORTA que o Uvicorn mostra abaixo (ex.: se aparecer 'running on ...8001', use http://localhost:8001/)", flush=True)
+    yield
+    # Shutdown (opcional)
+
+
 app = FastAPI(
     title="PjeCalc Smart Extractor API",
     version="3.2",
     description="Extração automática de verbas trabalhistas de sentenças e acórdãos PJe",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(
@@ -56,6 +72,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Log em arquivo para ver atividade quando o terminal nao mostra (subprocess com --reload no Windows)
+_LOG_FILE = Path(__file__).resolve().parent / "server.log"
+def _log(msg: str):
+    print(msg, flush=True)
+    try:
+        with open(_LOG_FILE, "a", encoding="utf-8") as f:
+            from datetime import datetime
+            f.write(datetime.now().strftime("%H:%M:%S ") + msg + "\n")
+    except Exception:
+        pass
+
+
+async def _log_request(request, call_next):
+    """Registra cada requisição (terminal + server.log)."""
+    method = request.method
+    path = request.url.path
+    _log(f"[HTTP] {method} {path}")
+    return await call_next(request)
+
+
+app.middleware("http")(_log_request)
 
 # ── Cache em memória ──────────────────────────────────────────────────────────
 _jobs_mem:  dict = {}
@@ -106,7 +144,7 @@ def _notify_ws(job_id: str, data: dict):
         loop = asyncio.get_event_loop()
         loop.call_soon_threadsafe(queue.put_nowait, data)
     except Exception as e:
-        print(f"[WS] Falha ao notificar job {job_id}: {e}")
+        print(f"[WS] Falha ao notificar job {job_id}: {e}", flush=True)
 
 
 def _get_job(job_id: str) -> dict | None:
@@ -148,7 +186,7 @@ def _run_job_with_timeout(job_id: str, user_id: str, file_bytes: bytes):
             "status": "erro",
             "msg": f"Timeout: processamento excedeu {JOB_TIMEOUT_SECONDS // 60} minutos.",
         }
-        print(f"[MAIN] ⚠️ Job {job_id} expirou por timeout ({JOB_TIMEOUT_SECONDS}s)")
+        print(f"[MAIN] AVISO: Job {job_id} expirou por timeout ({JOB_TIMEOUT_SECONDS}s)", flush=True)
 
     # Normaliza status: "sucesso"→"done", "erro"→"error"
     _STATUS_MAP = {"sucesso": "done", "erro": "error"}
@@ -166,15 +204,6 @@ def _start_job(job_id: str, user_id: str, file_bytes: bytes):
         daemon=True
     )
     controller.start()
-
-
-# ── Startup ───────────────────────────────────────────────────────────────────
-
-@app.on_event("startup")
-async def startup_event():
-    cleanup_old_jobs(days=7)
-    print("[MAIN] API v3.2 iniciada. WebSocket push ativo. pjc_exporter v5.4 (XML puro + gprec fix).")
-    print("[MAIN] Abra o sistema em: http://localhost:8000/  (não use file://)")
 
 
 # ── Endpoints HTTP ────────────────────────────────────────────────────────────
@@ -258,7 +287,7 @@ async def upload_pjc_for_audit(
         parser = PjcParser.from_string(xml_bytes)
         dados_pjc = parser.extrair_dados_basicos()
     except Exception as e:
-        print(f"[PJC_AUDITOR] Erro ao parsear arquivo .pjc para job {job_id}: {e}")
+        print(f"[PJC_AUDITOR] Erro ao parsear arquivo .pjc para job {job_id}: {e}", flush=True)
         raise HTTPException(400, f"Arquivo .PJC inválido ou não suportado: {type(e).__name__}")
 
     divergencias = auditar_pjc_vs_sentenca(dados_ia=dados_ia, dados_pjc=dados_pjc)
@@ -378,7 +407,7 @@ def export_excel_endpoint(job_id: str):
         )
 
     except Exception as e:
-        print(f"[EXCEL] Erro ao gerar .xlsx para job {job_id}: {e}")
+        print(f"[EXCEL] Erro ao gerar .xlsx para job {job_id}: {e}", flush=True)
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao gerar Excel: {str(e)}"
@@ -406,6 +435,8 @@ async def lab_analisar(
     amostragem_pdf:   UploadFile = File(None),
     amostragem_word:  UploadFile = File(None),
     manifestacao:     UploadFile = File(None),
+    peticao:          UploadFile = File(None),
+    contestacao:      UploadFile = File(None),
     user_id:          str        = Form("anonimo"),
 ):
     """
@@ -432,7 +463,7 @@ async def lab_analisar(
 
     Use /lab/salvar para persistir regras e aprendizados no sistema.
     """
-    print("[LAB] POST /lab/analisar recebida.")
+    print("[LAB] POST /lab/analisar recebida.", flush=True)
     _PDF_ONLY = [".pdf"]
     _WORD_ONLY = [".doc", ".docx"]
 
@@ -454,6 +485,10 @@ async def lab_analisar(
         raise HTTPException(400, "Campo 'amostragem_word' aceita DOC ou DOCX")
     if manifestacao and manifestacao.filename and not _ext_ok(manifestacao.filename, _DOCS_EXTS):
         raise HTTPException(400, "Campo 'manifestacao' aceita PDF, DOC ou DOCX")
+    if peticao and peticao.filename and not _ext_ok(peticao.filename, _DOCS_EXTS):
+        raise HTTPException(400, "Campo 'peticao' aceita PDF ou DOCX")
+    if contestacao and contestacao.filename and not _ext_ok(contestacao.filename, _DOCS_EXTS):
+        raise HTTPException(400, "Campo 'contestacao' aceita PDF ou DOCX")
 
     # Leitura dos bytes (cada campo é opcional — só lê se enviado com filename)
     # Card 3: lista de documentos decisórios (sentença + acórdãos TRT/TST)
@@ -474,14 +509,19 @@ async def lab_analisar(
     amostragem_word_bytes = await amostragem_word.read() if (amostragem_word and amostragem_word.filename) else None
     manifestacao_bytes    = await manifestacao.read()    if (manifestacao    and manifestacao.filename)    else None
     manifestacao_filename = (manifestacao.filename or "") if manifestacao else ""
+    peticao_bytes         = await peticao.read()         if (peticao        and peticao.filename)        else None
+    peticao_filename      = (peticao.filename or "")     if peticao else ""
+    contestacao_bytes     = await contestacao.read()     if (contestacao    and contestacao.filename)    else None
+    contestacao_filename  = (contestacao.filename or "") if contestacao else ""
 
     n_proc = len(processo_arquivos)
     n_rest = sum(1 for (b, _) in [
         (liquidacao_bytes, liquidacao), (parecer_bytes, parecer), (impugnacao_bytes, impugnacao),
         (calculo_pjc_bytes, calculo_pjc), (amostragem_pdf_bytes, amostragem_pdf),
         (amostragem_word_bytes, amostragem_word), (manifestacao_bytes, manifestacao),
+        (peticao_bytes, peticao), (contestacao_bytes, contestacao),
     ] if b)
-    print(f"[LAB] Arquivos recebidos: {n_proc} processo(s) + {n_rest} outro(s). Iniciando análise...")
+    print(f"[LAB] Arquivos recebidos: {n_proc} processo(s) + {n_rest} outro(s). Iniciando análise...", flush=True)
 
     from services.learning_engine import processar_sete_arquivos
     from services.database import save_extraction
@@ -505,6 +545,10 @@ async def lab_analisar(
             amostragem_word_filename=(amostragem_word.filename or "") if amostragem_word else "",
             manifestacao_bytes=manifestacao_bytes,
             manifestacao_filename=manifestacao_filename,
+            peticao_bytes=peticao_bytes,
+            peticao_filename=peticao_filename,
+            contestacao_bytes=contestacao_bytes,
+            contestacao_filename=contestacao_filename,
         )
 
         # Registra na tabela extracoes para contagem de processos únicos.
@@ -518,15 +562,15 @@ async def lab_analisar(
                 doc_type="lab_analise",
                 model_used=relatorio.get("model_used"),
             )
-            print(f"[LAB] Processo '{numero}' registrado em extracoes (user={user_id}).")
+            print(f"[LAB] Processo '{numero}' registrado em extracoes (user={user_id}).", flush=True)
 
         disc = len(relatorio.get("discrepancias") or [])
         apr = len(relatorio.get("aprendizados") or [])
-        print(f"[LAB] Análise concluída: {disc} discrepância(s), {apr} aprendizado(s), processo={relatorio.get('numero_processo', '?')}.")
+        print(f"[LAB] Análise concluída: {disc} discrepância(s), {apr} aprendizado(s), processo={relatorio.get('numero_processo', '?')}.", flush=True)
         return relatorio
     except Exception as e:
         import traceback
-        print(f"[LAB] Erro na análise: {e}")
+        print(f"[LAB] Erro na análise: {e}", flush=True)
         traceback.print_exc()
         raise HTTPException(500, f"Erro na análise: {str(e)}")
 
@@ -561,7 +605,7 @@ async def lab_preview(body: dict):
         previews = [preview_aprendizado(ap) for ap in aprendizados]
         return {"previews": previews}
     except Exception as e:
-        print(f"[LAB] Erro ao gerar preview: {e}")
+        print(f"[LAB] Erro ao gerar preview: {e}", flush=True)
         raise HTTPException(500, f"Erro ao gerar pré-visualização: {str(e)}")
 
 
@@ -604,7 +648,7 @@ async def lab_salvar(body: dict):
         resultado = codify_insight(aprendizado, numero_processo, conteudo_editado)
         return resultado
     except Exception as e:
-        print(f"[LAB] Erro ao consolidar aprendizado: {e}")
+        print(f"[LAB] Erro ao consolidar aprendizado: {e}", flush=True)
         raise HTTPException(500, f"Erro ao salvar: {str(e)}")
 
 
@@ -830,14 +874,14 @@ async def websocket_job(websocket: WebSocket, job_id: str):
     Heartbeat: envia {"status": "processing"} a cada 10s para manter conexão viva.
     """
     await websocket.accept()
-    print(f"[WS] Conectado: {job_id}")
+    print(f"[WS] Conectado: {job_id}", flush=True)
 
     # Race condition: job pode ter terminado antes do WS conectar
     job = _get_job(job_id)
     if job and job.get("status") not in ("queued", "processing"):
         await websocket.send_text(json.dumps(job))
         await websocket.close()
-        print(f"[WS] Job {job_id} já estava pronto — enviado imediatamente")
+        print(f"[WS] Job {job_id} ja estava pronto - enviado imediatamente", flush=True)
         return
 
     # Registrar Queue para este job
@@ -851,7 +895,7 @@ async def websocket_job(websocket: WebSocket, job_id: str):
                 # Aguarda resultado com heartbeat a cada 10s
                 result = await asyncio.wait_for(queue.get(), timeout=10.0)
                 await websocket.send_text(json.dumps(result))
-                print(f"[WS] Resultado enviado: {job_id} → status={result.get('status')}")
+                print(f"[WS] Resultado enviado: {job_id} -> status={result.get('status')}", flush=True)
                 break  # job terminou — fecha conexão
 
             except asyncio.TimeoutError:
@@ -862,29 +906,26 @@ async def websocket_job(websocket: WebSocket, job_id: str):
                     break  # browser desconectou
 
     except WebSocketDisconnect:
-        print(f"[WS] Cliente desconectou: {job_id}")
+        print(f"[WS] Cliente desconectou: {job_id}", flush=True)
     finally:
         # Limpar Queue do registro
         with _ws_lock:
             _ws_queues.pop(job_id, None)
-        print(f"[WS] Encerrado: {job_id}")
+        print(f"[WS] Encerrado: {job_id}", flush=True)
 
 
-# Servir frontend em / para evitar CORS ao abrir por file://
+# Servir frontend em / — StaticFiles com html=True entrega index.html automaticamente
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-
-@app.get("/", include_in_schema=False)
-def _serve_index():
-    """Entrega o frontend (index.html) na raiz."""
-    index = _FRONTEND_DIR / "index.html"
-    if index.exists():
-        return FileResponse(index, media_type="text/html")
-    return {"status": "online", "version": "3.2", "docs": "/docs"}
-
 if _FRONTEND_DIR.exists():
     from fastapi.staticfiles import StaticFiles
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
+    _port = os.environ.get("PORT", "8000")
+    print(f"[MAIN] Frontend servido em http://localhost:{_port}/ -> {_FRONTEND_DIR}", flush=True)
+else:
+    print(f"[MAIN] AVISO: pasta frontend nao encontrada em {_FRONTEND_DIR}", flush=True)
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", "8000"))
+    print(f"[MAIN] Usando porta {port} (altere com PORT=8001)", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=False)

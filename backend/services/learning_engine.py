@@ -25,7 +25,9 @@ import os
 import re
 import textwrap
 import zipfile
-from datetime import datetime
+import hashlib
+from collections import defaultdict
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from rapidfuzz import fuzz as rapidfuzz_fuzz
@@ -73,7 +75,7 @@ def _extrair_texto_docx(docx_bytes: bytes) -> str:
 
         return "\n".join(paragrafos)
     except Exception as e:
-        print(f"[LEARNING] Erro ao extrair DOCX: {e}")
+        print(f"[LEARNING] Erro ao extrair DOCX: {e}", flush=True)
         return ""
 
 
@@ -615,7 +617,7 @@ def salvar_aprendizado(
                 caminho = os.path.join(_RULES_DIR, nome_arquivo)
                 with open(caminho, "w", encoding="utf-8") as f:
                     f.write(conteudo_editado)
-                print(f"[LEARNING] Regra (editada) salva: {caminho}")
+                print(f"[LEARNING] Regra (editada) salva: {caminho}", flush=True)
             else:
                 caminho = _salvar_rascunho_regra(titulo, base_legal, descricao, correcao, aprendizado)
             resultado.update({"salvo": True, "caminho": caminho, "msg": f"Rascunho de regra criado: {caminho}"})
@@ -625,7 +627,7 @@ def salvar_aprendizado(
                 skill_path = os.path.join(_SKILLS_DIR, "sentenca_ordinaria.md")
                 with open(skill_path, "a", encoding="utf-8") as f:
                     f.write("\n" + conteudo_editado)
-                print(f"[LEARNING] Playbook (editado) salvo em: {skill_path}")
+                print(f"[LEARNING] Playbook (editado) salvo em: {skill_path}", flush=True)
                 caminho = skill_path
             else:
                 _salvar_few_shot(titulo, base_legal, descricao, numero_processo)
@@ -706,7 +708,7 @@ def _salvar_rascunho_regra(
     with open(caminho, "w", encoding="utf-8") as f:
         f.write(conteudo)
 
-    print(f"[LEARNING] Rascunho de regra criado: {caminho}")
+    print(f"[LEARNING] Rascunho de regra criado: {caminho}", flush=True)
     return caminho
 
 
@@ -719,7 +721,7 @@ def _salvar_few_shot(
     """Adiciona um bloco few-shot ao final de skills/sentenca_ordinaria.md."""
     skill_path = os.path.join(_SKILLS_DIR, "sentenca_ordinaria.md")
     if not os.path.exists(skill_path):
-        print(f"[LEARNING] Skill não encontrada: {skill_path}")
+        print(f"[LEARNING] Skill nao encontrada: {skill_path}", flush=True)
         return
 
     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -742,7 +744,7 @@ def _salvar_few_shot(
     with open(skill_path, "a", encoding="utf-8") as f:
         f.write(bloco)
 
-    print(f"[LEARNING] Few-shot adicionado a: {skill_path}")
+    print(f"[LEARNING] Few-shot adicionado a: {skill_path}", flush=True)
 
 
 def _registrar_log(aprendizado: dict, numero_processo: str, caminho: str) -> None:
@@ -759,7 +761,7 @@ def _registrar_log(aprendizado: dict, numero_processo: str, caminho: str) -> Non
         with open(_LEARNING_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(registro, ensure_ascii=False) + "\n")
     except Exception as e:
-        print(f"[LEARNING] Erro ao registrar log: {e}")
+        print(f"[LEARNING] Erro ao registrar log: {e}", flush=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -789,21 +791,21 @@ def _chamar_gemini_para_codify(prompt: str) -> tuple[str, str]:
                     )
                     text = (response.text or "").strip()
                     if text:
-                        print(f"[CODIFY] Gerado com {model} (tentativa {attempt})")
+                        print(f"[CODIFY] Gerado com {model} (tentativa {attempt})", flush=True)
                         return text, model
                 except Exception as e:
                     err = str(e).lower()
                     if "429" in err or "quota" in err or "rate" in err:
                         _time.sleep(10 * attempt)
                         continue
-                    print(f"[CODIFY] Erro em {model} tentativa {attempt}: {e}")
+                    print(f"[CODIFY] Erro em {model} tentativa {attempt}: {e}", flush=True)
                     break
 
-        print("[CODIFY] Todos os modelos falharam — retornando vazio")
+        print("[CODIFY] Todos os modelos falharam - retornando vazio", flush=True)
         return "", "fallback"
 
     except Exception as e:
-        print(f"[CODIFY] Erro crítico ao inicializar cliente Gemini: {e}")
+        print(f"[CODIFY] Erro critico ao inicializar cliente Gemini: {e}", flush=True)
         return "", "fallback"
 
 
@@ -961,7 +963,7 @@ def _registrar_log_enriquecido(
         with open(_LEARNING_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(registro, ensure_ascii=False) + "\n")
     except Exception as e:
-        print(f"[CODIFY] Erro ao registrar log: {e}")
+        print(f"[CODIFY] Erro ao registrar log: {e}", flush=True)
 
 
 def codify_insight(
@@ -1024,7 +1026,7 @@ def codify_insight(
             if conteudo_editado is not None:
                 codigo_python = conteudo_editado
                 resultado["model_used_rule"] = "user_edited"
-                print(f"[CODIFY] Regra (editada pelo usuário) → {caminho_regra}")
+                print(f"[CODIFY] Regra (editada pelo usuario) -> {caminho_regra}", flush=True)
             else:
                 codigo_python, model_r = _gerar_regra_python_gemini(aprendizado)
                 resultado["model_used_rule"] = model_r
@@ -1032,11 +1034,11 @@ def codify_insight(
                     # Fallback: usa o template estático
                     codigo_python = preview_aprendizado(aprendizado)["conteudo"]
                     resultado["model_used_rule"] = "template_fallback"
-                    print("[CODIFY] Gemini falhou para regra Python — usando template fallback")
+                    print("[CODIFY] Gemini falhou para regra Python - usando template fallback", flush=True)
 
             with open(caminho_regra, "w", encoding="utf-8") as f:
                 f.write(codigo_python)
-            print(f"[CODIFY] Regra salva: {caminho_regra} (via {resultado['model_used_rule']})")
+            print(f"[CODIFY] Regra salva: {caminho_regra} (via {resultado['model_used_rule']})", flush=True)
             resultado["caminhos"].append(caminho_regra)
             resultado["caminho"] = caminho_regra
 
@@ -1056,7 +1058,7 @@ def codify_insight(
                     resultado["model_used_skill"] = "template_fallback"
                 with open(skill_path, "a", encoding="utf-8") as f:
                     f.write("\n" + exemplo_md)
-                print(f"[CODIFY] Skill enriquecida: {skill_path} (via {resultado['model_used_skill']})")
+                print(f"[CODIFY] Skill enriquecida: {skill_path} (via {resultado['model_used_skill']})", flush=True)
                 resultado["caminhos"].append(skill_path)
                 resultado["caminho_skill"] = skill_path
 
@@ -1064,21 +1066,21 @@ def codify_insight(
             if conteudo_editado is not None:
                 bloco_md = conteudo_editado
                 resultado["model_used_skill"] = "user_edited"
-                print(f"[CODIFY] Playbook (editado pelo usuário) → {skill_path}")
+                print(f"[CODIFY] Playbook (editado pelo usuario) -> {skill_path}", flush=True)
             else:
                 bloco_md, model_s = _gerar_exemplo_skill_gemini(aprendizado, numero_processo)
                 resultado["model_used_skill"] = model_s
                 if not bloco_md.strip():
                     bloco_md = preview_aprendizado(aprendizado)["conteudo"]
                     resultado["model_used_skill"] = "template_fallback"
-                    print("[CODIFY] Gemini falhou para playbook — usando template fallback")
+                    print("[CODIFY] Gemini falhou para playbook - usando template fallback", flush=True)
 
             if os.path.exists(skill_path):
                 with open(skill_path, "a", encoding="utf-8") as f:
                     f.write("\n" + bloco_md)
-                print(f"[CODIFY] Skill atualizada: {skill_path} (via {resultado['model_used_skill']})")
+                print(f"[CODIFY] Skill atualizada: {skill_path} (via {resultado['model_used_skill']})", flush=True)
             else:
-                print(f"[CODIFY] Skill não encontrada: {skill_path}")
+                print(f"[CODIFY] Skill nao encontrada: {skill_path}", flush=True)
 
             resultado["caminhos"].append(skill_path)
             resultado["caminho"] = skill_path
@@ -1105,7 +1107,7 @@ def codify_insight(
         return resultado
 
     except Exception as e:
-        print(f"[CODIFY] Erro crítico: {e}")
+        print(f"[CODIFY] Erro critico: {e}", flush=True)
         return {
             "salvo": False,
             "tipo": tipo,
@@ -1134,7 +1136,7 @@ def _extrair_texto_arquivo(file_bytes: bytes, filename: str) -> str:
                     texto += (page.extract_text() or "") + "\n"
             return texto.strip()
         except Exception as e:
-            print(f"[LEARNING] Erro ao extrair PDF {filename}: {e}")
+            print(f"[LEARNING] Erro ao extrair PDF {filename}: {e}", flush=True)
             return ""
     elif fname.endswith(".docx"):
         return _extrair_texto_docx(file_bytes)
@@ -1206,6 +1208,94 @@ _TIER_LABELS = {
     "TST":   "ACÓRDÃO TST (RECURSO DE REVISTA)",
 }
 
+_MESES_PT = (
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+)
+
+_MESES_NUM = {
+    "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3,
+    "abril": 4, "maio": 5, "junho": 6, "julho": 7,
+    "agosto": 8, "setembro": 9, "outubro": 10,
+    "novembro": 11, "dezembro": 12,
+}
+
+_FALLBACK_DATE = date(1900, 1, 1)
+
+
+def _extrair_data_documento(texto: str) -> date:
+    """
+    Extrai a data mais provável de um documento judicial a partir do texto.
+    Usada para desempatar documentos da mesma instância no Card 3.
+
+    Ordem de prioridade dos padrões:
+    1. "Assinado eletronicamente em DD/MM/AAAA"
+    2. "Data do Julgamento: DD de mês de AAAA"
+    3. "Cidade, DD de mês de AAAA" (rodapé)
+    4. Qualquer DD/MM/AAAA nos últimos 500 chars
+
+    Retorna date ou date(1900, 1, 1) se não encontrar.
+    """
+    if not (texto or "").strip():
+        return _FALLBACK_DATE
+    texto_norm = (texto or "").lower()
+
+    # Padrão 1: assinatura eletrônica
+    m = re.search(
+        r"assinado eletronicamente em\s+(\d{2}/\d{2}/\d{4})",
+        texto_norm, re.IGNORECASE
+    )
+    if m:
+        try:
+            return datetime.strptime(m.group(1), "%d/%m/%Y").date()
+        except ValueError:
+            pass
+
+    # Padrão 2: data de julgamento por extenso
+    m = re.search(
+        r"(?:data\s+do\s+julgamento|julgado\s+em)[:\s]+(\d{1,2})\s+de\s+"
+        r"(\w+)\s+de\s+(\d{4})",
+        texto_norm, re.IGNORECASE
+    )
+    if m:
+        try:
+            dia = int(m.group(1))
+            mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
+            ano = int(m.group(3))
+            if mes and 1 <= dia <= 31 and 2000 <= ano <= 2099:
+                return date(ano, mes, dia)
+        except (ValueError, KeyError):
+            pass
+
+    # Padrão 3: rodapé "Cidade, DD de mês de AAAA"
+    m = re.search(
+        r",\s*(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s*[.\n]",
+        texto_norm, re.IGNORECASE
+    )
+    if m:
+        try:
+            dia = int(m.group(1))
+            mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
+            ano = int(m.group(3))
+            if mes and 2000 <= ano <= 2099:
+                return date(ano, mes, dia)
+        except (ValueError, KeyError):
+            pass
+
+    # Padrão 4: qualquer DD/MM/AAAA nos últimos 500 chars
+    trecho_final = texto[-500:] if len(texto) > 500 else texto
+    datas = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", trecho_final)
+    for d in reversed(datas):
+        try:
+            dt = datetime.strptime(d, "%d/%m/%Y").date()
+            if 2000 <= dt.year <= 2099:
+                return dt
+        except ValueError:
+            continue
+
+    print("[LAB] _extrair_data_documento: nenhuma data encontrada, usando fallback", flush=True)
+    return _FALLBACK_DATE
+
 
 def _extrair_titulo_executivo_multiplos(
     arquivos: List[tuple],
@@ -1215,6 +1305,8 @@ def _extrair_titulo_executivo_multiplos(
 
     Hierarquia aplicada (mais recente e de instância superior prevalece):
       1º Grau (Sentença) → TRT (Acórdão RO) → TST (Acórdão RR)
+    Entre documentos da MESMA instância, o mais RECENTE (maior data extraída do texto) prevalece.
+    A data é extraída do texto do documento, nunca do nome do arquivo.
 
     Funde os textos com rótulos de instância e envia ao Gemini com prompt de
     "Análise de Reforma de Decisão" — a IA prioriza as reformas das instâncias
@@ -1224,41 +1316,95 @@ def _extrair_titulo_executivo_multiplos(
         arquivos: lista de (bytes, filename) na ordem de upload.
     Returns:
         Dict com mesma estrutura de _extrair_processo mas enriquecido com
-        contexto_decisao_final, instancias_detectadas e verbas_reformadas.
+        contexto_decisao_final, instancias_detectadas, data_documento e verbas_reformadas.
     """
+    arquivos_ignorados: List[str] = []
+
     if not arquivos:
-        return {"dados": {}, "doc_type": "titulo_executivo_vazio"}
+        return {"dados": {}, "doc_type": "titulo_executivo_vazio", "arquivos_ignorados_duplicados": []}
+
+    # ── B1: Deduplicação por hash (conteúdo bruto) ─────────────────────────────
+    hashes_vistos = set()
+    arquivos_unicos: List[tuple] = []
+    for file_bytes, filename in arquivos:
+        h = hashlib.sha256(file_bytes).hexdigest()
+        if h in hashes_vistos:
+            print(f"[LAB] Duplicata ignorada: '{filename}' (hash {h[:8]}...)", flush=True)
+            arquivos_ignorados.append(filename)
+            continue
+        hashes_vistos.add(h)
+        arquivos_unicos.append((file_bytes, filename))
+
+    arquivos = arquivos_unicos
+
+    if not arquivos:
+        return {"dados": {}, "doc_type": "titulo_executivo_vazio", "arquivos_ignorados_duplicados": arquivos_ignorados}
 
     # Se apenas 1 arquivo: caminho rápido sem fusão
     if len(arquivos) == 1:
-        result = _extrair_processo(arquivos[0][0], arquivos[0][1])
-        result["instancias_detectadas"] = [_classificar_tier_decisao(arquivos[0][1])]
+        b, fn = arquivos[0]
+        result = _extrair_processo(b, fn)
+        result["instancias_detectadas"] = [_classificar_tier_decisao(fn)]
         result["contexto_decisao_final"] = None
+        texto_uno = _extrair_texto_arquivo(b, fn)
+        data_doc = _extrair_data_documento(texto_uno)
+        result["data_documento"] = data_doc.isoformat()
+        result["arquivos_ignorados_duplicados"] = arquivos_ignorados
         return result
 
-    # Classifica e ordena por hierarquia processual
-    docs_com_tier = [
-        (_classificar_tier_decisao(fn), b, fn)
-        for b, fn in arquivos
-    ]
-    docs_com_tier.sort(key=lambda x: _TIER_ORDER.get(x[0], 0))
+    # ── B2: Agrupar por tier e manter apenas o mais recente de cada instância ──
+    por_tier = defaultdict(list)
+    for file_bytes, filename in arquivos:
+        tier = _classificar_tier_decisao(filename)
+        texto_temp = _extrair_texto_arquivo(file_bytes, filename)
+        data_doc = _extrair_data_documento(texto_temp)
+        por_tier[tier].append({
+            "bytes": file_bytes,
+            "filename": filename,
+            "tier": tier,
+            "data": data_doc,
+            "texto": texto_temp,
+        })
+        print(f"[LAB] '{filename}' -> tier={tier}, data={data_doc}", flush=True)
 
-    instancias = [tier for tier, _, _ in docs_com_tier]
+    arquivos_selecionados: List[Dict[str, Any]] = []
+    for tier, docs in por_tier.items():
+        if len(docs) == 1:
+            arquivos_selecionados.append(docs[0])
+        else:
+            docs_ordenados = sorted(docs, key=lambda d: d["data"], reverse=True)
+            vencedor = docs_ordenados[0]
+            arquivos_selecionados.append(vencedor)
+            for ig in docs_ordenados[1:]:
+                print(
+                    f"[LAB] '{ig['filename']}' ignorado - mesma instancia ({tier}) "
+                    f"com data {ig['data']} < {vencedor['data']}",
+                    flush=True,
+                )
+                arquivos_ignorados.append(ig["filename"])
+
+    # Ordenar selecionados por hierarquia (1GRAU → TRT → TST)
+    arquivos_selecionados.sort(key=lambda d: _TIER_ORDER.get(d["tier"], 0))
+
+    docs_com_tier = [(d["tier"], d["bytes"], d["filename"]) for d in arquivos_selecionados]
+    datas_documentos = [d["data"].isoformat() for d in arquivos_selecionados]
+
+    instancias = [d["tier"] for d in arquivos_selecionados]
     tem_tst = "TST" in instancias
     tem_trt = "TRT" in instancias
 
-    print(f"[LEARNING] Título Executivo Complexo — instâncias detectadas: {instancias}")
+    print(f"[LEARNING] Titulo Executivo Complexo - instancias detectadas: {instancias}", flush=True)
 
-    # Extrai texto de cada documento
+    # Montar blocos de texto (reutilizar texto já extraído em B2)
     blocos_texto = []
-    for tier, b, fn in docs_com_tier:
+    for d in arquivos_selecionados:
+        tier, fn, texto = d["tier"], d["filename"], d["texto"]
         label = _TIER_LABELS.get(tier, tier)
-        texto = _extrair_texto_arquivo(b, fn)
-        if texto.strip():
+        if (texto or "").strip():
             blocos_texto.append(f"{'='*60}\n{label} — {fn}\n{'='*60}\n{texto[:4000]}")
 
     if not blocos_texto:
-        return {"dados": {}, "doc_type": "titulo_executivo", "erro": "Nenhum texto legível extraído dos documentos"}
+        return {"dados": {}, "doc_type": "titulo_executivo", "erro": "Nenhum texto legível extraído dos documentos", "arquivos_ignorados_duplicados": arquivos_ignorados}
 
     contexto_decisao_final = "\n\n".join(blocos_texto)
 
@@ -1307,21 +1453,25 @@ def _extrair_titulo_executivo_multiplos(
         )
 
         return {
-            "doc_type":                "titulo_executivo_complexo",
-            "instancias_detectadas":   instancias,
-            "instancia_final":         instancias[-1] if instancias else "1GRAU",
-            "tem_recurso_revista":     tem_tst,
-            "contexto_decisao_final":  contexto_decisao_final[:500] + "…" if len(contexto_decisao_final) > 500 else contexto_decisao_final,
-            "dados":                   ai_result.get("data") or {},
-            "model_used":              ai_result.get("model_used"),
-            "erro":                    ai_result.get("error"),
+            "doc_type":                        "titulo_executivo_complexo",
+            "instancias_detectadas":           instancias,
+            "datas_documentos":                datas_documentos,
+            "instancia_final":                 instancias[-1] if instancias else "1GRAU",
+            "tem_recurso_revista":             tem_tst,
+            "contexto_decisao_final":          contexto_decisao_final[:500] + "…" if len(contexto_decisao_final) > 500 else contexto_decisao_final,
+            "dados":                           ai_result.get("data") or {},
+            "model_used":                      ai_result.get("model_used"),
+            "erro":                            ai_result.get("error"),
+            "arquivos_ignorados_duplicados":   arquivos_ignorados,
         }
     except Exception as e:
         # Fallback: usa apenas o documento de maior instância
         tier_final, b_final, fn_final = docs_com_tier[-1]
         resultado = _extrair_processo(b_final, fn_final)
         resultado["instancias_detectadas"] = instancias
+        resultado["datas_documentos"] = datas_documentos
         resultado["erro_fusao"] = str(e)
+        resultado["arquivos_ignorados_duplicados"] = arquivos_ignorados
         return resultado
 
 
@@ -1677,6 +1827,114 @@ def _extrair_amostragem_word(file_bytes: bytes, filename: str) -> Dict[str, Any]
     }
 
 
+def _extrair_peticao_inicial(file_bytes: bytes, filename: str) -> Dict[str, Any]:
+    """
+    Extrai da Petição Inicial (PDF ou DOCX) as verbas PEDIDAS pelo reclamante,
+    causa de pedir, período reivindicado e valor da causa.
+    Foco: quais verbas o reclamante pediu e qual o fundamento jurídico.
+    """
+    texto = _extrair_texto_arquivo(file_bytes, filename)
+    if not texto.strip():
+        return {
+            "erro": "Documento sem texto legível",
+            "verbas_pedidas": [],
+            "causa_pedir": "",
+            "periodo_reivindicado": "",
+            "valor_causa": None,
+        }
+
+    prompt = (
+        "Você é um assistente jurídico especializado em Direito do Trabalho Brasileiro.\n"
+        "Analise o texto abaixo de uma PETIÇÃO INICIAL trabalhista e extraia informações em JSON puro.\n\n"
+        "Foco: quais verbas o reclamante PEDIU (independente de terem sido deferidas) e qual o fundamento jurídico.\n\n"
+        "Extraia EXATAMENTE no formato JSON:\n"
+        "{\n"
+        '  "verbas_pedidas": ["lista de verbas trabalhistas pedidas pelo reclamante, ex: Horas Extras, FGTS, 13º Salário"],\n'
+        '  "causa_pedir": "resumo objetivo da causa de pedir principal",\n'
+        '  "periodo_reivindicado": "período em formato DD/MM/AAAA a DD/MM/AAAA ou vazio se não identificado",\n'
+        '  "valor_causa": "R$ X.XXX,XX ou null se não informado"\n'
+        "}\n\n"
+        "IMPORTANTE: Responda APENAS com o JSON válido, sem markdown, sem texto antes ou depois.\n\n"
+        f"TEXTO DA PETIÇÃO INICIAL (primeiros 5000 caracteres):\n{texto[:5000]}"
+    )
+
+    conteudo, model = _chamar_gemini_para_codify(prompt)
+
+    dados: Dict[str, Any] = {
+        "verbas_pedidas": [],
+        "causa_pedir": "",
+        "periodo_reivindicado": "",
+        "valor_causa": None,
+    }
+    try:
+        conteudo_limpo = re.sub(r"```(?:json)?\s*|\s*```", "", conteudo).strip()
+        parsed = json.loads(conteudo_limpo)
+        dados["verbas_pedidas"] = parsed.get("verbas_pedidas") or []
+        dados["causa_pedir"] = (parsed.get("causa_pedir") or "").strip()
+        dados["periodo_reivindicado"] = (parsed.get("periodo_reivindicado") or "").strip()
+        dados["valor_causa"] = parsed.get("valor_causa")
+    except Exception:
+        pass
+
+    dados["model_used"] = model
+    return dados
+
+
+def _extrair_contestacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
+    """
+    Extrai da Contestação (PDF ou DOCX) os argumentos de exclusão de verbas
+    usados pela empresa, teses jurídicas, verbas negadas e súmulas/OJs citadas.
+    Foco: quais argumentos a empresa usa para negar cada verba pedida.
+    """
+    texto = _extrair_texto_arquivo(file_bytes, filename)
+    if not texto.strip():
+        return {
+            "erro": "Documento sem texto legível",
+            "argumentos_exclusao": [],
+            "teses_empresa": [],
+            "verbas_negadas": [],
+            "sumulas_citadas": [],
+        }
+
+    prompt = (
+        "Você é um assistente jurídico especializado em Direito do Trabalho Brasileiro.\n"
+        "Analise o texto abaixo de uma CONTESTAÇÃO trabalhista (resposta do empregador) e extraia em JSON puro.\n\n"
+        "Foco: quais argumentos a empresa usa para NEGAR cada verba pedida pelo reclamante.\n\n"
+        "Extraia EXATAMENTE no formato JSON:\n"
+        "{\n"
+        '  "argumentos_exclusao": [\n'
+        '    {"verba": "nome da verba", "argumento": "resumo do argumento de exclusão", "base_legal": "art./súmula citada"}\n'
+        "  ],\n"
+        '  "teses_empresa": ["lista de teses jurídicas invocadas, ex: cargo de confiança, atividade externa"],\n'
+        '  "verbas_negadas": ["lista de verbas que a empresa nega dever"],\n'
+        '  "sumulas_citadas": ["súmulas e OJs citadas pela defesa"]\n'
+        "}\n\n"
+        "IMPORTANTE: Responda APENAS com o JSON válido, sem markdown, sem texto antes ou depois.\n\n"
+        f"TEXTO DA CONTESTAÇÃO (primeiros 5000 caracteres):\n{texto[:5000]}"
+    )
+
+    conteudo, model = _chamar_gemini_para_codify(prompt)
+
+    dados: Dict[str, Any] = {
+        "argumentos_exclusao": [],
+        "teses_empresa": [],
+        "verbas_negadas": [],
+        "sumulas_citadas": [],
+    }
+    try:
+        conteudo_limpo = re.sub(r"```(?:json)?\s*|\s*```", "", conteudo).strip()
+        parsed = json.loads(conteudo_limpo)
+        dados["argumentos_exclusao"] = parsed.get("argumentos_exclusao") or []
+        dados["teses_empresa"] = parsed.get("teses_empresa") or []
+        dados["verbas_negadas"] = parsed.get("verbas_negadas") or []
+        dados["sumulas_citadas"] = parsed.get("sumulas_citadas") or []
+    except Exception:
+        pass
+
+    dados["model_used"] = model
+    return dados
+
+
 def _atualizar_skill_amostragem(dados_estilo: dict, trecho_original: str, filename: str = "") -> bool:
     """
     Cria ou atualiza skills/amostragem_style.md com os padrões de estilo extraídos
@@ -1741,10 +1999,10 @@ def _atualizar_skill_amostragem(dados_estilo: dict, trecho_original: str, filena
         else:
             with open(destino, "a", encoding="utf-8") as f:
                 f.write(bloco)
-        print(f"[LEARNING] skills/amostragem_style.md atualizado com novos padrões de estilo ({filename}).")
+        print(f"[LEARNING] skills/amostragem_style.md atualizado com novos padroes de estilo ({filename}).", flush=True)
         return True
     except Exception as e:
-        print(f"[LEARNING] Erro ao atualizar amostragem_style.md: {e}")
+        print(f"[LEARNING] Erro ao atualizar amostragem_style.md: {e}", flush=True)
         return False
 
 
@@ -2036,9 +2294,9 @@ def _extrair_logica_correcao_gemini(relatorio: Dict) -> List[Dict]:
         elif isinstance(parsed, dict) and "condicao" in parsed:
             logicas = [parsed]
     except Exception:
-        print(f"[KB] Aviso: Gemini não retornou JSON válido para extração de lógica.")
+        print(f"[KB] Aviso: Gemini nao retornou JSON valido para extracao de logica.", flush=True)
 
-    print(f"[KB] {len(logicas)} hipótese(s) de regra extraída(s) com {model}")
+    print(f"[KB] {len(logicas)} hipotese(s) de regra extraida(s) com {model}", flush=True)
     return logicas
 
 
@@ -2082,8 +2340,9 @@ def processar_aprendizado_autonomo(
     ativadas    = sum(1 for r in resultados_criacao if r.get("acao") == "ativada")
 
     print(
-        f"[KB] Aprendizado autônomo: "
-        f"{criadas} criada(s), {incrementadas} incrementada(s), {ativadas} ativada(s)"
+        f"[KB] Aprendizado autonomo: "
+        f"{criadas} criada(s), {incrementadas} incrementada(s), {ativadas} ativada(s)",
+        flush=True,
     )
 
     return {
@@ -2165,8 +2424,9 @@ def _evaluate_shadow_rules(relatorio: Dict, kb=None) -> Dict:
                 updated.append({"rule_id": rule_id, "resultado": "punicao"})
 
     print(
-        f"[KB] Avaliação shadow: {acertos} acerto(s), {punicoes} punição(ões) "
-        f"em {len(shadow_rules)} regra(s) shadow"
+        f"[KB] Avaliacao shadow: {acertos} acerto(s), {punicoes} punicao(oes) "
+        f"em {len(shadow_rules)} regra(s) shadow",
+        flush=True,
     )
     return {"acertos": acertos, "punicoes": punicoes, "rules_updated": updated}
 
@@ -2309,7 +2569,7 @@ def _codificar_padroes_ataque_defesa(dados_manifestacao: Dict) -> None:
                 "base_legal": fundamento,
             },
         )
-    print(f"[LEARNING] {len(padroes[:8])} padrão(ões) Ataque/Defesa codificado(s) no KB.")
+    print(f"[LEARNING] {len(padroes[:8])} padrao(oes) Ataque/Defesa codificado(s) no KB.", flush=True)
 
 
 def _atualizar_skill_manifestacao(dados: dict, trecho_original: str, filename: str = "") -> bool:
@@ -2366,10 +2626,10 @@ def _atualizar_skill_manifestacao(dados: dict, trecho_original: str, filename: s
     try:
         with open(destino, "a", encoding="utf-8") as f:
             f.write(bloco)
-        print(f"[LEARNING] skills/manifestacao_style.md atualizado ({filename}).")
+        print(f"[LEARNING] skills/manifestacao_style.md atualizado ({filename}).", flush=True)
         return True
     except Exception as e:
-        print(f"[LEARNING] Erro ao atualizar manifestacao_style.md: {e}")
+        print(f"[LEARNING] Erro ao atualizar manifestacao_style.md: {e}", flush=True)
         return False
 
 
@@ -2393,6 +2653,10 @@ def processar_sete_arquivos(
     amostragem_word_filename: str = "",
     manifestacao_bytes: Optional[bytes] = None,
     manifestacao_filename: str = "",
+    peticao_bytes: Optional[bytes] = None,
+    peticao_filename: str = "",
+    contestacao_bytes: Optional[bytes] = None,
+    contestacao_filename: str = "",
 ) -> Dict[str, Any]:
     """
     Ponto de entrada para o endpoint /lab/analisar (até 8 arquivos).
@@ -2419,15 +2683,16 @@ def processar_sete_arquivos(
     mas o motor continua funcionando sem erro.
     """
     print(
-        f"[LEARNING] Iniciando análise — linha do tempo completa:\n"
-        f"  Amostragem PDF:  {amostragem_pdf_filename  or '(não enviado)'}\n"
-        f"  Amostragem Word: {amostragem_word_filename or '(não enviado)'}\n"
-        f"  Sentença:        {processo_filename}\n"
-        f"  Liquidação:      {liquidacao_filename}\n"
+        f"[LEARNING] Iniciando analise - linha do tempo completa:\n"
+        f"  Amostragem PDF:  {amostragem_pdf_filename  or '(nao enviado)'}\n"
+        f"  Amostragem Word: {amostragem_word_filename or '(nao enviado)'}\n"
+        f"  Sentenca:        {processo_filename}\n"
+        f"  Liquidacao:      {liquidacao_filename}\n"
         f"  Parecer:         {parecer_filename}\n"
-        f"  Impugnação:      {impugnacao_filename    or '(não enviado)'}\n"
-        f"  Cálculo PJC:     {calculo_pjc_filename   or '(não enviado)'}\n"
-        f"  Manifestação:    {manifestacao_filename  or '(não enviado)'}"
+        f"  Impugnacao:      {impugnacao_filename    or '(nao enviado)'}\n"
+        f"  Calculo PJC:     {calculo_pjc_filename   or '(nao enviado)'}\n"
+        f"  Manifestacao:    {manifestacao_filename  or '(nao enviado)'}",
+        flush=True,
     )
 
     # ── Fase base: lógica dos 5 arquivos existente ────────────────────────────
@@ -2443,13 +2708,17 @@ def processar_sete_arquivos(
         impugnacao_filename=impugnacao_filename,
         calculo_pjc_bytes=calculo_pjc_bytes,
         calculo_pjc_filename=calculo_pjc_filename,
+        peticao_bytes=peticao_bytes,
+        peticao_filename=peticao_filename,
+        contestacao_bytes=contestacao_bytes,
+        contestacao_filename=contestacao_filename,
     )
 
     dados_amostragem_pdf_result = None
 
     # ── Fase de Conhecimento 1: Amostragem PDF (tese vencedora) ───────────────
     if amostragem_pdf_bytes:
-        print(f"[LEARNING] Analisando Amostragem PDF: {amostragem_pdf_filename}")
+        print(f"[LEARNING] Analisando Amostragem PDF: {amostragem_pdf_filename}", flush=True)
         dados_amostragem_pdf_result = _extrair_amostragem_pdf(amostragem_pdf_bytes, amostragem_pdf_filename)
         relatorio["amostragem_pdf"] = {
             "teses_provadas":      dados_amostragem_pdf_result.get("teses_provadas")      or [],
@@ -2464,7 +2733,7 @@ def processar_sete_arquivos(
 
     # ── Fase de Conhecimento 2: Amostragem Word (Style Transfer) ──────────────
     if amostragem_word_bytes:
-        print(f"[LEARNING] Analisando Amostragem Word (Style Transfer): {amostragem_word_filename}")
+        print(f"[LEARNING] Analisando Amostragem Word (Style Transfer): {amostragem_word_filename}", flush=True)
         dados_word = _extrair_amostragem_word(amostragem_word_bytes, amostragem_word_filename)
         relatorio["amostragem_word"] = {
             "estilo":          dados_word.get("estilo")          or {},
@@ -2485,7 +2754,7 @@ def processar_sete_arquivos(
         )
         if regras_preditivas:
             relatorio["aprendizados"] = regras_preditivas + (relatorio.get("aprendizados") or [])
-            print(f"[LEARNING] {len(regras_preditivas)} regra(s) preditiva(s) gerada(s) por cross-reference.")
+            print(f"[LEARNING] {len(regras_preditivas)} regra(s) preditiva(s) gerada(s) por cross-reference.", flush=True)
 
     # ── Tríade Pericial: sempre montada com o que estiver disponível ──────────
     # Independe da presença de Amostragem PDF — garante que a UI nunca
@@ -2502,11 +2771,11 @@ def processar_sete_arquivos(
     # Analisa padrões ataque/defesa de AMBOS os arquivos e atualiza skills/manifestacao_style.md com os dois.
     dados_manifestacao_pericial = None
     if impugnacao_bytes:
-        print(f"[LEARNING] Analisando Impugnação (Card 6) — Style Transfer: {impugnacao_filename}")
+        print(f"[LEARNING] Analisando Impugnacao (Card 6) - Style Transfer: {impugnacao_filename}", flush=True)
         dados_imp = _extrair_manifestacao_pericial(impugnacao_bytes, impugnacao_filename)
         dados_manifestacao_pericial = _merge_dados_manifestacao(dados_manifestacao_pericial, dados_imp)
     if manifestacao_bytes:
-        print(f"[LEARNING] Analisando Manifestação (Card 8) — Style Transfer: {manifestacao_filename}")
+        print(f"[LEARNING] Analisando Manifestacao (Card 8) - Style Transfer: {manifestacao_filename}", flush=True)
         dados_man = _extrair_manifestacao_pericial(manifestacao_bytes, manifestacao_filename)
         dados_manifestacao_pericial = _merge_dados_manifestacao(dados_manifestacao_pericial, dados_man)
 
@@ -2535,6 +2804,8 @@ def processar_sete_arquivos(
     arquivos["amostragem_word"] = amostragem_word_filename or None
     arquivos["manifestacao"]    = manifestacao_filename    or None
     arquivos["impugnacao"]      = impugnacao_filename     or None
+    arquivos["peticao"]         = peticao_filename        or None
+    arquivos["contestacao"]     = contestacao_filename     or None
     relatorio["arquivos_analisados"] = arquivos
 
     # ── Self-Healing Rule Engine: aprendizado autônomo ────────────────────────
@@ -2545,12 +2816,13 @@ def processar_sete_arquivos(
         kb_resultado = processar_aprendizado_autonomo(relatorio, numero)
         relatorio["kb_aprendizado"] = kb_resultado
         print(
-            f"[KB] Self-healing: {kb_resultado.get('hipoteses_extraidas', 0)} hipótese(s), "
+            f"[KB] Self-healing: {kb_resultado.get('hipoteses_extraidas', 0)} hipotese(s), "
             f"{kb_resultado.get('ativadas', 0)} regra(s) ativada(s), "
-            f"stats={kb_resultado.get('stats_kb')}"
+            f"stats={kb_resultado.get('stats_kb')}",
+            flush=True,
         )
     except Exception as e_kb:
-        print(f"[KB] Aviso: erro no aprendizado autônomo (não crítico): {e_kb}")
+        print(f"[KB] Aviso: erro no aprendizado autonomo (nao critico): {e_kb}", flush=True)
         relatorio["kb_aprendizado"] = {"erro": str(e_kb)}
 
     # Guardrail: remove aprendizados de verba_ausente falsa antes de enviar ao frontend
@@ -2558,7 +2830,7 @@ def processar_sete_arquivos(
 
     total_disc = len(relatorio.get("discrepancias") or [])
     total_ap   = len(relatorio.get("aprendizados")  or [])
-    print(f"[LEARNING] Análise completa — {total_disc} discrepância(s), {total_ap} aprendizado(s).")
+    print(f"[LEARNING] Analise completa - {total_disc} discrepancia(s), {total_ap} aprendizado(s).", flush=True)
     return relatorio
 
 
@@ -2574,6 +2846,10 @@ def processar_cinco_arquivos(
     impugnacao_filename: str = "",
     calculo_pjc_bytes: Optional[bytes] = None,
     calculo_pjc_filename: str = "",
+    peticao_bytes: Optional[bytes] = None,
+    peticao_filename: str = "",
+    contestacao_bytes: Optional[bytes] = None,
+    contestacao_filename: str = "",
 ) -> Dict[str, Any]:
     """
     Ponto de entrada para o endpoint /lab/analisar (5 arquivos).
@@ -2582,7 +2858,7 @@ def processar_cinco_arquivos(
     Porém, o chamador pode omitir qualquer um; nesse caso o motor preenche
     dicionários vazios e apenas reduz a riqueza do relatório, sem erro.
 
-    Opcionais: impugnação, cálculo .PJC.
+    Opcionais: impugnação, cálculo .PJC, petição inicial, contestação.
 
     Não salva nada — apenas analisa. Salvamento é feito via /lab/salvar.
     """
@@ -2595,13 +2871,13 @@ def processar_cinco_arquivos(
         [(processo_bytes, processo_filename or "processo.pdf")] if processo_bytes else []
     )
     if len(_arqs_processo) > 1:
-        print(f"[LEARNING] Título Executivo Complexo — {len(_arqs_processo)} documentos: {[fn for _, fn in _arqs_processo]}")
+        print(f"[LEARNING] Titulo Executivo Complexo - {len(_arqs_processo)} documentos: {[fn for _, fn in _arqs_processo]}", flush=True)
         dados_processo = _extrair_titulo_executivo_multiplos(_arqs_processo)
     elif _arqs_processo:
         dados_processo = _extrair_processo(_arqs_processo[0][0], _arqs_processo[0][1])
     else:
         dados_processo = {"dados": {}}
-        print("[LEARNING] Processo não enviado — sem dados de sentença.")
+        print("[LEARNING] Processo nao enviado - sem dados de sentenca.", flush=True)
 
     # 2. Liquidação — opcional; sem ela, discrepâncias estarão vazias
     if liquidacao_bytes:
@@ -2613,7 +2889,7 @@ def processar_cinco_arquivos(
             "juros_mora": None,
             "erro": "Liquidação não fornecida — comparação de verbas indisponível.",
         }
-        print("[LEARNING] Liquidação não enviada — análise de discrepâncias parcial.")
+        print("[LEARNING] Liquidacao nao enviada - analise de discrepancias parcial.", flush=True)
 
     # 3. Parecer — fundamentos + trechos (igual manifestação anterior)
     if parecer_bytes:
@@ -2625,7 +2901,7 @@ def processar_cinco_arquivos(
             "discrepancias_levantadas": [],
             "erro": "Parecer não fornecido.",
         }
-        print("[LEARNING] Parecer não enviado — sem fundamentos da perita.")
+        print("[LEARNING] Parecer nao enviado - sem fundamentos da perita.", flush=True)
 
     # 4. Impugnação (opcional)
     dados_impugnacao = None
@@ -2651,6 +2927,48 @@ def processar_cinco_arquivos(
     # Enriquece com impugnação e cálculo PJC
     relatorio = _enriquecer_relatorio_com_extras(relatorio, dados_impugnacao, dados_calculo_pjc)
 
+    # Propagar arquivos ignorados (duplicatas por hash ou mesma instância) do Card 3
+    relatorio["arquivos_ignorados_duplicados"] = dados_processo.get("arquivos_ignorados_duplicados", [])
+
+    # ── Petição Inicial (opcional): verbas pedidas e cruzamento com deferidas ──
+    if peticao_bytes:
+        print(f"[LEARNING] Analisando Peticao Inicial: {peticao_filename}", flush=True)
+        dados_peticao = _extrair_peticao_inicial(peticao_bytes, peticao_filename)
+        relatorio["peticao_inicial"] = {
+            "verbas_pedidas":       dados_peticao.get("verbas_pedidas") or [],
+            "causa_pedir":          dados_peticao.get("causa_pedir") or "",
+            "periodo_reivindicado": dados_peticao.get("periodo_reivindicado") or "",
+            "valor_causa":          dados_peticao.get("valor_causa"),
+            "model_used":           dados_peticao.get("model_used"),
+            "erro":                 dados_peticao.get("erro"),
+        }
+        # Cruzar verbas pedidas com deferidas para identificar verbas negadas
+        verbas_pedidas = [str(v).strip() for v in (dados_peticao.get("verbas_pedidas") or []) if str(v).strip()]
+        verbas_deferidas = list((relatorio.get("sentenca") or {}).get("verbas") or [])
+        try:
+            from services.legal_engine.rule_base import LegalRule
+            canon_deferidas = {LegalRule._canonizar_verba(v) for v in verbas_deferidas}
+            verbas_negadas_identificadas = [
+                v for v in verbas_pedidas
+                if LegalRule._canonizar_verba(v) and LegalRule._canonizar_verba(v) not in canon_deferidas
+            ]
+            relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = verbas_negadas_identificadas
+        except Exception:
+            relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = []
+
+    # ── Contestação (opcional) ───────────────────────────────────────────────
+    if contestacao_bytes:
+        print(f"[LEARNING] Analisando Contestacao: {contestacao_filename}", flush=True)
+        dados_contestacao = _extrair_contestacao(contestacao_bytes, contestacao_filename)
+        relatorio["contestacao"] = {
+            "argumentos_exclusao": dados_contestacao.get("argumentos_exclusao") or [],
+            "teses_empresa":       dados_contestacao.get("teses_empresa") or [],
+            "verbas_negadas":      dados_contestacao.get("verbas_negadas") or [],
+            "sumulas_citadas":     dados_contestacao.get("sumulas_citadas") or [],
+            "model_used":          dados_contestacao.get("model_used"),
+            "erro":                dados_contestacao.get("erro"),
+        }
+
     # Guardrail: remove falsos positivos de "verba ausente" (canonização vs verbas da empresa)
     _filtrar_falsos_positivos_verba_ausente(relatorio)
 
@@ -2664,9 +2982,11 @@ def processar_cinco_arquivos(
         "parecer":     parecer_filename,
         "impugnacao":  impugnacao_filename or None,
         "calculo_pjc": calculo_pjc_filename or None,
+        "peticao":     peticao_filename or None,
+        "contestacao": contestacao_filename or None,
     }
 
-    print(f"[LEARNING] Análise concluída — {len(relatorio['discrepancias'])} discrepância(s).")
+    print(f"[LEARNING] Analise concluida - {len(relatorio['discrepancias'])} discrepancia(s).", flush=True)
     return relatorio
 
 

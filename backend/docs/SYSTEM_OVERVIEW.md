@@ -32,20 +32,16 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 
 ## Laboratório de Aprendizado — visão geral
 
-8 arquivos — **Tríade de Ouro Expandida**:
+8 arquivos (marcha processual). **Barra de eficiência** no frontend: score 0–100%, níveis 1–4. Ver `guia_eficiencia.md` (níveis, pesos, ordem ideal).
 
-| # | Campo | Tipo | Função |
-|---|-------|------|--------|
-| 1 | `amostragem_pdf` | PDF | Holerites/ponto → teses + irregularidades (Gemini) |
-| 2 | `amostragem_word` | DOCX | Style Transfer vocabulário perita → `skills/amostragem_style.md` |
-| 3 | `processo` | PDF/DOCX (múltiplos) | **Título Executivo Complexo**: 1–N documentos (Sentença + Acórdão TRT + Acórdão TST); classificados por tier (1GRAU/TRT/TST) e fusionados com Análise de Reforma de Decisão |
-| 4 | `liquidacao` | PDF/DOCX/.PJC | Cálculo da empresa → verbas calculadas (base dos guardrails) |
-| 5 | `parecer` | PDF/DOCX | Parecer da perita → correção |
-| 6 | `impugnacao` | PDF/DOCX | Contestação empresa → **Duplo Style Transfer** (junto com Card 8) |
-| 7 | `calculo_pjc` | PDF/.PJC/.XML | Parâmetros PJe-Calc → auditoria matemática |
-| 8 | `manifestacao` | PDF/DOCX | Petição de Resposta → **Duplo Style Transfer** → retórica combate → `skills/manifestacao_style.md` |
+| # | Campo | Função |
+|---|-------|--------|
+| 1 | `peticao` | Petição Inicial → verbas pedidas, causa de pedir |
+| 2 | `contestacao` | Contestação → argumentos exclusão, teses empresa |
+| 3 | `processo` | Título Executivo (múltiplos; tier + data do texto) |
+| 4–8 | liquidacao, parecer, impugnacao, calculo_pjc, manifestacao | Cálculo empresa, parecer, Style Transfer (6+8), PJC, retórica combate |
 
-**Duplo Style Transfer**: Card 6 (impugnação) E Card 8 (manifestação) alimentam `manifestacao_style.md`. Se ambos presentes, `_merge_dados_manifestacao` funde os resultados sem duplicatas.
+**Duplo Style Transfer**: Card 6 + Card 8 → `manifestacao_style.md` (`_merge_dados_manifestacao`).
 
 **Guardrails anti-alucinação** (3 camadas):
 1. Discrepâncias (`_filtrar_falsos_positivos_verba_ausente`) — remove `verba_ausente` se a verba está na liquidação.

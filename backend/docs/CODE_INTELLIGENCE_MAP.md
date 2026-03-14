@@ -60,7 +60,7 @@ Use este arquivo junto com:
     - `/status/{job_id}` → consulta estado do job.
     - `/export-pjc/{job_id}`, `/export-excel/{job_id}` → consomem o resultado do pipeline.
   - Endpoints do Laboratório de Aprendizado (independentes do pipeline):
-    - `POST /lab/analisar` — **8 arquivos** (amostragem_pdf, amostragem_word, processo, liquidacao, parecer, impugnacao, calculo_pjc, **manifestacao**); chama processar_sete_arquivos; retorna relatório enriquecido com regras preditivas, triade_pericial (4 nós) e manifestacao_pericial.
+    - `POST /lab/analisar` — 8 arquivos (peticao, contestacao, processo, liquidacao, parecer, impugnacao, calculo_pjc, manifestacao); processar_sete_arquivos → relatório (peticao_inicial, contestacao, triade_pericial, manifestacao_pericial, etc.).
     - `POST /lab/preview` — pré-visualização do conteúdo a gravar (sem gravar).
     - `POST /lab/salvar` — chama `learning_engine.codify_insight()` (log + regra/playbook); aceita `conteudo_editado`.
     - `GET /lab/historico` — últimos aprendizados (learning_log.jsonl).
@@ -255,7 +255,7 @@ O parecer técnico final é montado em camadas:
 - `frontend/index.html` — estrutura da aplicação; IDs/classes preservados (ex.: `#resultado`, `#status-bar`, `#view-estatisticas`, `.kpi-updated`, `#lab-section`, `.lab-steps.open`).
 - `frontend/css/main.css` — estilos dos **componentes dinâmicos** (dark theme, seções, verbas, alertas, `.lab-*`, `.lab-modal-*`). Layout estrutural em Tailwind em `index.html`; animações `.kpi-updated` e `labToastIn` no inline `<style>`.
 - `frontend/js/app.js` — upload PDF, polling `/status/{job_id}`, export PJC/Excel, créditos, auditoria .PJC; histórico (carregarHistorico, filtrarHistorico); **Estatísticas**: `carregarEstatisticas(silencioso)`, `iniciarPollingEstatisticas()` (5 s só quando aba Estatísticas visível), `_setKpiValue` (animação .kpi-updated ao mudar valor).
-- `frontend/js/lab.js` — Laboratório: **8 uploads** (LAB_CAMPOS; `manifestacao` com formKey; botão "Analisar" sempre liberado; Tríade de Ouro Expandida: Amostragem + Processo + .PJC + **Manifestação**), `/lab/analisar`, linha do tempo (inclui "Conclusão da Tríade de Ouro Expandida" — grid 2×2: Amostragem/Processo/.PJC/Manifestação, argumento vencedor, contagem de padrões), modal pré-visualização, confirmar e salvar; após salvar: `_labToastEstatisticas()`, `_labNavEstatisticas()`.
+- `frontend/js/lab.js` — Lab: 8 cards (LAB_CAMPOS: peticao, contestacao, processo, …); Card 3 múltiplos (`_processoFiles`); barra de eficiência (0–100%, _EFICIENCIA_PESOS, _atualizarBarraEficiencia); `/lab/analisar`, linha do tempo, modal pré-visualização, salvar; toast .doc; após salvar: _labToastEstatisticas.
 - `frontend/js/render.js` — `renderResultado(dados)` e montagem do HTML dos dados extraídos (resumo, seções, verbas, alertas, fundamentação, parecer); helpers `val`, `vv`, `statusClass`, `statusLabel`.
 
 ### 7.2 Integração com backend
@@ -281,15 +281,12 @@ Ao alterar o frontend, mantenha:
 
 ### 8.1 Objetivo e fluxo
 
-- A perita envia até **8 arquivos** seguindo a linha do tempo: [1] Amostragem PDF (tese vencedora) [2] Amostragem Word (style transfer → skills/amostragem_style.md) [3] Sentença [4] Liquidação [5] Parecer (obrigatórios mínimos) [6] Impugnação [7] Cálculo .PJC [8] **Manifestação Pericial** (retórica de combate → skills/manifestacao_style.md + Shadow Rules no KB).
-- O backend compara os documentos e gera um **relatório de discrepância** (juiz × empresa × perita × fundamento).
-- A perita seleciona **aprendizados** e pode **pré-visualizar** (modal com conteúdo editável) antes de **salvar**.
-- O que é salvo: **regras** em `legal_engine/rules/` (arquivos .py) ou **exemplos** em `skills/sentenca_ordinaria.md`; registro em `learning_log.jsonl`. Nenhum binário é persistido.
+- **8 arquivos** (marcha processual): [1] Petição Inicial [2] Contestação [3] Processo (Título Executivo, múltiplos) [4] Liquidação [5] Parecer [6] Impugnação [7] Cálculo PJC [8] Manifestação. Frontend: barra de eficiência 0–100%. Ver `docs/guia_eficiencia.md`.
+- Backend gera relatório de discrepância; perita pré-visualiza e salva (regras em `legal_engine/rules/`, exemplos em `skills/sentenca_ordinaria.md`, log em `learning_log.jsonl`).
 
 ### 8.2 Arquivos e funções
 
-- **services/learning_engine.py**:
-  - `processar_sete_arquivos(...)` — entrada principal (**8 arquivos**); `processar_cinco_arquivos` (compat.); `_extrair_amostragem_pdf/word`; `_atualizar_skill_amostragem`; `_gerar_regras_preditivas_amostragem`; **`_extrair_manifestacao_pericial`** (Gemini: retórica de combate — frases, súmulas, padrões, argumento vencedor); **`_codificar_padroes_ataque_defesa`** (→ Shadow Rules KB); **`_atualizar_skill_manifestacao`** (→ skills/manifestacao_style.md); `preview_aprendizado`; `codify_insight`.
+- **learning_engine.py**: `processar_sete_arquivos` / `processar_cinco_arquivos` (8 args + peticao/contestacao opcionais); `_extrair_peticao_inicial`, `_extrair_contestacao`; `_extrair_titulo_executivo_multiplos` (data do texto, desempate); `_extrair_amostragem_pdf/word` (retrocompat.); `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_atualizar_skill_manifestacao`; guardrails; Self-Healing; `preview_aprendizado`, `codify_insight`.
   - `preview_aprendizado(aprendizado)` — retorna o conteúdo que seria gravado (Python ou Markdown), sem gravar.
   - `codify_insight(aprendizado, numero_processo, conteudo_editado=None)` — usado por `POST /lab/salvar`: (1) registra em `learning_log.jsonl` (log enriquecido); (2) grava regra em `legal_engine/rules/` e/ou injeta exemplo em `skills/sentenca_ordinaria.md` (Gemini para gerar; fallback com template). Se `conteudo_editado` for passado, usa esse texto. Também existe `salvar_aprendizado` (compatibilidade).
 - **services/learning_skill_loader.py**: `carregar_skill_para_lab(doc_type)` — carrega playbook .md para o lab (sem depender do processor).

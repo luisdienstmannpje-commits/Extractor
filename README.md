@@ -72,8 +72,8 @@ Variáveis de ambiente necessárias em `backend/.env`: `GEMINI_API_KEY`, `FIREBA
 | Export Excel + `.pjc` (PJeCalc 2.14.0) | `services/excel_exporter.py`, `services/pjc_exporter.py` |
 | Parecer Técnico Padrão Ouro (IA + templates) | `services/explanation_engine.py` + `services/ai_client.py` + `skills/parecer_pericial.md` |
 | Motor de regras jurídicas (STF → TST → CLT) | `services/legal_engine/` + `services/jurisprudencia/` |
-| Laboratório de Aprendizado (8 arquivos) | `services/learning_engine.py` + `frontend/js/lab.js` |
-| Título Executivo Complexo (múltiplos PDFs + hierarquia) | `_extrair_titulo_executivo_multiplos` em `learning_engine.py` |
+| Laboratório de Aprendizado (8 cards: petição, contestação, processo, liquidação, parecer, impugnação, PJC, manifestação) | `services/learning_engine.py` + `frontend/js/lab.js`; barra de eficiência em tempo real; ver `backend/docs/guia_eficiencia.md` |
+| Título Executivo Complexo (múltiplos PDFs + hierarquia + data) | `_extrair_titulo_executivo_multiplos` em `learning_engine.py` |
 | Duplo Style Transfer (impugnação + manifestação) | `_extrair_manifestacao_pericial` + `_merge_dados_manifestacao` |
 | Guardrails anti-alucinação `verba_ausente` | `_filtrar_*` em `learning_engine.py` |
 | Self-Healing Rule Engine (regras autônomas) | `services/knowledge_base.py` + `legal_engine/dynamic_rule_loader.py` |

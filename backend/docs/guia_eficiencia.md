@@ -5,6 +5,50 @@
 
 ---
 
+## Guia de Eficiência do Aprendizado
+
+Nenhum arquivo é obrigatório. A IA aceita qualquer combinação, mas aprende melhor seguindo a marcha processual real. A cada arquivo adicionado, o sistema recalcula automaticamente a previsão de eficiência.
+
+### Níveis de Aprendizado
+
+| Nível | Combinação | O que o sistema aprende |
+|-------|-----------|------------------------|
+| ⚡ Nível 1 — Rápido (25%+) | Processo + Parecer | Fundamentos jurídicos e estilo da perita |
+| 🔍 Nível 2 — Auditoria (45%+) | Processo + Parecer + Liquidação | Discrepâncias entre sentença e cálculo da empresa |
+| 📊 Nível 3 — Tríade (65%+) | Processo + Liquidação + Cálculo PJC | Detecção automática de omissões de parâmetros |
+| 🏆 Nível 4 — Tríade de Ouro (85%+) | Todos os anteriores + Contestação + Manifestação | Máximo aprendizado de retórica de combate e regras preditivas |
+
+### Ordem ideal de anexo (marcha processual)
+
+Para que o sistema aprenda como um "cérebro jurídico", os documentos devem seguir a ordem cronológica real do processo — cada etapa responde à anterior:
+
+**Fase de Conhecimento** (quem disse o quê e por quê):
+1. **Petição Inicial (Card 1)** — verbas pedidas e causa de pedir
+2. **Contestação (Card 2)** — argumentos de exclusão da empresa
+3. **Título Executivo (Card 3)** — sentença + acórdãos TRT/TST (a lei do processo)
+
+**Fase de Liquidação** (quanto vale e como calcular):
+4. **Liquidação (Card 4)** — quanto a empresa calcula que deve
+5. **Parecer Pericial (Card 5)** — quanto a perita diz que realmente deve
+6. **Impugnação (Card 6)** — como a empresa ataca os cálculos da perita
+7. **Cálculo PJC (Card 7)** — parâmetros reais do motor de cálculo
+8. **Manifestação (Card 8)** — como a perita responde os ataques
+
+### Pesos de cada documento no score de eficiência
+
+| Documento | Peso | Justificativa |
+|-----------|------|---------------|
+| Título Executivo (Card 3) | 30% | Base obrigatória — a lei do processo |
+| Parecer Pericial (Card 5) | 20% | Verdade técnica — maior insumo do KB |
+| Liquidação (Card 4) | 15% | Fonte primária das discrepâncias |
+| Cálculo PJC (Card 7) | 10% | Parâmetros reais do motor |
+| Manifestação (Card 8) | 10% | Retórica de combate da perita |
+| Contestação (Card 2) | 7% | Argumentos de exclusão da empresa |
+| Impugnação (Card 6) | 5% | Style Transfer de defesa |
+| Petição Inicial (Card 1) | 3% | Contexto dos pedidos originais |
+
+---
+
 ## 1. Título Executivo Complexo — Múltiplos Documentos Decisórios
 
 O Card 3 do Laboratório aceita **múltiplos arquivos** (Sentença + Acórdão TRT/RO + Acórdão TST/RR) para compor o **Título Executivo Complexo**. O sistema realiza automaticamente a **Análise de Reforma de Decisão**.
@@ -86,8 +130,8 @@ Isso garante que o motor aprenda tanto a linguagem da contestação da empresa q
 
 | Card | Documento                  | Formatos aceitos       | Observação                                |
 |------|----------------------------|------------------------|-------------------------------------------|
-| 1    | Amostragem PDF             | `.pdf`                 | Holerites / cartões de ponto              |
-| 2    | Amostragem Word            | `.docx`                | Style transfer de linguagem                |
+| 1    | Petição Inicial            | `.pdf`, `.docx`        | Verbas pedidas e causa de pedir           |
+| 2    | Contestação                | `.pdf`, `.docx`        | Argumentos de exclusão da empresa        |
 | 3    | **Título Executivo**       | `.pdf`, `.docx`        | **Múltiplos arquivos** — acumula instâncias |
 | 4    | Liquidação                 | `.pdf`, `.docx`        | Cálculo da empresa                        |
 | 5    | Parecer                    | `.pdf`, `.docx`        | Correção da perita                        |
