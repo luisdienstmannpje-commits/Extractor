@@ -319,9 +319,9 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 - **API** (sempre a partir da pasta `backend/`):
   ```bash
   cd backend
-  venv/Scripts/python.exe -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+  venv/Scripts/python.exe -u -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
   ```
-  Ou, na raiz do repositório: `./run.sh` (Git Bash/Linux).
+  A flag `-u` (unbuffered) garante que os logs apareçam em tempo real no terminal. Ou, na raiz do repositório: `./run.sh` (Git Bash/Linux), que já carrega `.env` e usa `-u`.
 
   **Importante:** não rode `uvicorn main:app` na raiz do projeto (`smart-extractor/`). O `main.py` da raiz é legado; o servidor correto está em `backend/main.py`. Rodar na raiz ainda faz o WatchFiles vigiar a pasta `venv/` e dar reload a cada alteração em pacotes.
 

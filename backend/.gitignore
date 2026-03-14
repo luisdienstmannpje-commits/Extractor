@@ -1,8 +1,9 @@
+venv/
 .env
 firebase-credentials.json
 local_db.sqlite
 __pycache__/
-.env
-firebase-credentials.json
-local_db.sqlite
-__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+server.log
