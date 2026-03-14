@@ -24,6 +24,24 @@ backend/learning_log.jsonl
 backend/services/legal_engine/rules/lab_*.py
 backend/memoria_calculo/memoria_*.json
 
+# ── Arquivos legados da raiz (não devem existir fora de backend/) ─────────────
+/services/
+/workers/
+/models.py
+/legal_knowledge/
+/skills/
+/tests/
+/init.py
+/_archive/
+/local_db.sqlite
+/gerado_debug.xml
+/gerar_teste_pjc.py
+/fix_explanation_engine.py
+/patch_*.py
+/firebase-credentials.json
+/knowledge_base.json
+/learning_log.jsonl
+
 # ── Uploads / documentos temporários ─────────────────────────────────────────
 *.pdf
 *.doc

@@ -19,7 +19,7 @@ v2.2 — base:
 
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 from typing import List
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from workers.processor import process_lawsuit_pdf
 from services.database import (
@@ -42,6 +42,7 @@ import uuid
 import threading
 import asyncio
 import json
+from pathlib import Path
 
 app = FastAPI(
     title="PjeCalc Smart Extractor API",
@@ -173,12 +174,14 @@ def _start_job(job_id: str, user_id: str, file_bytes: bytes):
 async def startup_event():
     cleanup_old_jobs(days=7)
     print("[MAIN] API v3.2 iniciada. WebSocket push ativo. pjc_exporter v5.4 (XML puro + gprec fix).")
+    print("[MAIN] Abra o sistema em: http://localhost:8000/  (não use file://)")
 
 
 # ── Endpoints HTTP ────────────────────────────────────────────────────────────
 
-@app.get("/")
-def home():
+@app.get("/api/status")
+def api_status():
+    """Status da API (abrir o sistema em / para o frontend)."""
     return {"status": "online", "version": "3.2", "docs": "/docs"}
 
 
@@ -429,6 +432,7 @@ async def lab_analisar(
 
     Use /lab/salvar para persistir regras e aprendizados no sistema.
     """
+    print("[LAB] POST /lab/analisar recebida.")
     _PDF_ONLY = [".pdf"]
     _WORD_ONLY = [".doc", ".docx"]
 
@@ -471,6 +475,14 @@ async def lab_analisar(
     manifestacao_bytes    = await manifestacao.read()    if (manifestacao    and manifestacao.filename)    else None
     manifestacao_filename = (manifestacao.filename or "") if manifestacao else ""
 
+    n_proc = len(processo_arquivos)
+    n_rest = sum(1 for (b, _) in [
+        (liquidacao_bytes, liquidacao), (parecer_bytes, parecer), (impugnacao_bytes, impugnacao),
+        (calculo_pjc_bytes, calculo_pjc), (amostragem_pdf_bytes, amostragem_pdf),
+        (amostragem_word_bytes, amostragem_word), (manifestacao_bytes, manifestacao),
+    ] if b)
+    print(f"[LAB] Arquivos recebidos: {n_proc} processo(s) + {n_rest} outro(s). Iniciando análise...")
+
     from services.learning_engine import processar_sete_arquivos
     from services.database import save_extraction
 
@@ -508,9 +520,14 @@ async def lab_analisar(
             )
             print(f"[LAB] Processo '{numero}' registrado em extracoes (user={user_id}).")
 
+        disc = len(relatorio.get("discrepancias") or [])
+        apr = len(relatorio.get("aprendizados") or [])
+        print(f"[LAB] Análise concluída: {disc} discrepância(s), {apr} aprendizado(s), processo={relatorio.get('numero_processo', '?')}.")
         return relatorio
     except Exception as e:
+        import traceback
         print(f"[LAB] Erro na análise: {e}")
+        traceback.print_exc()
         raise HTTPException(500, f"Erro na análise: {str(e)}")
 
 
@@ -851,6 +868,22 @@ async def websocket_job(websocket: WebSocket, job_id: str):
         with _ws_lock:
             _ws_queues.pop(job_id, None)
         print(f"[WS] Encerrado: {job_id}")
+
+
+# Servir frontend em / para evitar CORS ao abrir por file://
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+@app.get("/", include_in_schema=False)
+def _serve_index():
+    """Entrega o frontend (index.html) na raiz."""
+    index = _FRONTEND_DIR / "index.html"
+    if index.exists():
+        return FileResponse(index, media_type="text/html")
+    return {"status": "online", "version": "3.2", "docs": "/docs"}
+
+if _FRONTEND_DIR.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
 
 
 if __name__ == "__main__":

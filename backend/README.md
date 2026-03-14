@@ -316,7 +316,16 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 
 ## Como rodar
 
-- **API**: a partir da raiz do backend, `uvicorn main:app --reload` (ou com host/port desejados). Os endpoints de download dependem de `services.pjc_exporter` e `services.excel_exporter` (ver imports em `main.py`).
+- **API** (sempre a partir da pasta `backend/`):
+  ```bash
+  cd backend
+  venv/Scripts/python.exe -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+  ```
+  Ou, na raiz do repositório: `./run.sh` (Git Bash/Linux).
+
+  **Importante:** não rode `uvicorn main:app` na raiz do projeto (`smart-extractor/`). O `main.py` da raiz é legado; o servidor correto está em `backend/main.py`. Rodar na raiz ainda faz o WatchFiles vigiar a pasta `venv/` e dar reload a cada alteração em pacotes.
+
+- Os endpoints de download dependem de `services.pjc_exporter` e `services.excel_exporter` (ver imports em `main.py`).
 - **Testes**: `pytest` ou `pytest tests/ -v`; testes do motor: `pytest tests/jurisprudencia/ -v`.
 - **Lint/format**: `ruff check .` e `ruff format .` (config em `pyproject.toml`).
 
