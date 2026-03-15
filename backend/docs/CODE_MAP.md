@@ -9,7 +9,7 @@ Para regras do motor, ver também a tabela de regras no README.
 
 | Arquivo | Responsabilidade |
 |---------|-------------------|
-| `main.py` | API FastAPI; upload; jobs; WebSocket; export PJC/Excel; lab (`/lab/analisar` — peticao, contestacao, processo(List), liquidacao, parecer, impugnacao, calculo_pjc, manifestacao); `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`; `GET /api/stats`; timeout 5 min. |
+| `main.py` | API FastAPI; upload; jobs; WebSocket; export PJC/Excel; lab (`/lab/analisar`, `/lab/preview`, `/lab/salvar`, `/lab/gerar-docx` [Ghostwriter], `/lab/historico`, `/lab/knowledge-base`); `GET /api/stats`; timeout 5 min. |
 | `config.py` | Env: GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION, RAPIDFUZZ_THRESHOLD, etc. |
 | `models.py` | ProcessoTrabalhista, VerbaDeferida (Pydantic); validadores; SCHEMA_VERSION. |
 | `workers/processor.py` | Pipeline 10 passos: process_lawsuit_pdf; orquestra todos os serviços. |
@@ -24,6 +24,9 @@ Para regras do motor, ver também a tabela de regras no README.
 | `text_processor.py` | `normalize_text`; `find_section_hybrid` (dispositivo etc.). |
 | `pre_extractor.py` | `pre_extract` (regex/campos HIGH/MEDIUM); `build_anchor_section`. |
 | `ai_client.py` | `extract_data_with_gemini(texto, playbook, anchor_section)` — cascata Flash→Pro; truncagem; prompt. `gerar_parcelas_parecer(verbas, dados, skill_parecer)` — seção I do parecer (plain text, sem Markdown) orientado por `skills/parecer_pericial.md`. |
+| `ai_writer.py` | **Ghostwriter:** `gerar_texto_manifestacao(...)` — Gemini com **Instrução de Tom e Voz** (`manifestacao_style.md`); imita expressões ("esperando haver se desincumbido do múnus", "vem, respeitosamente"); retorna `introducao`, `secoes[]`, `tabela_comparativa[]` (texto limpo). |
+| `document_generator.py` | **Ghostwriter:** `gerar_minuta(...)` — python-docx: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções, tabela **Table Grid** (prejuízo financeiro), encerramento "Pede Deferimento. [Cidade], [Data]." + espaço assinatura Perito Assistente; retorna bytes .docx. |
+| `extraction_engine.py` | **Raio-X:** `enriquecer_para_raiox(dados)` — categoriza em Estrutural (incl. prescricao_quinquenal), Contratual, Condenação; adicionais, verbas_lista; Dicas do Laboratório via KB. Ordem de exibição no frontend é PJe-Calc: Identificação/Juízo → Parâmetros Estruturais → Índices (mini-cards) → Verbas (badges) → Dicas (alerta fixo). |
 | `normalizer.py` | `normalizar`; `normalizar_lista`; `eh_chave_valida`; `listar_variacoes`. |
 | `sentence_understanding.py` | `extrair_verbas_deferidas`; `extrair_reflexos`; `interpretar_decisao`; etc. |
 
@@ -64,6 +67,7 @@ Para regras do motor, ver também a tabela de regras no README.
 | `schema_version_guard.py` | Guarda de versão do schema (invalidar cache). |
 | `verba_deduplicator.py` | Deduplicação de verbas (nome + período). |
 | `learning_skill_loader.py` | `carregar_skill_para_lab(doc_type)` — playbook para o lab. |
+| `process_timeline_extractor.py` | **PJe Timeline Extractor**: `PjeTimelineExtractor._mapear_sumario(pdf_bytes)` (índice nas primeiras 15 pág.), `_buscar_por_ancoras()` (fallback regex), `extract_timeline_from_pdf(pdf_bytes)` → `{mapa, textos, log}`; `extrair_metadados_peca(chave, texto, ai_client)` (ETAPA 3 — Gemini por peça). Chaves: peticao_inicial, contestacao, sentenca, acordao, liquidacao, impugnacao, parecer. |
 | `knowledge_base.py` | `KnowledgeBase` — banco `knowledge_base.json`; campos: rule_id, descricao, condicao, acao, base_legal, confidence_score, status (shadow/active/deleted), casos_vistos, acertos, punicoes; operações: `adicionar_ou_incrementar`, `marcar_acerto`, `marcar_punicao`, `stats`. |
 
 ---
@@ -86,8 +90,9 @@ Funções privadas notáveis:
 
 | Função | Descrição |
 |--------|-----------|
-| `_classificar_tier_decisao(filename)` | `"TST"` / `"TRT"` / `"1GRAU"` por palavras-chave no nome |
-| `_extrair_titulo_executivo_multiplos([(bytes,fn)])` | N docs ordenados por hierarquia; texto concatenado; prompt de Análise de Reforma de Decisão (prioriza instâncias superiores) |
+| `_classificar_tier_decisao(filename, texto?)` | **Prioridade nome:** 1grau/ATOrd/Sentenca→1GRAU; 2grau/ROT/Acordao→TRT. Texto só se nome genérico; ignora 1000 chars (header PJe); no texto só Recurso Ordinário/Relator:/Acórdão. |
+| `_extrair_data_documento(texto)` | Remove linha "Data da Autuação" antes de regex; prioriza final do doc. |
+| `_extrair_titulo_executivo_multiplos([(bytes,fn)])` | Tier diferente = ambos mantidos; um por tier; desempate por data; prompt Análise de Reforma. |
 | `_merge_dados_manifestacao(base, novo)` | Junta listas de padrões sem duplicatas |
 | `_extrair_manifestacao_pericial(bytes, filename)` | Gemini: frases, súmulas, padrões Ataque/Defesa, argumento vencedor → `manifestacao_style.md` |
 | `_canon_empresa_e_verba_esta(relatorio)` | Helper de canonização compartilhado pelos guardrails |
@@ -156,9 +161,10 @@ Funções privadas notáveis:
 | Multas 467/477 | `legal_engine/rules/multa_467.py`, `multa_477.py`, `multa_477_valor.py` |
 | Reflexos e DSR | `legal_engine/rules/reflexos_proibidos.py`, `he_reflexo_dsr.py`, `dsr_bis_in_idem.py`; `jurisprudencia/orientacoes/oj_394.py` |
 | Explicações jurídicas | `services/explanation_engine.py` |
-| Laboratório / Aprendizado | `services/learning_engine.py`, `learning_skill_loader.py`; `main.py` (lab); `frontend/js/lab.js` |
+| Laboratório / Aprendizado | `services/learning_engine.py`, `learning_skill_loader.py`; `main.py` (lab); `frontend/js/lab.js`. **Card Provas = hub:** multi-upload → `amostragens`; `_fusionar_provas_com_cards` + `_classificar_tipo_documento_prova`; prompt unificado em `<AMOSTRAGENS_DA_PERITA>`. **Ghostwriter:** `POST /lab/gerar-docx` (body = relatório) → `document_generator.gerar_minuta` + `ai_writer.gerar_texto_manifestacao` → .docx da Manifestação (estilo `manifestacao_style.md`). |
 | Guardrails anti-alucinação | `services/learning_engine.py` → `_canon_empresa_e_verba_esta`, `_filtrar_*` |
-| Título Executivo Complexo | `services/learning_engine.py` → `_classificar_tier_decisao`, `_extrair_titulo_executivo_multiplos`; `main.py` → `processo: List[UploadFile]`; `frontend/js/lab.js` → `_processoFiles` |
+| Título Executivo Complexo | `learning_engine.py` → `_classificar_tier_decisao` (prioridade nome: 1grau/ATOrd→1GRAU, 2grau/ROT→TRT; texto só se genérico, ignorar header PJe), `_extrair_data_documento` (remove linha Data da Autuação), `_extrair_titulo_executivo_multiplos` (tier diferente = ambos mantidos); `main.py`; `lab.js` → `_processoFiles` |
+| PJe Timeline Extractor (um PDF no Card 3) | `services/process_timeline_extractor.py`; `learning_engine` chama quando len(processo_arquivos)==1 e PDF; relatório: `timeline_fatiamento`, `pecas_extraidas_do_pdf`; frontend barra de eficiência soma pesos das peças extraídas |
 | Duplo Style Transfer | `services/learning_engine.py` → `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`; `skills/manifestacao_style.md` |
 | Self-Healing Rule Engine | `services/learning_engine.py` → `processar_aprendizado_autonomo`, `_evaluate_shadow_rules`; `services/knowledge_base.py`; `legal_engine/dynamic_rule_loader.py` |
 | Dashboard Estatísticas | `main.py` (`GET /api/stats`); `services/knowledge_base.py`; `database.get_total_extractions`; `frontend/js/app.js` (`carregarEstatisticas`, polling) |

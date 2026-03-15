@@ -36,7 +36,8 @@ backend/
 │   ├── database.py           # SQLite: créditos, cache, extrações, jobs
 │   ├── schema_version_guard.py     # Guarda de versão do schema (invalidar cache)
 │   ├── verba_deduplicator.py  # Deduplicação de verbas (assinatura nome+período)
-│   ├── learning_engine.py     # Laboratório: 8 arquivos (linha do tempo), Título Executivo Complexo (múltiplos PDFs), duplo Style Transfer (impugnação+manifestação), guardrails anti-alucinação (3 camadas), codify_insight, Self-Healing
+│   ├── learning_engine.py     # Laboratório: 8 arquivos, Título Executivo Complexo, PJe Timeline Extractor (1 PDF → fatiamento), duplo Style Transfer, guardrails, codify_insight, Self-Healing
+│   ├── process_timeline_extractor.py  # PJe Timeline: sumário + âncoras → mapa de peças; extração profunda (Gemini) por peça
 │   ├── learning_skill_loader.py  # Carrega playbook .md para o lab
 │   ├── knowledge_base.py      # Banco de Conhecimento das regras dinâmicas (confidence_score, status shadow/active/deleted)
 │   ├── legal_engine/dynamic_rule_loader.py  # Carrega/aplica regras dinâmicas (ativas + shadow) a partir do Knowledge Base
@@ -172,7 +173,7 @@ O **Laboratório** permite à perita treinar o sistema com a visão completa da 
 |---|-------|------|--------|
 | 1 | `peticao` | PDF/DOCX | **Petição Inicial** — verbas pedidas, causa de pedir, período, valor da causa → `relatorio.peticao_inicial` |
 | 2 | `contestacao` | PDF/DOCX | **Contestação** — argumentos de exclusão, teses empresa, súmulas → `relatorio.contestacao` |
-| 3 | `processo` | PDF/DOCX (**múltiplos**) | **Título Executivo**: 1–N docs (Sentença + TRT + TST); tier + data do texto → `_extrair_titulo_executivo_multiplos` |
+| 3 | `processo` | PDF/DOCX (**múltiplos**) | **Título Executivo**: 1–N docs (Sentença + TRT + TST); tier + data → `_extrair_titulo_executivo_multiplos`. **Um único PDF**: PJe Timeline Extractor fatia por sumário/âncoras e preenche slots (petição, contestação, liquidação, impugnação, parecer) + Barra de Eficiência |
 | 4 | `liquidacao` | PDF/DOCX | Cálculo da empresa; base dos guardrails |
 | 5 | `parecer` | PDF/DOCX | Parecer da perita |
 | 6 | `impugnacao` | PDF/DOCX | Duplo Style Transfer (com Card 8) → `manifestacao_style.md` |
@@ -291,7 +292,7 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 - **database.py**: SQLite — créditos, cache (get/save), extrações (save/get), histórico, jobs (save/get), cleanup.
 - **schema_version_guard.py**: Guarda de versão do schema para invalidar cache quando modelos mudam.
 - **verba_deduplicator.py**: Deduplicação de verbas (assinatura nome+período); também exposta como regra no jurisprudencia.
-- **learning_engine.py**: `processar_sete_arquivos` (entrada principal — **8 arquivos** + `processo_arquivos: List[tuple]` para Título Executivo Complexo — múltiplos documentos do Card 3); `processar_cinco_arquivos` (compat.); `_extrair_amostragem_pdf/word`; `_atualizar_skill_amostragem`; `_gerar_regras_preditivas_amostragem`; **`_extrair_manifestacao_pericial`** (Duplo Style Transfer — chamado para Card 6 E Card 8); **`_merge_dados_manifestacao`** (funde resultados dos dois cards); **`_codificar_padroes_ataque_defesa`**; **`_atualizar_skill_manifestacao`**; `_classificar_tier_decisao` + `_extrair_titulo_executivo_multiplos` (pipeline Título Executivo: N docs → hierarquia → fusão com Análise de Reforma de Decisão); **guardrails**: `_canon_empresa_e_verba_esta`, `_filtrar_falsos_positivos_verba_ausente`, `_filtrar_logicas_verba_ausente_falsas`, `_filtrar_aprendizados_verba_ausente_falsas`; `processar_aprendizado_autonomo`; `_evaluate_shadow_rules`; `preview_aprendizado`; `codify_insight`.
+- **learning_engine.py**: `processar_sete_arquivos` (entrada principal — **8 arquivos** + `processo_arquivos`); `processar_cinco_arquivos` (compat.); quando **um único PDF** no Card 3 → **PJe Timeline Extractor** (`process_timeline_extractor.extract_timeline_from_pdf`) fatia por sumário/âncoras e preenche liquidação, parecer, impugnação, petição, contestação + `pecas_extraidas_do_pdf` (Barra de Eficiência); `_extrair_titulo_executivo_multiplos` (N docs → hierarquia); Duplo Style Transfer; guardrails; Self-Healing; `preview_aprendizado`; `codify_insight`.
 - **knowledge_base.py**: `KnowledgeBase` — banco de conhecimento em JSON (`knowledge_base.json`) com campos `rule_id`, `descricao`, `condicao`, `acao`, `confidence_score`, `status` (`shadow`/`active`/`deleted`), `casos_vistos`, `acertos`, `punicoes`; métodos `adicionar_ou_incrementar`, `marcar_acerto`, `marcar_punicao`, `stats`.
 - **learning_skill_loader.py**: `carregar_skill_para_lab(doc_type)` — carrega playbook .md para o laboratório (independente do processor).
 

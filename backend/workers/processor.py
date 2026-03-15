@@ -24,6 +24,7 @@ from services.jurisprudencia.consistencia.verba_deduplicator import deduplicar_v
 from memoria_calculo import gerar_memoria                                               # M1
 from models import ProcessoTrabalhista
 from config import settings
+from services.extraction_engine import enriquecer_para_raiox
 
 # ── Singleton — carregado uma vez na inicialização do módulo ─────────────────
 # Evita recarregar as 20 regras e reordenar por prioridade a cada request.
@@ -523,6 +524,8 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         explicacoes=explicacoes,
     )
 
+    raiox = enriquecer_para_raiox(dados_finais)
+
     return {
         "status": "sucesso",
         "source": "ai",
@@ -530,6 +533,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         "model_used": ai_result["model_used"],
         "doc_id": doc_id,
         "data": dados_finais,
+        "raiox": raiox,
         "alertas_juridicos":  dados_finais["alertas_juridicos"],
         "regras_aplicadas":   regras_aplicadas,
         "memorial_juridico":  memorial_juridico,

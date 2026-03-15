@@ -40,7 +40,7 @@
         "mensagem": "A verba 'INTERVALO INTRAJORNADA', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
       },
       "base_legal": "Art. 71, § 4º, CLT; Título executivo judicial (Coisa julgada)",
-      "confidence_score": -45,
+      "confidence_score": -68,
       "status": "deleted",
       "casos_vistos": [
         "0010070-87.2020.5.03.0092",
@@ -48,10 +48,10 @@
         "1002192-49.2025.5.02.0221",
         "0010032-85.2024.5.15.0097"
       ],
-      "acertos": 13,
-      "punicoes": 59,
+      "acertos": 15,
+      "punicoes": 84,
       "created_at": "2026-03-13T12:04:38.985257",
-      "updated_at": "2026-03-14T15:23:12.590029"
+      "updated_at": "2026-03-14T23:04:01.189591"
     },
     {
       "rule_id": "DYN_20260313_120438_9852",
@@ -93,15 +93,16 @@
         "mensagem": "A verba 'saldo de salário', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
       },
       "base_legal": "artigo 467 e 477 da CLT",
-      "confidence_score": -137,
+      "confidence_score": -208,
       "status": "deleted",
       "casos_vistos": [
-        "0011219-69.2024.5.15.0052"
+        "0011219-69.2024.5.15.0052",
+        "1002192-49.2025.5.02.0221"
       ],
-      "acertos": 22,
-      "punicoes": 160,
+      "acertos": 25,
+      "punicoes": 234,
       "created_at": "2026-03-13T12:09:13.876415",
-      "updated_at": "2026-03-14T15:23:12.613602"
+      "updated_at": "2026-03-14T23:04:01.215974"
     },
     {
       "rule_id": "DYN_20260313_120913_8764",
@@ -270,15 +271,15 @@
         "mensagem": "Identificamos que verbas deferidas na sentença (itens 05 a 10 da fundamentação) não constam na liquidação. É necessário incluir todos os títulos deferidos no cálculo."
       },
       "base_legal": "Verificar fundamentação na manifestação",
-      "confidence_score": -54,
+      "confidence_score": -79,
       "status": "deleted",
       "casos_vistos": [
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 1,
-      "punicoes": 56,
+      "punicoes": 81,
       "created_at": "2026-03-13T12:44:25.716014",
-      "updated_at": "2026-03-14T15:23:12.617577"
+      "updated_at": "2026-03-14T23:04:01.230018"
     },
     {
       "rule_id": "DYN_20260313_124425_7160",
@@ -319,13 +320,13 @@
         "mensagem": "Sugerir fundamento: Princípio da prova documental (implícito) — Rebate: A ausência dos registros de jornada torna os cálculos inválidos e sem credibilidade, pois a origem das horas não pode se"
       },
       "base_legal": "Princípio da prova documental (implícito)",
-      "confidence_score": 73,
+      "confidence_score": 118,
       "status": "active",
       "casos_vistos": [],
-      "acertos": 72,
+      "acertos": 117,
       "punicoes": 0,
       "created_at": "2026-03-13T15:05:36.790828",
-      "updated_at": "2026-03-14T14:38:19.146531"
+      "updated_at": "2026-03-14T23:02:24.692287"
     },
     {
       "rule_id": "DYN_20260313_150545_4577",
@@ -792,11 +793,349 @@
       "punicoes": 2,
       "created_at": "2026-03-13T22:45:17.300817",
       "updated_at": "2026-03-13T22:50:53.883509"
+    },
+    {
+      "rule_id": "DYN_20260314_174447_8265",
+      "descricao": "Erro no cálculo dos avos do 13º salário proporcional (6/12 vs 8/12)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "13º Salário Proporcional",
+        "campo": "avos",
+        "valor_esperado": "8/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo do 13º salário proporcional apurou 6/12 avos, mas o correto, considerando a projeção do aviso prévio, é 8/12 avos, conforme tese da impugnação."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT; Súmula 371 do TST",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-14T17:44:47.826593",
+      "updated_at": "2026-03-14T19:28:28.988468"
+    },
+    {
+      "rule_id": "DYN_20260314_174447_8358",
+      "descricao": "Erro no cálculo dos avos das férias proporcionais (6/12 vs 7/12)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Férias Proporcionais + 1/3",
+        "campo": "avos",
+        "valor_esperado": "7/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo das férias proporcionais apurou 6/12 avos, mas o correto, com a projeção do aviso prévio, é 7/12 avos, conforme tese da impugnação."
+      },
+      "base_legal": "Art. 146, parágrafo único, da CLT; Art. 487, § 1º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-14T17:44:47.835910",
+      "updated_at": "2026-03-14T19:28:28.996059"
+    },
+    {
+      "rule_id": "DYN_20260314_201443_1274",
+      "descricao": "Erro de cálculo nos avos do 13º salário (projeção do aviso prévio)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "13º Salário Proporcional",
+        "campo": "proporcao_avos",
+        "valor_esperado": "8/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo do 13º salário proporcional apurou 6/12 avos, mas o correto, considerando a projeção do aviso prévio, é 8/12 avos, conforme tese de impugnação."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-14T20:14:43.127451",
+      "updated_at": "2026-03-14T20:24:43.323218"
+    },
+    {
+      "rule_id": "DYN_20260314_201443_1432",
+      "descricao": "Erro de cálculo nos avos das férias proporcionais (projeção do aviso prévio)",
+      "condicao": {
+        "tipo": "campo_diferente",
+        "verba": "Férias Proporcionais + 1/3",
+        "campo": "proporcao_avos",
+        "valor_esperado": "7/12"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo das férias proporcionais apurou 6/12 avos, mas o correto, considerando a projeção do aviso prévio, é 7/12 avos, conforme tese de impugnação."
+      },
+      "base_legal": "Art. 487, § 1º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-14T20:14:43.143233",
+      "updated_at": "2026-03-14T20:24:43.332178"
+    },
+    {
+      "rule_id": "DYN_20260314_201443_1532",
+      "descricao": "Ausência da Multa do Art. 467 da CLT",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Multa do Art. 467 da CLT"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A Multa do Art. 467 da CLT, deferida em sentença, não foi incluída no cálculo de liquidação."
+      },
+      "base_legal": "Art. 467 da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:14:43.153270",
+      "updated_at": "2026-03-14T20:51:48.813951"
+    },
+    {
+      "rule_id": "DYN_20260314_201443_1620",
+      "descricao": "Ausência da Multa do Art. 477 da CLT",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Multa do Art. 477 da CLT"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A Multa do Art. 477 da CLT, deferida em sentença, não foi incluída no cálculo de liquidação."
+      },
+      "base_legal": "Art. 477, § 8º, da CLT",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011219-69.2024.5.15.0052"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:14:43.162068",
+      "updated_at": "2026-03-14T20:51:48.822333"
+    },
+    {
+      "rule_id": "DYN_20260314_202443_2317",
+      "descricao": "Ausência do Adicional de Insalubridade",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Adicional de Insalubridade",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O Adicional de Insalubridade, deferido em sentença, não foi incluído no cálculo da liquidação."
+      },
+      "base_legal": "Conforme decisão judicial",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 3,
+      "punicoes": 5,
+      "created_at": "2026-03-14T20:24:43.231779",
+      "updated_at": "2026-03-14T21:32:39.925009"
+    },
+    {
+      "rule_id": "DYN_20260314_202443_2436",
+      "descricao": "Ausência da obrigação de Retificação de PPP",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Retificação de PPP",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A obrigação de fazer 'Retificação de PPP', deferida em sentença, não foi considerada na liquidação."
+      },
+      "base_legal": "Conforme decisão judicial",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:24:43.243640",
+      "updated_at": "2026-03-14T20:57:43.679179"
+    },
+    {
+      "rule_id": "DYN_20260314_202443_2541",
+      "descricao": "Ausência da Indenização por Danos Morais",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Indenização por Danos Morais",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A Indenização por Danos Morais, deferida em sentença, não foi incluída no cálculo da liquidação."
+      },
+      "base_legal": "Conforme decisão judicial",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 3,
+      "punicoes": 5,
+      "created_at": "2026-03-14T20:24:43.254180",
+      "updated_at": "2026-03-14T21:32:39.933614"
+    },
+    {
+      "rule_id": "DYN_20260314_205148_7442",
+      "descricao": "Ausência da verba Férias + 1/3",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "FÉRIAS + 1/3"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo da liquidação não incluiu a verba 'FÉRIAS + 1/3', que foi deferida em sentença."
+      },
+      "base_legal": "Art. 142 CLT, Art. 7º, XVII, CF/88",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:51:48.744279",
+      "updated_at": "2026-03-14T21:17:06.508321"
+    },
+    {
+      "rule_id": "DYN_20260314_205148_7533",
+      "descricao": "Ausência da verba Repouso Semanal Remunerado",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "REPOUSO SEMANAL REMUNERADO E FERIADO"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo da liquidação não incluiu a verba 'REPOUSO SEMANAL REMUNERADO E FERIADO', que foi deferida em sentença."
+      },
+      "base_legal": "Lei 605/49",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:51:48.753357",
+      "updated_at": "2026-03-14T21:17:06.516713"
+    },
+    {
+      "rule_id": "DYN_20260314_205148_7614",
+      "descricao": "Ausência da verba FGTS e Multa",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "FGTS"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo da liquidação não incluiu as verbas 'FGTS' e 'MULTA FGTS', que foram deferidas em sentença."
+      },
+      "base_legal": "Lei 8.036/90",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:51:48.761441",
+      "updated_at": "2026-03-14T21:17:06.525686"
+    },
+    {
+      "rule_id": "DYN_20260314_205743_6043",
+      "descricao": "Ausência da obrigação de fazer: Retificação do PPP",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Retificação de Perfil Profissiográfico Previdenciário (PPP)",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O cálculo de liquidação não contempla a obrigação de fazer 'Retificação de Perfil Profissiográfico Previdenciário (PPP)', deferida em sentença."
+      },
+      "base_legal": "Art. 58, § 4º da Lei 8.213/91",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "1002192-49.2025.5.02.0221"
+      ],
+      "acertos": 1,
+      "punicoes": 3,
+      "created_at": "2026-03-14T20:57:43.604384",
+      "updated_at": "2026-03-14T21:32:39.941274"
+    },
+    {
+      "rule_id": "DYN_20260314_230401_1787",
+      "descricao": "Ausência do Adicional de Insalubridade deferido em sentença",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Adicional de Insalubridade"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Adicional de Insalubridade', deferida em sentença, não foi localizada nos cálculos da liquidação e deve ser incluída."
+      },
+      "base_legal": "Art. 189 a 192 da CLT",
+      "confidence_score": 2,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010170-07.2025.5.03.0144"
+      ],
+      "acertos": 1,
+      "punicoes": 0,
+      "created_at": "2026-03-14T23:04:01.178730",
+      "updated_at": "2026-03-14T23:04:01.243395"
     }
   ],
   "_meta": {
     "version": "1.0",
     "created_at": "2026-03-13T12:04:38.968437",
-    "updated_at": "2026-03-14T15:23:12.617577"
+    "updated_at": "2026-03-14T23:04:01.243828"
   }
 }

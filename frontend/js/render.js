@@ -45,8 +45,184 @@ function statusLabel(s) {
   return s;
 }
 
+// ── Raio-X: labels e ordem alinhada ao PJe-Calc ─────────────────────────────
+var RAIOX_LABELS = {
+  numero_processo: "Número do Processo", reclamante: "Reclamante", reclamada: "Reclamada",
+  data_ajuizamento: "Data de Ajuizamento", prescricao_quinquenal: "Data Prescrição Quinquenal (Ajuiz. - 5 anos)",
+  data_admissao: "Admissão", data_demissao: "Demissão", salario_base: "Maior Remuneração", divisor_horas: "Divisor de Horas", motivo_rescisao: "Motivo da Rescisão",
+  indice_correcao: "Índice de Correção", juros_mora: "Juros de Mora",
+  vara_trabalho: "Vara", tipo_rito: "Rito", funcao_reclamante: "Função", data_sentenca: "Data da Sentença",
+  advogado_reclamante: "Advogado", juiz_responsavel: "Juiz", tipo_contrato: "Tipo Contrato", jornada_contratual: "Jornada", horario_trabalho: "Horário",
+  aviso_previo_dias: "Aviso Prévio (dias)", data_saida_ctps: "Data Saída CTPS", anotacao_ctps: "Anotação CTPS", seguro_desemprego: "Seguro-desemprego",
+  multa_art_467: "Multa Art. 467", multa_art_477: "Multa Art. 477", dano_moral: "Dano Moral", dano_material: "Dano Material",
+  fgts_periodo_completo: "FGTS Período", fgts_sobre_aviso_previo: "FGTS sobre Aviso", fgts_sobre_ferias_indenizadas: "FGTS sobre Férias Inden.", fgts_multa_40_aviso_previo: "FGTS Multa 40% Aviso", fgts_observacoes: "FGTS Observações",
+  honorarios_sucumbenciais: "Honorários", percentual_honorarios: "% Honorários", justica_gratuita: "Justiça Gratuita", custas_processuais: "Custas",
+};
+
+/** Normaliza valor para colar no PJe-Calc: datas DD/MM/AAAA sem espaços; CPF/CNPJ sem pontos/traços. */
+function normalizeForPjeCalc(val) {
+  if (val == null || val === "") return "";
+  var s = String(val).trim();
+  if (!s) return "";
+  var onlyDigits = s.replace(/\D/g, "");
+  if (onlyDigits.length === 11 || onlyDigits.length === 14) return onlyDigits;
+  var dateMatch = s.match(/(\d{1,2})[\/\-\.\s]+(\d{1,2})[\/\-\.\s]+(\d{4})/);
+  if (dateMatch) {
+    var d = ("0" + dateMatch[1]).slice(-2), m = ("0" + dateMatch[2]).slice(-2), y = dateMatch[3];
+    return d + "/" + m + "/" + y;
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function raioxCopy(value, btnEl) {
+  var raw = value != null && value !== "" ? String(value) : "";
+  if (!raw) return;
+  var toCopy = normalizeForPjeCalc(raw);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(toCopy).then(function () {
+      showRaioxToast("Copiado!");
+      if (btnEl) {
+        btnEl.classList.add("raiox-copied");
+        var orig = btnEl.innerHTML;
+        btnEl.innerHTML = "✓";
+        setTimeout(function () {
+          btnEl.classList.remove("raiox-copied");
+          btnEl.innerHTML = orig;
+        }, 1500);
+      }
+    }).catch(function () {});
+  }
+}
+
+function showRaioxToast(msg) {
+  var t = document.createElement("div");
+  t.className = "raiox-toast";
+  t.textContent = msg;
+  t.style.cssText = "position:fixed;bottom:24px;right:24px;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);";
+  document.body.appendChild(t);
+  setTimeout(function () { t.remove(); }, 1500);
+}
+
+function renderRaiox(raiox) {
+  var panel = document.getElementById("raiox-panel");
+  if (!panel || !raiox || !raiox.categorias) {
+    if (panel) panel.innerHTML = "";
+    return;
+  }
+  var cat = raiox.categorias;
+  var dicas = raiox.dicas_laboratorio || [];
+  var e = cat.estrutural || {};
+  var c = cat.contratual || {};
+  var con = cat.condenacao || {};
+  function v(k, obj) { return (obj && obj[k] != null && obj[k] !== "") ? String(obj[k]).trim() : ""; }
+  function row(key, value, label) {
+    var lab = label || RAIOX_LABELS[key] || key.replace(/_/g, " ");
+    var val = value != null && value !== "" ? String(value) : "—";
+    var safe = escapeHtml(val);
+    var canCopy = val !== "—";
+    var copyVal = canCopy ? escapeHtml(val) : "";
+    return (
+      '<div class="raiox-row">' +
+      '<span class="raiox-label">' + escapeHtml(lab) + '</span>' +
+      '<span class="raiox-value">' + safe + '</span>' +
+      (canCopy
+        ? '<button type="button" class="raiox-copy" aria-label="Copiar" title="Copiar para PJe-Calc" data-copy="' + copyVal + '">📋</button>'
+        : '<button type="button" class="raiox-copy raiox-copy-disabled" aria-disabled="true">📋</button>') +
+      "</div>"
+    );
+  }
+
+  var html = '<div class="raiox-wrap">';
+
+  // Sticky: número do processo (destaque) — fixo no topo ao rolar
+  var numProcesso = v("numero_processo", e) || "—";
+  html += '<div class="raiox-sticky">';
+  html += '<div class="raiox-numero-processo">' + escapeHtml(numProcesso) + '</div>';
+  html += '</div>';
+
+  // BLOCO 5 (topo do conteúdo): Dicas do Laboratório como alerta fixo se houver
+  var dicasCriticas = dicas.filter(function (d) {
+    var t = (d.titulo || "").toLowerCase();
+    return t.indexOf("swissport") !== -1 || t.indexOf("erro") !== -1 || t.indexOf("recorrente") !== -1 || dicas.length <= 2;
+  });
+  if (dicas.length > 0) {
+    html += '<div class="raiox-dicas-alerta">';
+    html += '<div class="raiox-dicas-alerta-title">💡 Dicas do Laboratório</div>';
+    (dicasCriticas.length ? dicasCriticas : dicas).slice(0, 3).forEach(function (d) {
+      html += '<div class="raiox-dica-item"><strong>' + escapeHtml(d.titulo || "") + '</strong> ' + escapeHtml((d.mensagem || "").slice(0, 120)) + (d.mensagem && d.mensagem.length > 120 ? "…" : "") + "</div>";
+    });
+    html += "</div>";
+  }
+
+  // BLOCO 1: Identificação e Juízo (topo — sem rolagem)
+  html += '<div class="raiox-secao raiox-bloco1"><div class="raiox-secao-header">Identificação e Juízo</div><div class="raiox-rows">';
+  html += row("reclamante", v("reclamante", e));
+  html += row("reclamada", v("reclamada", e));
+  html += row("data_ajuizamento", v("data_ajuizamento", e));
+  html += row("prescricao_quinquenal", v("prescricao_quinquenal", e));
+  html += "</div></div>";
+
+  // BLOCO 2: Parâmetros Estruturais (coração do cadastro)
+  html += '<div class="raiox-secao raiox-bloco2"><div class="raiox-secao-header">Parâmetros Estruturais</div><div class="raiox-rows">';
+  html += row("data_admissao", v("data_admissao", c));
+  html += row("data_demissao", v("data_demissao", c));
+  html += row("salario_base", v("salario_base", c));
+  html += row("divisor_horas", v("divisor_horas", c));
+  html += row("motivo_rescisao", v("motivo_rescisao", c));
+  html += "</div></div>";
+
+  // BLOCO 3: Índices e Correção (mini-card colorido)
+  var indice = v("indice_correcao", con);
+  var juros = v("juros_mora", con);
+  if (indice || juros) {
+    html += '<div class="raiox-secao raiox-bloco3"><div class="raiox-secao-header">Índices e Correção</div>';
+    html += '<div class="raiox-minicards">';
+    html += '<div class="raiox-minicard"><span class="raiox-minicard-label">Índice</span><span class="raiox-minicard-value">' + escapeHtml(indice || "—") + '</span>' +
+      (indice ? '<button type="button" class="raiox-copy raiox-minicard-copy" data-copy="' + escapeHtml(indice) + '" title="Copiar">📋</button>' : '') + '</div>';
+    html += '<div class="raiox-minicard"><span class="raiox-minicard-label">Juros de Mora</span><span class="raiox-minicard-value">' + escapeHtml(juros || "—") + '</span>' +
+      (juros ? '<button type="button" class="raiox-copy raiox-minicard-copy" data-copy="' + escapeHtml(juros) + '" title="Copiar">📋</button>' : '') + '</div>';
+    html += "</div></div>";
+  }
+
+  // BLOCO 4: Verbas e Adicionais (badges)
+  var verbasList = cat.verbas_lista || [];
+  var adicList = cat.adicionais || [];
+  if (verbasList.length || adicList.length) {
+    html += '<div class="raiox-secao raiox-bloco4"><div class="raiox-secao-header">Verbas e Adicionais</div><div class="raiox-badges">';
+    verbasList.forEach(function (vb) {
+      var nome = (vb.nome || "").trim();
+      if (nome) html += '<span class="raiox-badge" title="' + escapeHtml([vb.percentual, vb.reflexos].filter(Boolean).join(" · ") || nome) + '">' + escapeHtml(nome) + '</span>';
+    });
+    adicList.forEach(function (a) {
+      var nome = (a.nome || "").trim();
+      if (nome) html += '<span class="raiox-badge raiox-badge-adicional">' + escapeHtml(nome) + '</span>';
+    });
+    html += "</div></div>";
+  }
+
+  html += "</div>";
+  panel.innerHTML = html;
+  panel.classList.add("show");
+
+  panel.querySelectorAll(".raiox-copy[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      raioxCopy(this.getAttribute("data-copy"), this);
+    });
+  });
+}
+
 // ── Renderização principal: dados extraídos do PDF ─────────────────────────
 function renderResultado(d, envelope) {
+  var raioxPanel = document.getElementById("raiox-panel");
+  if (raioxPanel) {
+    if (envelope && envelope.raiox) {
+      renderRaiox(envelope.raiox);
+    } else {
+      raioxPanel.innerHTML = "";
+      raioxPanel.classList.remove("show");
+    }
+  }
+
   const el = document.getElementById("resultado");
   if (!el) return;
 

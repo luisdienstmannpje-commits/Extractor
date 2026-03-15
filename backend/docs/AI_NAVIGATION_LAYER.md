@@ -5,6 +5,13 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 
 > **Token-tip:** Leia este arquivo inteiro (< 200 linhas). Só depois abra arquivos de código.
 
+### Regras do sistema (resumo — economizar tokens)
+- **Título Executivo (Card 3):** **Prioridade ao nome do arquivo.** Nome com 1grau/ATOrd/Sentenca → **1GRAU**. Nome com 2grau/ROT/Acordao → **TRT**. Só usa regex no texto se nome genérico; ao usar texto, ignora os primeiros 1000 chars (cabeçalho PJe) e só considera "Recurso Ordinário", "Relator:", "Acórdão" (nunca "Tribunal Regional" do header). Data: linha "Data da Autuação" é removida antes de extrair datas; prioriza final do doc. Tier diferente = ambos mantidos (1GRAU + TRT).
+- **Pipeline:** 10 passos em `workers/processor.py`; não alterar ordem/contratos.
+- **Regras jurídicas:** só em `legal_engine/`; uma regra por arquivo; `LegalRule._canonizar_verba` para canonização.
+- **Guardrails:** `_filtrar_*` em `learning_engine.py` após enriquecimento; não remover nem mover.
+- **Frontend:** Vanilla JS; IDs preservados; sem React/Vue.
+
 ---
 
 ## 1. Quando usar este arquivo
@@ -55,14 +62,16 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 
 ### 2.8 Frontend (UI, layout, views)
 1. `docs/CODE_INTELLIGENCE_MAP.md` § 7.
-2. Arquivos: `frontend/index.html` (Tailwind, IDs preservados), `frontend/css/main.css` (componentes dinâmicos — não contém sidebar/header), `frontend/js/app.js` (upload, polling, export, estatísticas), `frontend/js/render.js` (renderResultado), `frontend/js/lab.js` (Laboratório 8 cards).
-3. Nunca introduzir React/Vue — o projeto usa Vanilla JS.
-4. Preservar IDs: `#resultado`, `#view-extrator`, `#view-lab`, `#view-historico`, `#view-estatisticas`, `.lab-section.open`, `.kpi-updated`.
+2. Arquivos: `frontend/index.html`, `frontend/css/main.css`, `frontend/js/app.js` (upload, polling, export), `frontend/js/render.js` (renderResultado, **renderRaiox**), `frontend/js/lab.js` (Laboratório 8 cards).
+3. **Painel Raio-X (aba Processar):** Ordem PJe-Calc (reduz rolagem): (1) Sticky: número do processo; (2) Dicas do Laboratório (alerta fixo); (3) Identificação e Juízo; (4) Parâmetros Estruturais; (5) Índices (mini-cards); (6) Verbas/Adicionais (badges). Cópia inteligente (datas DD/MM/AAAA, CPF/CNPJ sem pontuação); feedback check verde ao copiar. Dados de `envelope.raiox`.
+4. Nunca introduzir React/Vue. Preservar IDs: `#resultado`, `#raiox-panel`, `#view-extrator`, `#view-lab`, `.kpi-updated`.
 
 ### 2.9 Laboratório de Aprendizado da Perita
 **Backend:** `services/learning_engine.py` (§ 5) + `services/learning_skill_loader.py`.
-**Endpoints:** `/lab/analisar` (8 campos: peticao, contestacao, processo, liquidacao, parecer, impugnacao, calculo_pjc, manifestacao; `processo` = List[UploadFile]), `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`.
-**Frontend:** `lab.js` — 8 cards (LAB_CAMPOS), Card 3 múltiplos (`_processoFiles`), barra de eficiência (`_calcularEficiencia`, `_atualizarBarraEficiencia`), `.doc` → toast. **Detalhes Lab:** `docs/guia_eficiencia.md` (evite duplicar aqui).
+**Endpoints:** `/lab/analisar` (8 campos + `amostragens`), `/lab/preview`, `/lab/salvar`, `/lab/gerar-docx` (Ghostwriter: body = relatório JSON → retorna .docx da Manifestação), `/lab/historico`, `/lab/knowledge-base`.
+**Frontend:** `lab.js` — 8 cards, Card Amostragens múltiplos, barra de eficiência, botão "Gerar Minuta Word" (`labGerarDocx()`, visível quando há discrepâncias). **Detalhes Lab:** `docs/guia_eficiencia.md`.
+**Ghostwriter:** O endpoint envia `manifestacao_style.md` como **Instrução de Tom e Voz** (IA imita estilo: "esperando haver se desincumbido do múnus", "vem, respeitosamente"). `document_generator.gerar_minuta`: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções, tabela **Table Grid** (prejuízo financeiro), encerramento "Pede Deferimento. [Cidade], [Data]." + espaço assinatura Perito Assistente. `ai_writer.gerar_texto_manifestacao` → Gemini Perito Sênior; retorna `introducao`, `secoes[]`, `tabela_comparativa[]` (texto limpo). Validar com Teste 5 (Victor Felipe) ou Teste 10 (Gustavo Henrique).
+**Card de Provas como hub:** O usuário pode anexar **tudo** (Parecer, Amostragens, Manifestações) no Card "Amostragens e Provas". O backend usa `_fusionar_provas_com_cards`: para cada arquivo extrai texto e `_classificar_tipo_documento_prova(texto, filename)` → `parecer` | `amostragem` | `manifestacao` | `generic` (por termos como "Parecer Técnico", "Conclui-se", "R$", meses, tabelas); preenche `parecer_bytes`, `amostragem_pdf/word_bytes`, `manifestacao_bytes` quando os cards 5/6/8 não foram enviados. Todo o texto continua em `<AMOSTRAGENS_DA_PERITA>` com o **prompt unificado**: "Identifique qual arquivo é o Parecer e qual é a Amostragem; use o Parecer para a estratégia de combate e a Amostragem para conferir valores centavo a centavo no .PJC."
 
 ### 2.10 Self-Healing Rule Engine
 1. README § Self-Healing.
@@ -118,7 +127,8 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 
 ### Laboratório (learning_engine.py)
 - `processar_cinco_arquivos` e `processar_sete_arquivos` são os únicos entrypoints.
-- Guardrails (`_filtrar_falsos_positivos_verba_ausente`, `_filtrar_logicas_verba_ausente_falsas`, `_filtrar_aprendizados_verba_ausente_falsas`) devem rodar **após** qualquer enriquecimento do relatório e **antes** do retorno ao frontend.
+- **PJe Timeline Extractor**: com **um único PDF** no Card 3, `process_timeline_extractor.extract_timeline_from_pdf` fatia o processo (sumário ou âncoras) e preenche slots lógicos (petição, contestação, liquidação, impugnação, parecer) se o usuário não anexou; relatório ganha `timeline_fatiamento` e `pecas_extraidas_do_pdf` (Barra de Eficiência).
+- Guardrails (`_filtrar_falsos_positivos_verba_ausente`, etc.) devem rodar **após** enriquecimento e **antes** do retorno ao frontend.
 - `_canon_empresa_e_verba_esta(relatorio)` é o helper compartilhado — não duplicar lógica de canonização.
 
 Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0 falhas.
@@ -134,8 +144,13 @@ Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0
 | `_extrair_texto_arquivo(bytes, filename)` | PDF/DOCX/DOC → texto |
 | `_extrair_sentenca(pdf_bytes)` | PDF sentença → pipeline completo |
 | `_extrair_processo(bytes, filename)` | Roteador: PDF → sentenca, DOC/DOCX → Gemini |
-| `_classificar_tier_decisao(filename)` | Nome do arquivo → `"TST"` / `"TRT"` / `"1GRAU"` |
-| `_extrair_titulo_executivo_multiplos([(bytes, fn)])` | N docs → hierarquia 1ºgrau→TRT→TST; desempate mesma instância = data extraída do texto (`_extrair_data_documento`); retorna `verbas_reformadas`, `datas_documentos`, `instancia_final` |
+| `_classificar_tier_decisao(filename, texto?)` | **Prioridade ao nome:** 1grau/ATOrd/Sentenca → 1GRAU; 2grau/ROT/Acordao → TRT. Só usa texto se nome genérico; ignora primeiros 1000 chars (cabeçalho PJe); no texto só "Recurso Ordinário", "Relator:", "Acórdão" (nunca "Tribunal Regional" do header). |
+| `_extrair_data_documento(texto)` | Remove a **linha** "Data da Autuação" antes de rodar regex; prioriza final do doc (julgamento/assinatura). |
+| `_classificar_tipo_documento_prova(texto, filename)` | Classifica documento do Card Provas: `parecer` (Parecer Técnico, Conclui-se), `amostragem` (R$, meses, tabelas), `manifestacao` (manifestação, petição resposta), `generic`. |
+| `_fusionar_provas_com_cards(amostragens_arquivos, parecer*, amostragem_* , manifestacao*)` | Extrai texto de cada arquivo do Card Provas, classifica e preenche parecer/amostragem PDF ou Word/manifestação quando o card explícito não foi enviado; retorna (texto_dossie, parecer_bytes/fn, amostragem_pdf/word, manifestacao). |
+| `_processar_dossie_amostragens(lista (bytes, fn))` | Concatena texto de cada arquivo com `\n--- PROVA: nome ---\n`; usado para tag `<AMOSTRAGENS_DA_PERITA>`. |
+| `_bloco_amostragens_perita(texto_dossie)` | Envolve o dossiê em `<AMOSTRAGENS_DA_PERITA>` com **prompt unificado** (identificar Parecer vs Amostragem; usar Parecer para estratégia e Amostragem para conferir .PJC centavo a centavo). |
+| `_extrair_titulo_executivo_multiplos([(bytes, fn)], contexto_amostragens?)` | N docs; tier diferente = ambos mantidos; opcionalmente prepende bloco AMOSTRAGENS_DA_PERITA. |
 | `_extrair_liquidacao(bytes, filename)` | PJC/PDF/DOCX → verbas, índice, juros |
 | `_extrair_manifestacao(bytes)` | DOCX → fundamentos + discrepâncias |
 | `_extrair_impugnacao(bytes, filename)` | PDF/DOCX → fundamentos + argumentos |
@@ -144,6 +159,11 @@ Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0
 | `_extrair_amostragem_word(bytes, filename)` | DOCX → estilo da perita → `skills/amostragem_style.md` |
 | `_extrair_manifestacao_pericial(bytes, filename)` | **Duplo Style Transfer** — analisa frases de impacto, súmulas, padrões Ataque/Defesa, argumento vencedor; chamado para Card 6 (impugnação) E Card 8 (manifestação) |
 | `_merge_dados_manifestacao(base, novo)` | Junta resultados de impugnação + manifestação sem duplicar; alimenta `skills/manifestacao_style.md` com ambos |
+| `_liquidacao_from_text(texto)` | Constrói dict de liquidação a partir de texto (Timeline). |
+| `_extrair_manifestacao_from_text(texto)` | Manifestação/parecer a partir de texto (Timeline). |
+| `_extrair_impugnacao_from_text(texto)` | Impugnação a partir de texto (Timeline). |
+
+**PJe Timeline Extractor** (`services/process_timeline_extractor.py`): `PjeTimelineExtractor._mapear_sumario(pdf_bytes)` (sumário PJe), `_buscar_por_ancoras()` (fallback regex), `extract_timeline_from_pdf(pdf_bytes)` → `{mapa, textos, log}`; `extrair_metadados_peca(chave, texto, ai_client)` para ETAPA 3 (Gemini por peça).
 
 ### Guardrails anti-alucinação
 | Função | Onde chamada | O que faz |

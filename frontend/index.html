@@ -371,6 +371,9 @@
         <!-- Results scroll area -->
         <div id="results-scroll-area" class="flex-1 overflow-y-auto min-h-0 px-3 pt-3 pb-5">
 
+          <!-- Raio-X: Dados Extraídos por categoria (Estrutural, Contratual, Condenação) + Dicas do Laboratório -->
+          <div id="raiox-panel" class="raiox-panel mb-4"></div>
+
           <!-- Result injection target — render.js writes here -->
           <div id="resultado" class="resultado-wrap"></div>
 
@@ -588,6 +591,24 @@
               <span class="lab-card-opc">opcional · retórica de combate</span>
             </div>
 
+            <!-- Dossiê de Provas / Amostragens adicionais (múltiplos arquivos) -->
+            <div class="lab-upload-card lab-card-opcional" id="card-amostragens">
+              <div class="lab-card-step lab-step-opt">+</div>
+              <div class="lab-card-body">
+                <div class="lab-card-label">Opcional</div>
+                <div class="lab-card-title">Amostragens e Provas Adicionais</div>
+                <div class="lab-card-hint lab-card-hub">Arraste aqui seu Parecer, Amostragens e Manifestações</div>
+                <div class="lab-card-hint">PDF · DOC · DOCX · múltiplos</div>
+                <label class="lab-file-label" for="lab-amostragens" title="Provas, tabelas e amostragens que serão usadas como verdade de referência para confrontar os cálculos da empresa.">
+                  <span class="lab-file-icon">📎</span>
+                  <span id="lab-amostragens-name" class="lab-file-name truncate">Escolher arquivo(s)</span>
+                </label>
+                <input type="file" id="lab-amostragens" accept=".pdf,.doc,.docx" class="lab-file-input" multiple>
+                <div id="lab-amostragens-lista" style="display:none;margin-top:8px"></div>
+              </div>
+              <span class="lab-card-opc">opcional</span>
+            </div>
+
           </div>
           <!-- /grid -->
 
@@ -625,7 +646,12 @@
 
           <!-- Steps (shown after analysis) -->
           <div class="lab-steps" id="lab-steps">
-
+            <div id="lab-gerar-docx-bar" class="lab-gerar-docx-bar" style="display:none">
+              <button type="button" id="btn-lab-gerar-docx" class="btn btn-primary">
+                📄 Gerar Minuta Word
+              </button>
+              <span class="lab-gerar-docx-hint">Minuta da Manifestação aos Cálculos (estilo da perita)</span>
+            </div>
             <div class="lab-step" id="lab-step-1">
               <div class="lab-step-header">
                 <span class="lab-step-num">Resultado 1</span>

@@ -434,6 +434,7 @@ async def lab_analisar(
     calculo_pjc:      UploadFile = File(None),
     amostragem_pdf:   UploadFile = File(None),
     amostragem_word:  UploadFile = File(None),
+    amostragens:      List[UploadFile] = File(default=[]),
     manifestacao:     UploadFile = File(None),
     peticao:          UploadFile = File(None),
     contestacao:      UploadFile = File(None),
@@ -485,6 +486,9 @@ async def lab_analisar(
         raise HTTPException(400, "Campo 'amostragem_word' aceita DOC ou DOCX")
     if manifestacao and manifestacao.filename and not _ext_ok(manifestacao.filename, _DOCS_EXTS):
         raise HTTPException(400, "Campo 'manifestacao' aceita PDF, DOC ou DOCX")
+    for _af in (amostragens or []):
+        if _af and _af.filename and not _ext_ok(_af.filename, _DOCS_EXTS):
+            raise HTTPException(400, f"Campo 'amostragens' aceita PDF, DOC ou DOCX (arquivo: {_af.filename})")
     if peticao and peticao.filename and not _ext_ok(peticao.filename, _DOCS_EXTS):
         raise HTTPException(400, "Campo 'peticao' aceita PDF ou DOCX")
     if contestacao and contestacao.filename and not _ext_ok(contestacao.filename, _DOCS_EXTS):
@@ -514,6 +518,15 @@ async def lab_analisar(
     contestacao_bytes     = await contestacao.read()     if (contestacao    and contestacao.filename)    else None
     contestacao_filename  = (contestacao.filename or "") if contestacao else ""
 
+    amostragens_arquivos = []
+    for _af in (amostragens or []):
+        if _af and _af.filename:
+            _ab = await _af.read()
+            if _ab:
+                amostragens_arquivos.append((_ab, _af.filename))
+    if amostragens_arquivos:
+        print(f"[LEARNING] Processando {len(amostragens_arquivos)} arquivo(s) de amostragem...", flush=True)
+
     n_proc = len(processo_arquivos)
     n_rest = sum(1 for (b, _) in [
         (liquidacao_bytes, liquidacao), (parecer_bytes, parecer), (impugnacao_bytes, impugnacao),
@@ -521,7 +534,7 @@ async def lab_analisar(
         (amostragem_word_bytes, amostragem_word), (manifestacao_bytes, manifestacao),
         (peticao_bytes, peticao), (contestacao_bytes, contestacao),
     ] if b)
-    print(f"[LAB] Arquivos recebidos: {n_proc} processo(s) + {n_rest} outro(s). Iniciando análise...", flush=True)
+    print(f"[LAB] Arquivos recebidos: {n_proc} processo(s) + {n_rest} outro(s) + {len(amostragens_arquivos)} amostragem(ns). Iniciando análise...", flush=True)
 
     from services.learning_engine import processar_sete_arquivos
     from services.database import save_extraction
@@ -543,6 +556,7 @@ async def lab_analisar(
             amostragem_pdf_filename=(amostragem_pdf.filename or "") if amostragem_pdf else "",
             amostragem_word_bytes=amostragem_word_bytes,
             amostragem_word_filename=(amostragem_word.filename or "") if amostragem_word else "",
+            amostragens_arquivos=amostragens_arquivos,
             manifestacao_bytes=manifestacao_bytes,
             manifestacao_filename=manifestacao_filename,
             peticao_bytes=peticao_bytes,
@@ -650,6 +664,44 @@ async def lab_salvar(body: dict):
     except Exception as e:
         print(f"[LAB] Erro ao consolidar aprendizado: {e}", flush=True)
         raise HTTPException(500, f"Erro ao salvar: {str(e)}")
+
+
+@app.post("/lab/gerar-docx")
+async def lab_gerar_docx(body: dict):
+    """
+    Ghostwriter: gera documento Word (.docx) com minuta da Manifestação aos Cálculos.
+
+    Body: relatório do Laboratório (mesmo JSON retornado por POST /lab/analisar),
+    contendo numero_processo, sentenca.campos_chave, discrepancias, etc.
+
+    Retorna o arquivo .docx para download. Usa skills/manifestacao_style.md como
+    estilo de redação e ai_writer + document_generator para o conteúdo.
+    """
+    if not body or not isinstance(body, dict):
+        raise HTTPException(400, "Corpo inválido: envie o relatório JSON do Laboratório (ex.: resultado de /lab/analisar).")
+    skills_dir = Path(__file__).resolve().parent / "skills"
+    style_path = skills_dir / "manifestacao_style.md"
+    estilo_mapeado = ""
+    if style_path.exists():
+        try:
+            estilo_mapeado = style_path.read_text(encoding="utf-8")
+        except Exception as e:
+            print(f"[LAB] Aviso: não foi possível ler {style_path}: {e}", flush=True)
+
+    from services.document_generator import gerar_minuta
+    try:
+        docx_bytes = gerar_minuta(body, estilo_mapeado)
+    except Exception as e:
+        print(f"[LAB] Erro ao gerar minuta DOCX: {e}", flush=True)
+        raise HTTPException(500, f"Erro ao gerar documento: {str(e)}")
+
+    numero = (body.get("numero_processo") or "minuta").replace("/", "-").replace("\\", "-")[:80]
+    filename = f"Manifestacao_{numero}.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/lab/historico")

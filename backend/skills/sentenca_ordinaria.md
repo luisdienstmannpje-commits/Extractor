@@ -970,3 +970,184 @@ Tese provada pela perita na amostragem pericial: Não pagamento dos reflexos das
 Tese provada pela perita na amostragem pericial: Não recolhimento do FGTS sobre as verbas apuradas. Registrar como playbook para orientar auditoria futura de cálculos similares.
 
 <!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 14/03/2026 21:01 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão, na planilha de liquidação, de verba expressamente deferida no título executivo judicial. O cálculo apresentado não contempla o "Adicional de Insalubridade", resultando em apuração a menor do crédito exequendo, em desacordo com a coisa julgada material.
+
+### Como identificar na sentença
+Analisar o dispositivo da sentença e sua fundamentação em busca de palavras-chave e expressões que determinem a condenação, tais como:
+- "defiro o pedido de adicional de insalubridade"
+- "julgo procedente o pedido de adicional de insalubridade"
+- "condeno a reclamada ao pagamento de adicional de insalubridade"
+- "insalubridade em grau [médio/máximo]"
+- "base de cálculo do adicional [...]: salário mínimo"
+Verificar se a referida verba e seus reflexos constam nas tabelas de cálculo.
+
+### Correção correta
+Incluir o Adicional de Insalubridade na apuração dos créditos. O procedimento consiste em calcular o valor mensal do adicional, conforme o grau (20% ou 40%) e a base de cálculo (e.g., salário mínimo) definidos na decisão, para cada competência do período contratual imprescrito. Subsequentemente, devem ser apurados e somados os reflexos deferidos sobre as demais verbas (e.g., aviso prévio, 13º salário, férias + 1/3, FGTS + 40%).
+
+### Base legal
+A fundamentação normativa para o adicional de insalubridade encontra-se no Art. 192 da CLT e na Norma Regulamentadora 15 (NR-15). A base de cálculo e os reflexos devem ser apurados conforme Súmulas pertinentes do TST e STF, e os parâmetros específicos definidos no título executivo judicial. Verificar a fundamentação detalhada na manifestação que apontou o erro.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Pelo exposto, julgo PROCEDENTE EM PARTE o pedido para condenar a reclamada ao pagamento de adicional de insalubridade em grau médio (20%), a ser calculado sobre o salário mínimo nacional, durante todo o pacto laboral, com reflexos em aviso prévio, férias acrescidas de 1/3, 13º salários e FGTS com multa de 40%."
+
+**Interpretação correta:**
+A sentença defere a verba 'Adicional de Insalubridade'. A ausência desta verba na planilha de cálculo é um erro. A correção exige:
+1.  **Apuração do Principal:** Calcular 20% sobre o salário mínimo nacional para cada mês do contrato.
+2.  **Apuração dos Reflexos:** Calcular o impacto do valor apurado no item 1 sobre aviso prévio, férias + 1/3, 13º salários e FGTS + 40%.
+3.  **Integração:** Somar o principal e os reflexos ao montante total da condenação.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 14/03/2026 21:01 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão no resumo da liquidação de uma condenação de natureza não pecuniária (obrigação de fazer), especificamente a determinação para retificar o Perfil Profissiográfico Previdenciário (PPP). O sistema de cálculo, focado em verbas monetárias, falha em registrar e quantificar os parâmetros desta obrigação, como prazo para cumprimento e multas cominatórias (astreintes).
+
+### Como identificar na sentença
+Buscar no dispositivo da sentença por termos-chave e combinações que indiquem uma obrigação de fazer relacionada ao PPP. Padrões comuns incluem:
+- "condeno a reclamada na obrigação de fazer consistente em..."
+- "retificar o Perfil Profissiográfico Previdenciário"
+- "proceder à retificação do PPP"
+- "entregar o PPP corrigido"
+- "fazer constar no PPP"
+- A identificação de prazo para cumprimento ("no prazo de X dias") e sanção por descumprimento ("sob pena de multa diária", "astreintes").
+
+### Correção correta
+Incluir um item específico na planilha de liquidação ou no relatório de cálculos, sob a rubrica "Obrigações de Fazer", detalhando:
+1.  **Objeto:** Retificação do Perfil Profissiográfico Previdenciário (PPP).
+2.  **Conteúdo da retificação:** Especificar as informações que devem ser alteradas ou inseridas, conforme o comando sentencial.
+3.  **Prazo para cumprimento:** Indicar o prazo fixado na decisão (ex: 15 dias após o trânsito em julgado).
+4.  **Astreintes:** Registrar o valor da multa diária por descumprimento e seu eventual limite.
+
+### Base legal
+A obrigação de fornecer e manter o PPP atualizado decorre do art. 58, § 1º, da Lei nº 8.213/91. A inclusão da obrigação de fazer no título executivo judicial e a possibilidade de fixação de astreintes encontram amparo nos arts. 536 e 537 do Código de Processo Civil (CPC), aplicáveis subsidiariamente ao Processo do Trabalho. A fonte primária para a liquidação é o próprio título executivo judicial (a sentença).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> ...julgo procedente o pedido para condenar a Reclamada a **proceder à retificação do Perfil Profissiográfico Previdenciário (PPP) do autor, para que conste a efetiva exposição ao agente nocivo 'poeira mineral' (código 1.0.18 do Anexo IV do Decreto 3.048/99), durante todo o período contratual**, no prazo de 10 (dez) dias após a intimação para cumprimento, sob pena de multa diária de R$ 300,00, consolidada em R$ 30.000,00.
+
+**Interpretação correta:**
+O cálculo deve ser processado para incluir uma obrigação de fazer com os seguintes parâmetros extraídos:
+- **`obrigacao.tipo`**: `OBRIGAÇÃO DE FAZER`
+- **`obrigacao.descricao`**: `Retificação de Perfil Profissiográfico Previdenciário (PPP)`
+- **`obrigacao.detalhes`**: `Fazer constar a exposição ao agente nocivo 'poeira mineral' (código 1.0.18, Anexo IV, Dec. 3.048/99) durante todo o pacto laboral.`
+- **`obrigacao.prazo_dias`**: `10`
+- **`obrigacao.multa_diaria_valor`**: `300.00`
+- **`obrigacao.multa_limite_valor`**: `30000.00`
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 14/03/2026 21:02 | Processo: 1002192-49.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+O cálculo liquidando a sentença omite a inclusão da verba de natureza indenizatória "Indenização por Danos Morais", embora esta tenha sido expressamente deferida no dispositivo da decisão. O erro ocorre pela não observância de condenações que não compõem a base de cálculo de reflexos ou encargos tradicionais (INSS, FGTS), sendo tratadas como um valor autônomo.
+
+### Como identificar na sentença
+No dispositivo da sentença, buscar por palavras-chave como "julgo procedente o pedido de indenização por danos morais", "condeno a reclamada ao pagamento de danos morais", "defiro o pleito de indenização por dano moral", "arbitro o valor de R$ [valor] a título de danos morais". A verba geralmente consta em um item próprio, sem a menção a "reflexos em" ou "integração em" outras parcelas.
+
+### Correção correta
+Apurar o valor nominal da indenização por danos morais fixado na sentença e adicioná-lo como uma verba autônoma no resumo geral do cálculo. O valor deve ser atualizado monetariamente e acrescido de juros de mora conforme os parâmetros da decisão ou, em caso de omissão, seguindo a Súmula 439 do TST. Não há incidência de encargos previdenciários, fiscais ou de FGTS sobre esta verba, dada sua natureza estritamente indenizatória.
+
+### Base legal
+Artigos 186 e 927 do Código Civil; Art. 5º, V e X da Constituição Federal; Art. 223-G da CLT. Para fins de atualização monetária e juros, aplicar a Súmula 439 do TST: "Nas condenações por dano moral, a atualização monetária é devida a partir da data da decisão de arbitramento ou de alteração do valor. Os juros incidem desde o ajuizamento da ação, nos termos do art. 883 da CLT."
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Pelo exposto, julgo PROCEDENTES EM PARTE os pedidos para condenar a Reclamada a pagar ao Reclamante as seguintes parcelas:
+> a) Horas extras e reflexos em DSR, aviso prévio, 13º salário, férias + 1/3 e FGTS;
+> b) Indenização por danos morais, que arbitro em R$ 8.000,00 (oito mil reais).
+> Juros e correção monetária na forma da lei.
+
+**Interpretação correta:**
+O cálculo deve conter duas apurações distintas:
+1. Liquidação das horas extras e seus reflexos (verba 'a').
+2. Inclusão, em campo apartado de "Verbas Indenizatórias" ou similar, do valor principal de R$ 8.000,00 referente à "Indenização por Danos Morais" (verba 'b'). Este valor deve ser atualizado monetariamente (a partir da data da sentença) e acrescido de juros de mora (a partir do ajuizamento), sem incidência de encargos. A ausência da apuração do item 'b' no cálculo final configura a discrepância `verba_ausente`.
+---
+## Engenharia Reversa — Regra Preditiva: Horas Extras — Não pagamento de horas extra
+<!-- Laboratório de Aprendizado | 14/03/2026 21:36 | Processo: 1003964-47.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da parametrização para apuração de horas extras no sistema PJe-Calc, mesmo quando a sentença judicial defere expressamente o pagamento de labor extraordinário. O erro consiste na falha em configurar o sistema para calcular as horas que excedem a jornada contratual (usualmente a 8ª diária e/ou 44ª semanal), resultando em liquidação zerada para esta verba.
+
+### Como identificar na sentença
+Buscar no dispositivo da sentença por expressões-chave como: "defiro o pagamento de horas extras", "horas excedentes à 8ª diária e 44ª semanal", "jornada regular", "apurar em liquidação de sentença com base nos controles de ponto". A presença dessas expressões é um forte indicativo da necessidade de auditar a configuração do cálculo no PJe-Calc.
+
+### Correção correta
+No PJe-Calc, acessar o menu 'Parâmetros' -> 'Horas Extras' e configurar o cálculo para apurar as horas excedentes aos limites definidos em sentença (ex: 8 horas diárias e 44 horas semanais). Utilizar os cartões de ponto como fonte primária para o input das horas trabalhadas e os holerites para a base de cálculo e verificação de eventuais pagamentos parciais sob a mesma rubrica.
+
+### Base legal
+Art. 59 da CLT
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Julgo procedente o pedido de pagamento de horas extras, consideradas como tais as laboradas além da 8ª (oitava) hora diária e da 44ª (quadragésima quarta) semanal, de forma não cumulativa, a serem apuradas com base nos registros de ponto carreados aos autos. Divisor 220. Adicional de 50% para as duas primeiras e 100% para as demais."
+
+**Interpretação correta:**
+Este comando judicial exige uma ação de configuração no sistema de cálculo. A interpretação correta é que, ao identificar este texto, o sistema PJe-Calc deve ser parametrizado para:
+1.  Importar os dados dos cartões de ponto.
+2.  Ativar o cálculo de horas extras com os limites de 8 horas diárias e 44 horas semanais.
+3.  Aplicar o adicional de 50% e 100% conforme determinado.
+4.  Utilizar o divisor 220 sobre a base de cálculo apurada.
+A ausência desta parametrização, mesmo com a clareza da sentença, constitui o erro a ser corrigido.
+---
+## Engenharia Reversa — Regra Preditiva: Reflexos (DSR, 13º, Férias, Aviso Prévio) — Não integração das horas extras habituais na base de cálculo
+<!-- Laboratório de Aprendizado | 14/03/2026 21:36 | Processo: 1003964-47.2025.5.02.0221 -->
+
+### Padrão de erro identificado
+Omissão sistemática da integração das horas extras habituais na base de cálculo das verbas reflexas, como Descanso Semanal Remunerado (DSR), 13º salário, férias acrescidas de 1/3 e aviso prévio. A liquidação apresentada pela reclamada desconsidera a média duodecimal das horas extras, resultando em valores a menor para as demais parcelas deferidas.
+
+### Como identificar na sentença
+Buscar no dispositivo da sentença termos como "deferem-se horas extras", "com reflexos em", "integração em", seguido das verbas: "DSR", "13º salário", "férias + 1/3" e "aviso prévio". A presença simultânea do deferimento de horas extras e da ordem de seus reflexos é o principal indicador para auditar a parametrização do cálculo.
+
+### Correção correta
+Auditar a base de cálculo de cada verba reflexa no sistema PJe-Calc. Para cada uma (DSR, 13º, Férias, Aviso Prévio), é imperativo que a base de cálculo inclua a média física das horas extras habitualmente prestadas. O cálculo deve ser refeito, parametrizando o sistema para que a remuneração base para os reflexos seja composta pelo salário-base acrescido da média das horas extras apuradas. Utilizar holerites e cartões de ponto como contraprova para apurar a habitualidade e a média correta.
+
+### Base legal
+Súmula 172 do TST; Art. 142, § 5º da CLT
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "...julgo PROCEDENTE EM PARTE o pedido para condenar a reclamada ao pagamento de horas extras, assim consideradas as excedentes à 8ª diária e 44ª semanal, com adicional de 50%, e reflexos em DSR, 13º salários, férias com 1/3 e aviso prévio."
+
+**Interpretação correta:**
+A condenação em "reflexos" impõe que a média remuneratória das horas extras habituais, apurada mês a mês, componha a base de cálculo para o DSR, 13º salários, férias + 1/3 e aviso prévio. No PJe-Calc, ao configurar a apuração de férias, por exemplo, a base de cálculo não pode ser apenas o salário-base; deve-se incluir o valor médio das horas extras deferidas, conforme Súmula 172 do TST e Art. 142, § 5º da CLT.
+---
+## Exemplo de Aprendizado — 14/03/2026 21:36
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** Amostragem pericial — cross-reference sentença/liquidação
+**Situação identificada:** Tese Vencedora: Não pagamento dos reflexos das horas extras em verbas contratuais e rescisórias
+
+**Descrição:**
+Tese provada pela perita na amostragem pericial: Não pagamento dos reflexos das horas extras em verbas contratuais e rescisórias. Registrar como playbook para orientar auditoria futura de cálculos similares.
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 14/03/2026 21:41
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** artigo 467 e 477 da CLT
+**Situação identificada:** Fundamento jurídico identificado: artigo 467 e 477 da CLT
+
+**Descrição:**
+Fundamento mencionado na manifestação da perita
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Exemplo de Aprendizado — 14/03/2026 22:29
+<!-- Adicionado automaticamente pelo Laboratório de Aprendizado -->
+
+**Fundamento jurídico:** artigo 477 da CLT
+**Situação identificada:** Fundamento jurídico identificado: artigo 477 da CLT
+
+**Descrição:**
+Fundamento mencionado na manifestação da perita
+
+<!-- Revisar e expandir com trecho real da sentença se necessário -->

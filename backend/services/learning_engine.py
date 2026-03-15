@@ -81,10 +81,11 @@ def _extrair_texto_docx(docx_bytes: bytes) -> str:
 
 # ── Extração da Sentença ─────────────────────────────────────────────────────
 
-def _extrair_sentenca(pdf_bytes: bytes) -> Dict[str, Any]:
+def _extrair_sentenca(pdf_bytes: bytes, contexto_amostragens: Optional[str] = None) -> Dict[str, Any]:
     """
     Reutiliza o pipeline existente para extrair dados da sentença.
     Retorna apenas os dados estruturados (não gera cache, não debita crédito).
+    Se contexto_amostragens for fornecido, é injetado no prompt sob <AMOSTRAGENS_DA_PERITA>.
     """
     try:
         from services.sentence_finder import extract_sentence_from_pdf
@@ -94,6 +95,9 @@ def _extrair_sentenca(pdf_bytes: bytes) -> Dict[str, Any]:
         texto, doc_type = extract_sentence_from_pdf(pdf_bytes)
         if not texto.strip():
             return {"erro": "PDF sem texto legível", "doc_type": "desconhecido"}
+
+        if contexto_amostragens:
+            texto = _bloco_amostragens_perita(contexto_amostragens) + texto
 
         playbook = carregar_skill_para_lab(doc_type)
         ai_result = extract_data_with_gemini(texto, playbook=playbook)
@@ -158,6 +162,31 @@ def _extrair_liquidacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     return {"tipo": "desconhecido", "erro": "Formato não suportado"}
 
 
+def _liquidacao_from_text(texto: str) -> Dict[str, Any]:
+    """
+    Constrói o mesmo formato de _extrair_liquidacao (PDF) a partir de texto bruto.
+    Usado quando a liquidação foi extraída do PDF integral pelo PJe Timeline Extractor.
+    """
+    if not (texto or "").strip():
+        return {
+            "tipo": "texto",
+            "verbas_calculadas": [],
+            "indice_correcao": None,
+            "juros_mora": None,
+            "divisor_horas": None,
+            "erro": "Texto vazio",
+        }
+    return {
+        "tipo": "texto",
+        "texto_bruto": (texto or "")[:3000],
+        "verbas_calculadas": _regex_verbas(texto),
+        "indice_correcao": _regex_indice(texto),
+        "juros_mora": _regex_juros(texto),
+        "divisor_horas": _regex_divisor(texto),
+        "erro": None,
+    }
+
+
 def _regex_verbas(texto: str) -> List[str]:
     padroes = [
         r"horas?\s*extras?", r"adicional\s*noturno", r"intervalo\s*intrajornada",
@@ -203,6 +232,22 @@ def _extrair_manifestacao(docx_bytes: bytes) -> Dict[str, Any]:
     fundamentos = _extrair_fundamentos_juridicos(texto)
     discrepancias_levantadas = _extrair_discrepancias_perita(texto)
 
+    return {
+        "texto_bruto": texto[:4000],
+        "fundamentos_juridicos": fundamentos,
+        "discrepancias_levantadas": discrepancias_levantadas,
+        "erro": None,
+    }
+
+
+def _extrair_manifestacao_from_text(texto: str) -> Dict[str, Any]:
+    """
+    Mesma lógica de _extrair_manifestacao, recebendo texto já extraído (ex.: do Timeline Extractor).
+    """
+    if not (texto or "").strip():
+        return {"erro": "Texto vazio", "texto_bruto": "", "fundamentos_juridicos": [], "discrepancias_levantadas": []}
+    fundamentos = _extrair_fundamentos_juridicos(texto)
+    discrepancias_levantadas = _extrair_discrepancias_perita(texto)
     return {
         "texto_bruto": texto[:4000],
         "fundamentos_juridicos": fundamentos,
@@ -1151,17 +1196,167 @@ def _extrair_texto_arquivo(file_bytes: bytes, filename: str) -> str:
     return ""
 
 
+# ── Dossiê de Amostragens / Provas Adicionais (multi-upload) ─────────────────
+
+# Classificação por conteúdo: Parecer (style_transfer, fundamentos), Amostragem (tabelas, R$), Manifestação
+_RE_PARECER = re.compile(
+    r"(?i)(?:parecer\s+t[eé]cnico|conclui[- ]se|vem\s+apresentar|laudo\s+pericial)",
+)
+_RE_MANIFESTACAO = re.compile(
+    r"(?i)(?:manifesta[çc][ãa]o|peti[çc][ãa]o\s+de\s+resposta|vem\s+apresentar|combate)",
+)
+_RE_AMOSTRAGEM_MAT = re.compile(
+    r"(?i)(?:R\$\s*\d|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
+    r"|(?:\d{1,3}(?:\.\d{3})*,\d{2})",  # 1.234,56
+)
+
+
+def _classificar_tipo_documento_prova(texto: str, filename: str) -> str:
+    """
+    Classifica um documento do Card de Provas por conteúdo.
+    Retorna 'parecer' | 'amostragem' | 'manifestacao' | 'generic'.
+    Parecer: estratégia e fundamentos da perita (style_transfer, fundamentos_perita).
+    Amostragem: tabelas de valores, R$, meses → conferência centavo a centavo no .PJC.
+    Manifestação: petição de resposta, combate.
+    """
+    if not (texto or "").strip():
+        return "generic"
+    t = (texto or "")[:6000].lower()
+    # Ordem: parecer e manifestação podem coexistir; amostragem tem prioridade se forte sinal de tabela
+    if _RE_AMOSTRAGEM_MAT.search(t) and (t.count("r$") + t.count("janeiro") + t.count("fevereiro") >= 2):
+        return "amostragem"
+    if _RE_PARECER.search(t):
+        return "parecer"
+    if _RE_MANIFESTACAO.search(t):
+        return "manifestacao"
+    if _RE_AMOSTRAGEM_MAT.search(t):
+        return "amostragem"
+    return "generic"
+
+
+def _fusionar_provas_com_cards(
+    amostragens_arquivos: List[tuple],
+    parecer_bytes: Optional[bytes],
+    parecer_filename: Optional[str],
+    amostragem_pdf_bytes: Optional[bytes],
+    amostragem_pdf_filename: Optional[str],
+    amostragem_word_bytes: Optional[bytes],
+    amostragem_word_filename: Optional[str],
+    manifestacao_bytes: Optional[bytes],
+    manifestacao_filename: Optional[str],
+) -> tuple:
+    """
+    Analisa cada arquivo do Card de Provas e, se os Cards 5/8 ou amostragem não foram
+    preenchidos, preenche a partir do primeiro arquivo classificado como parecer/amostragem/manifestação.
+    Preserva bytes e filename quando já fornecidos pelos cards explícitos.
+    Retorna (texto_dossie, parecer_bytes, parecer_fn, amostragem_pdf_*, amostragem_word_*, manifestacao_*).
+    """
+    texto_dossie = ""
+    out_parecer_fn = parecer_filename or ""
+    out_amostragem_pdf_fn = amostragem_pdf_filename or ""
+    out_amostragem_word_fn = amostragem_word_filename or ""
+    out_manifestacao_fn = manifestacao_filename or ""
+    usado_para_parecer = False
+    usado_para_amostragem_pdf = False
+    usado_para_amostragem_word = False
+    usado_para_manifestacao = False
+
+    for file_bytes, filename in amostragens_arquivos or []:
+        texto = _extrair_texto_arquivo(file_bytes, filename)
+        conteudo = (texto or "").strip() or "(sem texto legível)"
+        if len(conteudo) > 8000:
+            conteudo = conteudo[:8000] + "\n[... truncado ...]"
+        texto_dossie += f"\n--- PROVA: {filename} ---\n{conteudo}\n"
+
+        tipo = _classificar_tipo_documento_prova(texto, filename)
+        fname = (filename or "").lower()
+
+        if tipo == "parecer" and not parecer_bytes and not usado_para_parecer:
+            parecer_bytes = file_bytes
+            out_parecer_fn = filename or ""
+            usado_para_parecer = True
+            print(f"[LEARNING] Autoclassificação: '{filename}' → Parecer (fonte fundamentos/style)", flush=True)
+        elif tipo == "amostragem":
+            if fname.endswith(".pdf") and not amostragem_pdf_bytes and not usado_para_amostragem_pdf:
+                amostragem_pdf_bytes = file_bytes
+                out_amostragem_pdf_fn = filename or ""
+                usado_para_amostragem_pdf = True
+                print(f"[LEARNING] Autoclassificação: '{filename}' → Amostragem matemática (PDF)", flush=True)
+            elif (fname.endswith(".docx") or fname.endswith(".doc")) and not amostragem_word_bytes and not usado_para_amostragem_word:
+                amostragem_word_bytes = file_bytes
+                out_amostragem_word_fn = filename or ""
+                usado_para_amostragem_word = True
+                print(f"[LEARNING] Autoclassificação: '{filename}' → Amostragem (Word)", flush=True)
+        elif tipo == "manifestacao" and not manifestacao_bytes and not usado_para_manifestacao:
+            manifestacao_bytes = file_bytes
+            out_manifestacao_fn = filename or ""
+            usado_para_manifestacao = True
+            print(f"[LEARNING] Autoclassificação: '{filename}' → Manifestação (Style Transfer)", flush=True)
+
+    return (
+        texto_dossie.strip(),
+        parecer_bytes,
+        out_parecer_fn,
+        amostragem_pdf_bytes,
+        out_amostragem_pdf_fn,
+        amostragem_word_bytes,
+        out_amostragem_word_fn,
+        manifestacao_bytes,
+        out_manifestacao_fn,
+    )
+
+
+def _processar_dossie_amostragens(lista_arquivos: List[tuple]) -> str:
+    """
+    Processa uma lista de (bytes, filename) de provas/amostragens, extrai texto
+    de cada um (PDF ou DOCX) e concatena com rótulo por arquivo.
+    Retorna uma única string para ser injetada no prompt sob <AMOSTRAGENS_DA_PERITA>.
+    """
+    if not lista_arquivos:
+        return ""
+    partes = []
+    for file_bytes, filename in lista_arquivos:
+        texto = _extrair_texto_arquivo(file_bytes, filename)
+        conteudo = (texto or "").strip() or "(sem texto legível)"
+        if len(conteudo) > 8000:
+            conteudo = conteudo[:8000] + "\n[... truncado ...]"
+        partes.append(f"\n--- PROVA: {filename} ---\n{conteudo}")
+    return "\n".join(partes)
+
+
+_INSTRUCAO_PROMPT_UNIFICADO = (
+    "Você recebeu uma pasta de documentos do Perito Assistente. "
+    "Identifique qual arquivo é o Parecer e qual é a Amostragem. "
+    "Use o Parecer para entender a estratégia de combate e a Amostragem para conferir os valores centavo por centavo no arquivo .PJC.\n\n"
+)
+
+
+def _bloco_amostragens_perita(texto_dossie: str) -> str:
+    """Envolve o texto do dossiê na tag e instrução unificada para a IA."""
+    if not (texto_dossie or "").strip():
+        return ""
+    return (
+        "<AMOSTRAGENS_DA_PERITA>\n"
+        + _INSTRUCAO_PROMPT_UNIFICADO
+        + "Se houver dados na tag abaixo, use-os como verdade absoluta para confrontar os cálculos da empresa. "
+        "Estas são as provas levantadas pelo perito assistente.\n\n"
+        f"{texto_dossie.strip()}\n"
+        "</AMOSTRAGENS_DA_PERITA>\n\n"
+    )
+
+
 # ── Extração do Processo / Sentença ─────────────────────────────────────────
 
-def _extrair_processo(file_bytes: bytes, filename: str) -> Dict[str, Any]:
+def _extrair_processo(file_bytes: bytes, filename: str, contexto_amostragens: Optional[str] = None) -> Dict[str, Any]:
     """
     Extrai dados estruturados do processo/sentença.
     - PDF → pipeline completo (sentence_finder + IA)
     - DOC/DOCX → extrai texto e chama IA com texto bruto
+    Se contexto_amostragens for fornecido, é injetado no prompt sob <AMOSTRAGENS_DA_PERITA>.
     """
     fname = (filename or "").lower()
     if fname.endswith(".pdf"):
-        return _extrair_sentenca(file_bytes)
+        return _extrair_sentenca(file_bytes, contexto_amostragens=contexto_amostragens)
 
     # DOC/DOCX: extrai texto e usa IA
     try:
@@ -1171,6 +1366,9 @@ def _extrair_processo(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         texto = _extrair_texto_arquivo(file_bytes, filename)
         if not texto.strip():
             return {"erro": "Documento sem texto legível", "doc_type": "sentenca"}
+
+        if contexto_amostragens:
+            texto = _bloco_amostragens_perita(contexto_amostragens) + texto
 
         playbook = carregar_skill_para_lab("sentenca")
         ai_result = extract_data_with_gemini(texto, playbook=playbook)
@@ -1186,18 +1384,50 @@ def _extrair_processo(file_bytes: bytes, filename: str) -> Dict[str, Any]:
 
 # ── Título Executivo Complexo: fusão de decisões com hierarquia processual ───
 
+# Prioridade absoluta ao nome do arquivo (heurística segura — evita falso positivo pelo cabeçalho PJe)
+_TIER_1GRAU_PELO_NOME = ("1grau", "atord", "sentenca", "sentença")
+_TIER_TRT_PELO_NOME = ("2grau", "2º grau", "2_grau", "rot", "rot_", "acordao", "acórdão")
 _TIER_TST = ("tst", "recurso_de_revista", "recurso de revista", "rr_", "_rr.", "acórdão_tst", "acordao_tst")
-_TIER_TRT = ("trt", "recurso_ordinario", "recurso ordinário", "ro_", "_ro.", "acórdão_trt", "acordao_trt", "acórdão", "acordao")
+_TIER_TRT = (
+    "trt", "recurso_ordinario", "recurso ordinário", "ro_", "_ro.",
+    "acórdão_trt", "acordao_trt", "acórdão", "acordao",
+    "2grau", "2º grau", "2_grau",
+)
+
+# Só usado quando o nome é genérico; busca APÓS o cabeçalho PJe (evita "Tribunal Regional do Trabalho" no header)
+_CABECALHO_PJE_CHARS = 1000
+_RE_TEXTO_2GRAU_FORA_CABECALHO = re.compile(
+    r"(?:recurso\s+ordinário|relator\s*:|acórdão|acordao)",
+    re.IGNORECASE,
+)
 
 
-def _classificar_tier_decisao(filename: str) -> str:
-    """Classifica o nível hierárquico de um documento decisório pelo nome do arquivo.
-    Retorna 'TST', 'TRT' ou '1GRAU'."""
+def _classificar_tier_decisao(filename: str, texto_primeiras_paginas: Optional[str] = None) -> str:
+    """Classifica o nível hierárquico pelo NOME primeiro; só usa texto se o nome for genérico.
+    Retorna 'TST', 'TRT' ou '1GRAU'.
+    Regras: 1grau/ATOrd/Sentenca no nome → 1GRAU; 2grau/ROT/Acordao no nome → TRT.
+    Regex no texto só para nome genérico; ignora os primeiros _CABECALHO_PJE_CHARS (cabeçalho PJe)."""
     n = (filename or "").lower()
+    # 1) Prioridade absoluta: indicadores de 1º grau no nome
+    if any(k in n for k in _TIER_1GRAU_PELO_NOME):
+        return "1GRAU"
+    # 2) Indicadores de 2º grau (TRT) no nome
+    if any(k in n for k in _TIER_TRT_PELO_NOME):
+        return "TRT"
+    # 3) TST pelo nome
     if any(k in n for k in _TIER_TST):
         return "TST"
+    # 4) Outros indicadores TRT no nome
     if any(k in n for k in _TIER_TRT):
         return "TRT"
+    # 5) Nome genérico: usar texto, IGNORANDO o cabeçalho PJe nos docs longos (evita "Tribunal Regional" do header)
+    if texto_primeiras_paginas:
+        if len(texto_primeiras_paginas) > _CABECALHO_PJE_CHARS:
+            texto_apos_cabecalho = texto_primeiras_paginas[_CABECALHO_PJE_CHARS:]
+        else:
+            texto_apos_cabecalho = texto_primeiras_paginas  # texto curto = usar todo (não é o header PJe)
+        if texto_apos_cabecalho and _RE_TEXTO_2GRAU_FORA_CABECALHO.search(texto_apos_cabecalho):
+            return "TRT"
     return "1GRAU"
 
 
@@ -1222,76 +1452,130 @@ _MESES_NUM = {
 
 _FALLBACK_DATE = date(1900, 1, 1)
 
+# Contexto de "Data da Autuação" não deve ser usado para hierarquia (é comum a todo o processo)
+_RE_CONTEXTO_AUTUACAO = re.compile(
+    r"(?i)data\s+da\s+autua[çc][ãa]o|autua[çc][ãa]o\s*[:.]",
+)
+
+
+def _contexto_eh_autuacao(texto: str, posicao_inicio_match: int) -> bool:
+    """Retorna True se a LINHA que contém a data contiver 'Data da Autuação' ou 'Autuação'.
+    Assim evitamos rejeitar 'Data do Julgamento' só por haver 'Data da Autuação' noutra linha."""
+    if not texto or posicao_inicio_match < 0:
+        return False
+    linha_inicio = texto.rfind("\n", 0, posicao_inicio_match) + 1
+    linha_fim = texto.find("\n", posicao_inicio_match)
+    if linha_fim == -1:
+        linha_fim = len(texto)
+    linha = texto[linha_inicio:linha_fim].lower()
+    return bool(_RE_CONTEXTO_AUTUACAO.search(linha))
+
+
+# Remove a linha que contém "Data da Autuação" para que essa data nunca seja capturada
+_RE_LINHA_DATA_AUTUACAO = re.compile(
+    r"(?im)^.*Data\s+da\s+Autua[çc][ãa]o.*$",
+)
+
+
+def _remover_linha_autuacao(texto: str) -> str:
+    """Remove do texto a linha que contém 'Data da Autuação', para não capturá-la nas regex de data."""
+    if not texto:
+        return texto
+    return _RE_LINHA_DATA_AUTUACAO.sub("", texto)
+
 
 def _extrair_data_documento(texto: str) -> date:
     """
-    Extrai a data mais provável de um documento judicial a partir do texto.
+    Extrai a data mais provável de um documento judicial (data do julgamento/assinatura).
     Usada para desempatar documentos da mesma instância no Card 3.
+    NUNCA usa "Data da Autuação": a linha que a contém é removida antes de rodar as regex.
 
-    Ordem de prioridade dos padrões:
+    Ordem de prioridade: busca do FINAL do documento para o início (assinaturas, Belo Horizonte, dispositivo).
     1. "Assinado eletronicamente em DD/MM/AAAA"
-    2. "Data do Julgamento: DD de mês de AAAA"
-    3. "Cidade, DD de mês de AAAA" (rodapé)
-    4. Qualquer DD/MM/AAAA nos últimos 500 chars
-
-    Retorna date ou date(1900, 1, 1) se não encontrar.
+    2. "Data do Julgamento" / "Julgado em"
+    3. "Cidade, DD de mês de AAAA" (ex.: Belo Horizonte, 15 de março de 2021)
+    4. DD/MM/AAAA no trecho final
     """
     if not (texto or "").strip():
         return _FALLBACK_DATE
+    # Regra obrigatória: remover linha da Data da Autuação para que nunca seja capturada
+    texto = _remover_linha_autuacao(texto)
+    if not (texto or "").strip():
+        return _FALLBACK_DATE
     texto_norm = (texto or "").lower()
+    tamanho_final = 2000
+    # Preferir buscar no final do documento (onde ficam assinaturas e data do julgamento)
+    trecho_final = texto[-tamanho_final:] if len(texto) > tamanho_final else texto
+    trecho_final_norm = trecho_final.lower()
+    # Deslocamento para mapear posição no trecho_final de volta ao texto (para contexto)
+    offset_final = len(texto) - len(trecho_final)
 
-    # Padrão 1: assinatura eletrônica
-    m = re.search(
-        r"assinado eletronicamente em\s+(\d{2}/\d{2}/\d{4})",
-        texto_norm, re.IGNORECASE
-    )
-    if m:
-        try:
-            return datetime.strptime(m.group(1), "%d/%m/%Y").date()
-        except ValueError:
-            pass
+    def _tentar_trecho(bloco: str, bloco_norm: str, offset: int) -> Optional[date]:
+        # Padrão 1: assinatura eletrônica
+        m = re.search(
+            r"assinado eletronicamente em\s+(\d{2}/\d{2}/\d{4})",
+            bloco_norm, re.IGNORECASE
+        )
+        if m and not _contexto_eh_autuacao(bloco, m.start()):
+            try:
+                return datetime.strptime(m.group(1), "%d/%m/%Y").date()
+            except ValueError:
+                pass
 
-    # Padrão 2: data de julgamento por extenso
-    m = re.search(
-        r"(?:data\s+do\s+julgamento|julgado\s+em)[:\s]+(\d{1,2})\s+de\s+"
-        r"(\w+)\s+de\s+(\d{4})",
-        texto_norm, re.IGNORECASE
-    )
-    if m:
-        try:
-            dia = int(m.group(1))
-            mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
-            ano = int(m.group(3))
-            if mes and 1 <= dia <= 31 and 2000 <= ano <= 2099:
-                return date(ano, mes, dia)
-        except (ValueError, KeyError):
-            pass
+        # Padrão 2: data de julgamento por extenso
+        m = re.search(
+            r"(?:data\s+do\s+julgamento|julgado\s+em)[:\s]+(\d{1,2})\s+de\s+"
+            r"(\w+)\s+de\s+(\d{4})",
+            bloco_norm, re.IGNORECASE
+        )
+        if m and not _contexto_eh_autuacao(bloco, m.start()):
+            try:
+                dia = int(m.group(1))
+                mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
+                ano = int(m.group(3))
+                if mes and 1 <= dia <= 31 and 2000 <= ano <= 2099:
+                    return date(ano, mes, dia)
+            except (ValueError, KeyError):
+                pass
 
-    # Padrão 3: rodapé "Cidade, DD de mês de AAAA"
-    m = re.search(
-        r",\s*(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s*[.\n]",
-        texto_norm, re.IGNORECASE
-    )
-    if m:
-        try:
-            dia = int(m.group(1))
-            mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
-            ano = int(m.group(3))
-            if mes and 2000 <= ano <= 2099:
-                return date(ano, mes, dia)
-        except (ValueError, KeyError):
-            pass
+        # Padrão 3: rodapé "Cidade, DD de mês de AAAA"
+        m = re.search(
+            r",\s*(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})\s*[.\n]",
+            bloco_norm, re.IGNORECASE
+        )
+        if m and not _contexto_eh_autuacao(bloco, m.start()):
+            try:
+                dia = int(m.group(1))
+                mes = _MESES_NUM.get(m.group(2).lower().strip(), 0)
+                ano = int(m.group(3))
+                if mes and 2000 <= ano <= 2099:
+                    return date(ano, mes, dia)
+            except (ValueError, KeyError):
+                pass
 
-    # Padrão 4: qualquer DD/MM/AAAA nos últimos 500 chars
-    trecho_final = texto[-500:] if len(texto) > 500 else texto
-    datas = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", trecho_final)
-    for d in reversed(datas):
-        try:
-            dt = datetime.strptime(d, "%d/%m/%Y").date()
-            if 2000 <= dt.year <= 2099:
-                return dt
-        except ValueError:
-            continue
+        # Padrão 4: DD/MM/AAAA (no trecho final do bloco)
+        ultimos = bloco[-500:] if len(bloco) > 500 else bloco
+        datas = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", ultimos)
+        for d in reversed(datas):
+            try:
+                dt = datetime.strptime(d, "%d/%m/%Y").date()
+                if 2000 <= dt.year <= 2099:
+                    pos = ultimos.rfind(d)
+                    if pos >= 0 and not _contexto_eh_autuacao(ultimos, pos):
+                        return dt
+            except ValueError:
+                continue
+        return None
+
+    # 1) Prioridade: buscar no final do documento (julgamento/dispositivo)
+    resultado = _tentar_trecho(trecho_final, trecho_final_norm, offset_final)
+    if resultado is not None:
+        return resultado
+
+    # 2) Fallback: texto completo, ainda rejeitando contexto de autuação
+    resultado = _tentar_trecho(texto, texto_norm, 0)
+    if resultado is not None:
+        return resultado
 
     print("[LAB] _extrair_data_documento: nenhuma data encontrada, usando fallback", flush=True)
     return _FALLBACK_DATE
@@ -1299,6 +1583,7 @@ def _extrair_data_documento(texto: str) -> date:
 
 def _extrair_titulo_executivo_multiplos(
     arquivos: List[tuple],
+    contexto_amostragens: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Processa múltiplos documentos decisórios (sentença + acórdãos) como Título Executivo Complexo.
@@ -1355,8 +1640,8 @@ def _extrair_titulo_executivo_multiplos(
     # ── B2: Agrupar por tier e manter apenas o mais recente de cada instância ──
     por_tier = defaultdict(list)
     for file_bytes, filename in arquivos:
-        tier = _classificar_tier_decisao(filename)
         texto_temp = _extrair_texto_arquivo(file_bytes, filename)
+        tier = _classificar_tier_decisao(filename, texto_temp[:4000] if texto_temp else None)
         data_doc = _extrair_data_documento(texto_temp)
         por_tier[tier].append({
             "bytes": file_bytes,
@@ -1404,9 +1689,18 @@ def _extrair_titulo_executivo_multiplos(
             blocos_texto.append(f"{'='*60}\n{label} — {fn}\n{'='*60}\n{texto[:4000]}")
 
     if not blocos_texto:
-        return {"dados": {}, "doc_type": "titulo_executivo", "erro": "Nenhum texto legível extraído dos documentos", "arquivos_ignorados_duplicados": arquivos_ignorados}
+        instancias = [d["tier"] for d in arquivos_selecionados]
+        return {
+            "dados": {},
+            "doc_type": "titulo_executivo",
+            "erro": "Nenhum texto legível extraído dos documentos",
+            "instancias_detectadas": instancias,
+            "arquivos_ignorados_duplicados": arquivos_ignorados,
+        }
 
     contexto_decisao_final = "\n\n".join(blocos_texto)
+    if contexto_amostragens:
+        contexto_decisao_final = _bloco_amostragens_perita(contexto_amostragens) + contexto_decisao_final
 
     # ── Prompt de Análise de Reforma de Decisão ──────────────────────────────
     instrucao_tst = (
@@ -1467,7 +1761,7 @@ def _extrair_titulo_executivo_multiplos(
     except Exception as e:
         # Fallback: usa apenas o documento de maior instância
         tier_final, b_final, fn_final = docs_com_tier[-1]
-        resultado = _extrair_processo(b_final, fn_final)
+        resultado = _extrair_processo(b_final, fn_final, contexto_amostragens=contexto_amostragens)
         resultado["instancias_detectadas"] = instancias
         resultado["datas_documentos"] = datas_documentos
         resultado["erro_fusao"] = str(e)
@@ -1489,6 +1783,20 @@ def _extrair_impugnacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     fundamentos = _extrair_fundamentos_juridicos(texto)
     argumentos  = _extrair_discrepancias_perita(texto)  # reutiliza heurística
 
+    return {
+        "texto_bruto": texto[:3000],
+        "fundamentos_juridicos": fundamentos,
+        "argumentos_da_parte": argumentos,
+        "erro": None,
+    }
+
+
+def _extrair_impugnacao_from_text(texto: str) -> Dict[str, Any]:
+    """Mesma lógica de _extrair_impugnacao a partir de texto já extraído (ex.: Timeline)."""
+    if not (texto or "").strip():
+        return {"erro": "Texto vazio", "texto_bruto": "", "fundamentos_juridicos": [], "argumentos_da_parte": []}
+    fundamentos = _extrair_fundamentos_juridicos(texto)
+    argumentos = _extrair_discrepancias_perita(texto)
     return {
         "texto_bruto": texto[:3000],
         "fundamentos_juridicos": fundamentos,
@@ -2651,6 +2959,7 @@ def processar_sete_arquivos(
     amostragem_pdf_filename: str = "",
     amostragem_word_bytes: Optional[bytes] = None,
     amostragem_word_filename: str = "",
+    amostragens_arquivos: Optional[List[tuple]] = None,
     manifestacao_bytes: Optional[bytes] = None,
     manifestacao_filename: str = "",
     peticao_bytes: Optional[bytes] = None,
@@ -2695,6 +3004,32 @@ def processar_sete_arquivos(
         flush=True,
     )
 
+    # ── Fusão: Card de Provas pode suprir Parecer, Amostragem e Manifestação ──
+    # Se o usuário enviou tudo no Card "Amostragens e Provas", autoclassificamos por conteúdo.
+    texto_dossie_amostragens = None
+    if amostragens_arquivos:
+        (
+            texto_dossie_amostragens,
+            parecer_bytes,
+            parecer_filename,
+            amostragem_pdf_bytes,
+            amostragem_pdf_filename,
+            amostragem_word_bytes,
+            amostragem_word_filename,
+            manifestacao_bytes,
+            manifestacao_filename,
+        ) = _fusionar_provas_com_cards(
+            amostragens_arquivos,
+            parecer_bytes,
+            parecer_filename,
+            amostragem_pdf_bytes,
+            amostragem_pdf_filename,
+            amostragem_word_bytes,
+            amostragem_word_filename,
+            manifestacao_bytes,
+            manifestacao_filename,
+        )
+
     # ── Fase base: lógica dos 5 arquivos existente ────────────────────────────
     relatorio = processar_cinco_arquivos(
         processo_bytes=processo_bytes,
@@ -2712,6 +3047,7 @@ def processar_sete_arquivos(
         peticao_filename=peticao_filename,
         contestacao_bytes=contestacao_bytes,
         contestacao_filename=contestacao_filename,
+        texto_dossie_amostragens=texto_dossie_amostragens,
     )
 
     dados_amostragem_pdf_result = None
@@ -2802,6 +3138,9 @@ def processar_sete_arquivos(
     arquivos = relatorio.get("arquivos_analisados") or {}
     arquivos["amostragem_pdf"]  = amostragem_pdf_filename  or None
     arquivos["amostragem_word"] = amostragem_word_filename or None
+    if amostragens_arquivos:
+        relatorio["dossie_amostragens_n_arquivos"] = len(amostragens_arquivos)
+        arquivos["amostragens"] = [fn for _, fn in amostragens_arquivos]
     arquivos["manifestacao"]    = manifestacao_filename    or None
     arquivos["impugnacao"]      = impugnacao_filename     or None
     arquivos["peticao"]         = peticao_filename        or None
@@ -2850,6 +3189,7 @@ def processar_cinco_arquivos(
     peticao_filename: str = "",
     contestacao_bytes: Optional[bytes] = None,
     contestacao_filename: str = "",
+    texto_dossie_amostragens: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Ponto de entrada para o endpoint /lab/analisar (5 arquivos).
@@ -2870,18 +3210,38 @@ def processar_cinco_arquivos(
     _arqs_processo = processo_arquivos if processo_arquivos else (
         [(processo_bytes, processo_filename or "processo.pdf")] if processo_bytes else []
     )
+    timeline_result: Optional[Dict[str, Any]] = None
+    pecas_extraidas_do_pdf: Dict[str, bool] = {}
+
+    # PJe Timeline Extractor: quando há um único PDF no Card 3, mapear e fatiar peças
+    if len(_arqs_processo) == 1:
+        _proc_bytes, _proc_fn = _arqs_processo[0]
+        if (_proc_fn or "").lower().endswith(".pdf"):
+            try:
+                from services.process_timeline_extractor import extract_timeline_from_pdf
+                timeline_result = extract_timeline_from_pdf(_proc_bytes)
+                for _line in timeline_result.get("log", []):
+                    print(_line, flush=True)
+            except Exception as _e:
+                print(f"[TIMELINE] Erro ao extrair timeline: {_e}", flush=True)
+                timeline_result = None
+
     if len(_arqs_processo) > 1:
         print(f"[LEARNING] Titulo Executivo Complexo - {len(_arqs_processo)} documentos: {[fn for _, fn in _arqs_processo]}", flush=True)
-        dados_processo = _extrair_titulo_executivo_multiplos(_arqs_processo)
+        dados_processo = _extrair_titulo_executivo_multiplos(_arqs_processo, contexto_amostragens=texto_dossie_amostragens)
     elif _arqs_processo:
-        dados_processo = _extrair_processo(_arqs_processo[0][0], _arqs_processo[0][1])
+        dados_processo = _extrair_processo(_arqs_processo[0][0], _arqs_processo[0][1], contexto_amostragens=texto_dossie_amostragens)
     else:
         dados_processo = {"dados": {}}
         print("[LEARNING] Processo nao enviado - sem dados de sentenca.", flush=True)
 
-    # 2. Liquidação — opcional; sem ela, discrepâncias estarão vazias
+    # 2. Liquidação — opcional; ou extraída do PDF integral (Timeline)
     if liquidacao_bytes:
         dados_liquidacao = _extrair_liquidacao(liquidacao_bytes, liquidacao_filename)
+    elif timeline_result and (timeline_result.get("textos") or {}).get("liquidacao"):
+        dados_liquidacao = _liquidacao_from_text(timeline_result["textos"]["liquidacao"])
+        pecas_extraidas_do_pdf["liquidacao"] = True
+        print("[LEARNING] Liquidacao extraida do PDF integral (Timeline).", flush=True)
     else:
         dados_liquidacao = {
             "verbas_calculadas": [],
@@ -2891,9 +3251,13 @@ def processar_cinco_arquivos(
         }
         print("[LEARNING] Liquidacao nao enviada - analise de discrepancias parcial.", flush=True)
 
-    # 3. Parecer — fundamentos + trechos (igual manifestação anterior)
+    # 3. Parecer — fundamentos + trechos; ou extraído do PDF integral (Timeline)
     if parecer_bytes:
         dados_parecer = _extrair_manifestacao(parecer_bytes)
+    elif timeline_result and (timeline_result.get("textos") or {}).get("parecer"):
+        dados_parecer = _extrair_manifestacao_from_text(timeline_result["textos"]["parecer"])
+        pecas_extraidas_do_pdf["parecer"] = True
+        print("[LEARNING] Parecer extraido do PDF integral (Timeline).", flush=True)
     else:
         dados_parecer = {
             "texto_bruto": "",
@@ -2903,10 +3267,14 @@ def processar_cinco_arquivos(
         }
         print("[LEARNING] Parecer nao enviado - sem fundamentos da perita.", flush=True)
 
-    # 4. Impugnação (opcional)
+    # 4. Impugnação (opcional); ou extraída do PDF integral (Timeline)
     dados_impugnacao = None
     if impugnacao_bytes:
         dados_impugnacao = _extrair_impugnacao(impugnacao_bytes, impugnacao_filename)
+    elif timeline_result and (timeline_result.get("textos") or {}).get("impugnacao"):
+        dados_impugnacao = _extrair_impugnacao_from_text(timeline_result["textos"]["impugnacao"])
+        pecas_extraidas_do_pdf["impugnacao"] = True
+        print("[LEARNING] Impugnacao extraida do PDF integral (Timeline).", flush=True)
 
     # 5. Cálculo .PJC (opcional)
     dados_calculo_pjc = None
@@ -2930,7 +3298,13 @@ def processar_cinco_arquivos(
     # Propagar arquivos ignorados (duplicatas por hash ou mesma instância) do Card 3
     relatorio["arquivos_ignorados_duplicados"] = dados_processo.get("arquivos_ignorados_duplicados", [])
 
-    # ── Petição Inicial (opcional): verbas pedidas e cruzamento com deferidas ──
+    # Timeline: fatiamento e peças extraídas do PDF (Barra de Eficiência)
+    if timeline_result:
+        relatorio["timeline_fatiamento"] = timeline_result.get("log", [])
+    if pecas_extraidas_do_pdf:
+        relatorio["pecas_extraidas_do_pdf"] = pecas_extraidas_do_pdf
+
+    # ── Petição Inicial (opcional): verbas pedidas; ou extraída do PDF integral (Timeline) ──
     if peticao_bytes:
         print(f"[LEARNING] Analisando Peticao Inicial: {peticao_filename}", flush=True)
         dados_peticao = _extrair_peticao_inicial(peticao_bytes, peticao_filename)
@@ -2955,8 +3329,37 @@ def processar_cinco_arquivos(
             relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = verbas_negadas_identificadas
         except Exception:
             relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = []
+    elif timeline_result and (timeline_result.get("textos") or {}).get("peticao_inicial"):
+        try:
+            from services.process_timeline_extractor import PjeTimelineExtractor, CHAVE_PETICAO
+            from services.ai_client import extract_data_with_gemini
+            _txt = timeline_result["textos"]["peticao_inicial"]
+            _meta = PjeTimelineExtractor.extrair_metadados_peca(CHAVE_PETICAO, _txt, extract_data_with_gemini)
+            _d = _meta.get("dados") or {}
+            relatorio["peticao_inicial"] = {
+                "verbas_pedidas":       _d.get("verbas_pedidas") or [],
+                "causa_pedir":          (_d.get("causa_pedir") or "").strip(),
+                "periodo_reivindicado": (_d.get("periodo_reivindicado") or "").strip(),
+                "valor_causa":          _d.get("valor_causa"),
+                "model_used":           _meta.get("model_used"),
+                "erro":                 _meta.get("erro"),
+            }
+            pecas_extraidas_do_pdf["peticao"] = True
+            verbas_pedidas = [str(v).strip() for v in relatorio["peticao_inicial"].get("verbas_pedidas") or [] if str(v).strip()]
+            verbas_deferidas = list((relatorio.get("sentenca") or {}).get("verbas") or [])
+            try:
+                from services.legal_engine.rule_base import LegalRule
+                canon_deferidas = {LegalRule._canonizar_verba(v) for v in verbas_deferidas}
+                relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = [
+                    v for v in verbas_pedidas
+                    if LegalRule._canonizar_verba(v) and LegalRule._canonizar_verba(v) not in canon_deferidas
+                ]
+            except Exception:
+                relatorio["peticao_inicial"]["verbas_negadas_identificadas"] = []
+        except Exception as _e:
+            print(f"[TIMELINE] Peticao (metadados IA) falhou: {_e}", flush=True)
 
-    # ── Contestação (opcional) ───────────────────────────────────────────────
+    # ── Contestação (opcional); ou extraída do PDF integral (Timeline) ─────────
     if contestacao_bytes:
         print(f"[LEARNING] Analisando Contestacao: {contestacao_filename}", flush=True)
         dados_contestacao = _extrair_contestacao(contestacao_bytes, contestacao_filename)
@@ -2968,6 +3371,24 @@ def processar_cinco_arquivos(
             "model_used":          dados_contestacao.get("model_used"),
             "erro":                dados_contestacao.get("erro"),
         }
+    elif timeline_result and (timeline_result.get("textos") or {}).get("contestacao"):
+        try:
+            from services.process_timeline_extractor import PjeTimelineExtractor, CHAVE_CONTESTACAO
+            from services.ai_client import extract_data_with_gemini
+            _txt = timeline_result["textos"]["contestacao"]
+            _meta = PjeTimelineExtractor.extrair_metadados_peca(CHAVE_CONTESTACAO, _txt, extract_data_with_gemini)
+            _d = _meta.get("dados") or {}
+            relatorio["contestacao"] = {
+                "argumentos_exclusao": _d.get("argumentos_exclusao") or [],
+                "teses_empresa":       _d.get("teses_de_merito") or _d.get("teses_empresa") or [],
+                "verbas_negadas":      _d.get("verbas_negadas") or [],
+                "sumulas_citadas":     _d.get("sumulas_citadas") or [],
+                "model_used":          _meta.get("model_used"),
+                "erro":                _meta.get("erro"),
+            }
+            pecas_extraidas_do_pdf["contestacao"] = True
+        except Exception as _e:
+            print(f"[TIMELINE] Contestacao (metadados IA) falhou: {_e}", flush=True)
 
     # Guardrail: remove falsos positivos de "verba ausente" (canonização vs verbas da empresa)
     _filtrar_falsos_positivos_verba_ausente(relatorio)

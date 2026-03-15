@@ -34,6 +34,20 @@ Para que o sistema aprenda como um "cérebro jurídico", os documentos devem seg
 7. **Cálculo PJC (Card 7)** — parâmetros reais do motor de cálculo
 8. **Manifestação (Card 8)** — como a perita responde os ataques
 
+### Card de Provas como hub único (Parecer + Amostragens + Manifestações)
+
+Em vez de usar os Cards 5 (Parecer), 6 (Impugnação) e 8 (Manifestação) separadamente, o usuário pode anexar **todos** os documentos técnicos no **Card "Amostragens e Provas Adicionais"**. O sistema:
+
+1. **Autoclassifica** cada arquivo por conteúdo: "Parecer Técnico", "Conclui-se", "Vem apresentar" → Parecer (fundamentos e style_transfer); tabelas, R$, meses → Amostragem (conferência centavo a centavo no .PJC); "Manifestação", "petição de resposta" → Manifestação.
+2. **Preenche** internamente os slots de Parecer, Amostragem (PDF ou Word) e Manifestação quando os cards explícitos não foram enviados.
+3. **Envia ao Gemini** o bloco `<AMOSTRAGENS_DA_PERITA>` com o prompt: *"Você recebeu uma pasta de documentos do Perito Assistente. Identifique qual arquivo é o Parecer e qual é a Amostragem. Use o Parecer para entender a estratégia de combate e a Amostragem para conferir os valores centavo por centavo no arquivo .PJC."*
+
+**Fluxo recomendado:** Processo no Card 3, Cálculo PJC no Card 7, **todo o resto** (Parecer + Amostragem + Manifestação) no Card de Provas. A auditoria completa funciona como antes.
+
+### Ghostwriter — Minuta da Manifestação (.docx)
+
+Após a análise, se houver discrepâncias, o botão **"Gerar Minuta Word"** aparece. Ao clicar, o sistema envia o relatório para `POST /lab/gerar-docx`. O conteúdo de `skills/manifestacao_style.md` é enviado ao Gemini como **Instrução de Tom e Voz**, para que a IA imite o estilo da perita (ex.: "esperando haver se desincumbido do múnus", "vem, respeitosamente" — aprendido nos testes 5 e 6). O documento gerado contém: cabeçalho (Processo, Reclamante, Reclamada), título MANIFESTAÇÃO AOS CÁLCULOS, seções por discrepância (texto limpo, sem Markdown), tabela **Table Grid** (Valor apresentado pela empresa x Valor correto — destaque ao prejuízo financeiro) quando houver dados numéricos, e encerramento padrão "Pede Deferimento. [Cidade], [Data]." com espaço para assinatura do Perito Assistente. **Validação recomendada:** usar o Caso Victor Felipe (Teste 5) ou Caso Gustavo Henrique (Teste 10); conferir discrepância SELIC ou Horas Extras e o cabeçalho do .docx baixado.
+
 ### Pesos de cada documento no score de eficiência
 
 | Documento | Peso | Justificativa |
@@ -49,19 +63,35 @@ Para que o sistema aprenda como um "cérebro jurídico", os documentos devem seg
 
 ---
 
+## 0. PJe Timeline Extractor — Um PDF Integral no Card 3
+
+Quando o usuário anexa **apenas um PDF** do processo completo (1º e 2º grau) no Card 3, o sistema ativa o **Fatiador Cronológico (PJe Timeline Extractor)**:
+
+1. **Sumário PJe**: as primeiras 15 páginas são lidas para localizar o índice ("PARA ACESSAR O SUMÁRIO"); cada linha com nome de peça e número de página gera um mapeamento (petição inicial, contestação, sentença, liquidação, impugnação, parecer).
+2. **Fallback âncoras**: se o sumário não for encontrado ou for ilegível, o código usa regex cirúrgico para identificar início (e fim quando aplicável) de cada peça no texto.
+3. **Slots automáticos**: as peças encontradas dentro do PDF são usadas para preencher os dados de liquidação, parecer, impugnação, petição e contestação **se o usuário não tiver anexado** esses arquivos nos outros cards. A **Barra de Eficiência** soma os pesos das peças extraídas (ex.: Contestação encontrada = +7 pts).
+4. **Log obrigatório**: no terminal, cada peça identificada é registrada, ex.: `[TIMELINE] Petição Inicial encontrada nas pág. 2 a 18. Contestação nas pág. 45 a 65.`
+
+**Regra de ouro:** o pipeline do `processor.py` (extração de sentença única) **não é alterado**. O Timeline atua somente no fluxo `/lab/analisar`, antes da montagem do relatório.
+
+---
+
 ## 1. Título Executivo Complexo — Múltiplos Documentos Decisórios
 
 O Card 3 do Laboratório aceita **múltiplos arquivos** (Sentença + Acórdão TRT/RO + Acórdão TST/RR) para compor o **Título Executivo Complexo**. O sistema realiza automaticamente a **Análise de Reforma de Decisão**.
 
 ### Classificação automática de instâncias
 
-O sistema detecta o nível hierárquico pelo nome do arquivo:
+**Prioridade absoluta ao nome do arquivo** (evita falso positivo pelo cabeçalho PJe "Tribunal Regional do Trabalho"):
 
-| Padrão no nome           | Instância detectada |
-|--------------------------|---------------------|
-| `tst`, `rr`, `recurso_de_revista` | TST / Recurso de Revista |
-| `trt`, `ro`, `acórdão`, `recurso_ordinario` | TRT / Recurso Ordinário |
-| Outros                   | 1º Grau             |
+| Padrão no nome do arquivo       | Instância detectada |
+|---------------------------------|---------------------|
+| `1grau`, `ATOrd`, `Sentenca`, `Sentença` | **1º Grau** (obrigatório) |
+| `2grau`, `ROT`, `Acordao`, `Acórdão`      | **TRT / 2º grau** (obrigatório) |
+| `tst`, `rr`, `recurso_de_revista`         | TST |
+| Nome genérico                    | Usa texto após os primeiros 1000 chars (cabeçalho ignorado); só considera "Recurso Ordinário", "Relator:", "Acórdão" — nunca só "Tribunal Regional" do header. |
+
+**Data usada na hierarquia:** a **linha** que contém "Data da Autuação" é removida antes da extração; usa-se a **data do julgamento/assinatura** (final do documento: "Data do Julgamento", "Assinado eletronicamente em", "Belo Horizonte, DD de mês de AAAA").
 
 **Boas práticas de nomenclatura:**
 - `sentenca_1grau_processo_12345.pdf`
@@ -138,6 +168,7 @@ Isso garante que o motor aprenda tanto a linguagem da contestação da empresa q
 | 6    | Impugnação                 | `.pdf`, `.docx`        | Contestação — Style Transfer              |
 | 7    | Cálculo PJC                | `.pdf`, `.docx`, `.pjc` | Parâmetros PJe-Calc                       |
 | 8    | Manifestação               | `.pdf`, `.docx`        | Retórica de combate — Style Transfer      |
+| +    | **Amostragens e Provas Adicionais** | `.pdf`, `.doc`, `.docx` | **Múltiplos** — provas/tabelas; injetadas no prompt como `<AMOSTRAGENS_DA_PERITA>` (verdade de referência para confrontar cálculos) |
 
 > **Atenção:** arquivos `.doc` (Word 97–2003) **não são suportados**. Converta para `.docx` antes de fazer upload.
 

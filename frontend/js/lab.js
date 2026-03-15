@@ -22,6 +22,8 @@ let _relatorio = null;
 
 // Acumulador de arquivos para o Card 3 (Título Executivo Complexo)
 let _processoFiles = [];
+// Acumulador para o Card de Dossiê (Amostragens e Provas Adicionais — múltiplos)
+let _amostragensFiles = [];
 
 // ── Toggle da seção ──────────────────────────────────────────────────────────
 
@@ -241,6 +243,67 @@ function initLabUploads() {
       _atualizarBarraEficiencia();
     });
   });
+
+  // Card Amostragens e Provas Adicionais (múltiplos)
+  const inputAmostragens = document.getElementById("lab-amostragens");
+  const cardAmostragens  = document.getElementById("card-amostragens");
+  const nameAmostragens = document.getElementById("lab-amostragens-name");
+  if (inputAmostragens) {
+    inputAmostragens.addEventListener("change", () => {
+      const novos = Array.from(inputAmostragens.files || []);
+      inputAmostragens.value = "";
+      const docAntigos = novos.filter(_isDocAntigo);
+      if (docAntigos.length) _showLabToastDocNaoSuportado();
+      const validos = novos.filter(f => !_isDocAntigo(f));
+      const nomesExistentes = new Set(_amostragensFiles.map(f => f.name));
+      validos.forEach(f => {
+        if (!nomesExistentes.has(f.name)) {
+          _amostragensFiles.push(f);
+          nomesExistentes.add(f.name);
+        }
+      });
+      _renderAmostragensFiles();
+      if (nameAmostragens) nameAmostragens.textContent = _amostragensFiles.length ? `${_amostragensFiles.length} arquivo(s)` : "Escolher arquivo(s)";
+      if (cardAmostragens) cardAmostragens.classList.toggle("filled", _amostragensFiles.length > 0);
+      _atualizarBotaoAnalisar();
+      _atualizarBarraEficiencia();
+    });
+  }
+}
+
+function _renderAmostragensFiles() {
+  const listaEl = document.getElementById("lab-amostragens-lista");
+  const nameEl = document.getElementById("lab-amostragens-name");
+  const card   = document.getElementById("card-amostragens");
+  if (!listaEl) return;
+  const count = _amostragensFiles.length;
+  if (count === 0) {
+    listaEl.style.display = "none";
+    listaEl.innerHTML = "";
+    if (nameEl) nameEl.textContent = "Escolher arquivo(s)";
+    if (card) card.classList.remove("filled");
+    return;
+  }
+  listaEl.style.display = "block";
+  listaEl.innerHTML = _amostragensFiles.map((f, i) => {
+    const idx = i;
+    return `<div class="flex items-center justify-between gap-2 py-1 px-2 rounded bg-gray-800/60 text-xs">
+      <span class="truncate">${_esc(f.name)}</span>
+      <button type="button" class="text-red-400 hover:text-red-300" data-idx="${idx}" aria-label="Remover">×</button>
+    </div>`;
+  }).join("");
+  listaEl.querySelectorAll("button[data-idx]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.getAttribute("data-idx"), 10);
+      _amostragensFiles.splice(idx, 1);
+      _renderAmostragensFiles();
+      if (nameEl) nameEl.textContent = _amostragensFiles.length ? `${_amostragensFiles.length} arquivo(s)` : "Escolher arquivo(s)";
+      if (card) card.classList.toggle("filled", _amostragensFiles.length > 0);
+      _atualizarBarraEficiencia();
+    });
+  });
+  if (nameEl) nameEl.textContent = `${count} arquivo(s)`;
+  if (card) card.classList.add("filled");
 }
 
 function _calcularEficiencia() {
@@ -256,6 +319,12 @@ function _calcularEficiencia() {
     const el = document.getElementById(id);
     if (el && el.files && el.files.length > 0) score += (_EFICIENCIA_PESOS[key] || 0);
   });
+  // PJe Timeline Extractor: peças extraídas do PDF integral somam à barra
+  if (_relatorio && _relatorio.pecas_extraidas_do_pdf && typeof _relatorio.pecas_extraidas_do_pdf === "object") {
+    Object.entries(_relatorio.pecas_extraidas_do_pdf).forEach(([k, v]) => {
+      if (v && _EFICIENCIA_PESOS[k] !== undefined) score += _EFICIENCIA_PESOS[k];
+    });
+  }
   return Math.min(100, score);
 }
 
@@ -321,7 +390,7 @@ async function labAnalisar() {
     const el = document.getElementById(c.inputId);
     return el && el.files && el.files.length > 0;
   }).length;
-  const totalSelecionados = outrosSelecionados + _processoFiles.length;
+  const totalSelecionados = outrosSelecionados + _processoFiles.length + _amostragensFiles.length;
   if (!totalSelecionados) {
     _labStatus(
       "Nenhum arquivo selecionado. Você pode analisar assim mesmo, mas o relatório ficará praticamente vazio.",
@@ -334,7 +403,7 @@ async function labAnalisar() {
   btn.textContent = "⏳ Analisando...";
   steps.classList.remove("open");
 
-  const totalArquivos = outrosSelecionados + _processoFiles.length;
+  const totalArquivos = outrosSelecionados + _processoFiles.length + _amostragensFiles.length;
   _labStatus(`Enviando ${totalArquivos} arquivo(s) e processando... (pode levar até 2 min)`, "spin");
 
   const form = new FormData();
@@ -355,6 +424,9 @@ async function labAnalisar() {
     }
   });
 
+  // Card Amostragens e Provas Adicionais (múltiplos — mesma chave "amostragens")
+  _amostragensFiles.forEach(f => form.append("amostragens", f));
+
   try {
     const res = await fetch(`${LAB_API}/lab/analisar`, {
       method: "POST",
@@ -372,6 +444,7 @@ async function labAnalisar() {
       "ok"
     );
     _renderPassos(_relatorio);
+    _atualizarBarraEficiencia(); // atualiza barra com peças extraídas do PDF (Timeline)
     steps.classList.add("open");
 
   } catch (e) {
@@ -379,15 +452,21 @@ async function labAnalisar() {
   } finally {
     btn.disabled    = false;
     btn.textContent = "🔬 Analisar e Gerar Relatório de Discrepância";
-    // Limpa o acumulador do Card 3 após análise
+    // Limpa acumuladores após análise
     _processoFiles = [];
     _renderProcessoFiles();
+    _amostragensFiles = [];
+    _renderAmostragensFiles();
   }
 }
 
 // ── Renderização dos passos ───────────────────────────────────────────────────
 
 function _renderPassos(r) {
+  const docxBar = document.getElementById("lab-gerar-docx-bar");
+  if (docxBar) {
+    docxBar.style.display = r ? "flex" : "none";
+  }
   _renderPasso1(r);
   _renderPasso2(r);
   _renderPasso3(r);
@@ -1222,6 +1301,52 @@ function initLab() {
   const btnAnalisar = document.getElementById("btn-lab-analisar");
   if (btnAnalisar) {
     btnAnalisar.addEventListener("click", labAnalisar);
+  }
+
+  const btnGerarDocx = document.getElementById("btn-lab-gerar-docx");
+  if (btnGerarDocx) {
+    btnGerarDocx.addEventListener("click", labGerarDocx);
+  }
+}
+
+async function labGerarDocx() {
+  if (!_relatorio) {
+    _labStatus("Execute uma análise antes de gerar a minuta.", "err");
+    return;
+  }
+  const btn = document.getElementById("btn-lab-gerar-docx");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Gerando...";
+  }
+  _labStatus("Gerando minuta Word (Ghostwriter)...", "spin");
+  try {
+    const res = await fetch(`${LAB_API}/lab/gerar-docx`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(_relatorio),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.message || `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const filename = res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1]
+      || "Manifestacao_minuta.docx";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    _labStatus("Minuta baixada com sucesso.", "ok");
+  } catch (e) {
+    _labStatus(`Erro: ${e.message}`, "err");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "📄 Gerar Minuta Word";
+    }
   }
 }
 
