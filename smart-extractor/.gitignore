@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ── Ambiente virtual Python ──────────────────────────────────────────────────
 venv/
 .venv/
@@ -11,32 +10,15 @@ __pycache__/
 .Python
 
 # ── Variáveis de ambiente / segredos ─────────────────────────────────────────
-=======
-# Ambiente virtual Python
-venv/
-.venv/
-env/
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-
-# Segredos
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
 .env
 .env.*
 !.env.example
 
-<<<<<<< HEAD
 # ── Banco de dados local ──────────────────────────────────────────────────────
-=======
-# Banco de dados local
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
 *.db
 *.sqlite
 *.sqlite3
 
-<<<<<<< HEAD
 # ── Arquivos gerados em runtime ───────────────────────────────────────────────
 backend/learning_log.jsonl
 backend/services/legal_engine/rules/lab_*.py
@@ -88,32 +70,12 @@ Thumbs.db
 desktop.ini
 
 # ── Node (caso frontend tenha dependências) ───────────────────────────────────
-=======
-# Node
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
 node_modules/
 dist/
 build/
 
-<<<<<<< HEAD
 # ── pytest / coverage ─────────────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
 .coverage
 coverage.xml
-=======
-# IDE / OS
-.cursor/
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Logs e cache
-*.log
-*.tmp
-.cache/
-
-# Windows: nome reservado
-nul
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))

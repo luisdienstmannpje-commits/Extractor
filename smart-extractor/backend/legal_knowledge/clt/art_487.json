@@ -1,0 +1,33 @@
+{
+  "id": "clt_art_487",
+  "tipo": "artigo_clt",
+  "artigo": 487,
+  "descricao": "Aviso prévio — prazo mínimo e proporcionalidade",
+  "ementa": "Não sendo o prazo indeterminado, observar-se-á o disposto no artigo anterior. Havendo prazo determinado, o aviso prévio não é necessário. Para os contratos por prazo indeterminado, o aviso prévio mínimo é de 30 dias.",
+  "aplicacao": "aviso_previo",
+  "regra": {
+    "prazo_minimo_dias": 30,
+    "proporcionalidade": {
+      "fundamento": "Lei 12.506/2011",
+      "dias_por_ano_trabalhado": 3,
+      "maximo_dias": 90,
+      "formula": "30 + (min(anos_contrato, 20) * 3)",
+      "obs": "Proporcionalidade limitada a 20 anos — máximo de 90 dias no total"
+    }
+  },
+  "modalidades": {
+    "trabalhado": {
+      "descricao": "Empregado continua trabalhando durante o período",
+      "fgts_incide": true,
+      "multa_40_incide": true
+    },
+    "indenizado": {
+      "descricao": "Empregador dispensa o cumprimento — paga em pecúnia",
+      "fgts_incide": true,
+      "multa_40_incide": false,
+      "fundamento_multa": "OJ 42 SDI-I TST"
+    }
+  },
+  "vigente": true,
+  "atualizado_em": "2024-01-01"
+}

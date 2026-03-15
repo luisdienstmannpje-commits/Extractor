@@ -1,0 +1,17 @@
+{
+  "id": "oj_42_sdi1_tst",
+  "tipo": "orientacao_jurisprudencial",
+  "numero": 42,
+  "secao": "SDI-I",
+  "tribunal": "TST",
+  "ementa": "É assegurado o benefício da justiça gratuita ao trabalhador. A multa de 40% do FGTS não incide sobre o período do aviso prévio indenizado.",
+  "aplicacao": "fgts_multa_40_aviso_previo_indenizado",
+  "resultado": "NAO_INCIDE",
+  "regra": {
+    "multa_40_incide_aviso_previo_trabalhado": true,
+    "multa_40_incide_aviso_previo_indenizado": false,
+    "obs": "Distinguir modalidade do aviso prévio ao aplicar a multa rescisória de 40%"
+  },
+  "vigente": true,
+  "atualizado_em": "2024-01-01"
+}

@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pdfplumber
+pytesseract
+Pillow
+rapidfuzz
+firebase-admin
+google-genai
+python-magic-bin
+python-multipart
+pydantic
+python-dotenv
+openpyxl
+python-docx

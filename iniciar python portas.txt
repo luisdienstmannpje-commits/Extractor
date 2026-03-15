@@ -1,0 +1,9 @@
+venv/Scripts/python.exe -u -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+Resumo
+Como rodar	Comando	Quando usar
+main.py	venv/Scripts/python.exe main.py	Uso normal, logs em tempo real
+Outra porta	PORT=8001 venv/Scripts/python.exe main.py	Quando 8000 estiver ocupada
+Com reload	venv/Scripts/python.exe -u -m uvicorn main:app --reload --host 0.0.0.0 --port 8
+
+python -c "import sqlite3; c = sqlite3.connect('local_db.sqlite'); c.execute('DELETE FROM cache'); c.commit(); print('Cache limpo')"

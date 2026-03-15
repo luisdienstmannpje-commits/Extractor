@@ -1,0 +1,116 @@
+# PJeCalc Smart Extractor — Regras para IA (Cursor Chat e Composer)
+
+Este projeto segue uma arquitetura definida. Antes de propor código, consulte a documentação em
+`backend/docs/` e respeite os padrões abaixo.
+
+---
+
+## Arquitetura em uma frase
+
+**Extração de PDF → LLM (Gemini) → Motor de Regras Python (Legal Rule Engine) → Frontend Vanilla JS → Excel / .PJC**
+
+- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`.
+- **Frontend**: Vanilla JavaScript (sem React/Vue). `app.js` (API, upload, export, estatísticas); `render.js` (dados); `lab.js` (Laboratório 8 cards).
+- **Motor de regras**: Toda regra jurídica herda de `LegalRule` em `services/legal_engine/rule_base.py`. Uma regra por arquivo em `services/legal_engine/rules/`. Prioridade: 10=STF, 20=Súmulas TST, 30=OJs TST, 40=CLT, 50=Consistência.
+- **Modelo de dados**: `ProcessoTrabalhista` e `VerbaDeferida` em `backend/models.py`. Novos campos exigem atualizar `SCHEMA_VERSION`, `schema_version_guard.py` e, se a regra ler o campo, `engine._dict_para_contexto`.
+
+---
+
+## Laboratório de Aprendizado (features recentes — impacto em múltiplos arquivos)
+
+### Título Executivo Complexo (Card 3)
+- Frontend: `_processoFiles[]` acumula múltiplos arquivos; `_classifyDecisaoTier(filename)` classifica badge; `_renderProcessoFiles()` atualiza UI; `form.append("processo", f)` em loop.
+- API: `processo: List[UploadFile] = File(default=[])` em `main.py`; `processo_arquivos: List[tuple]` passado para `processar_sete_arquivos`.
+- Backend — **prioridade ao nome do arquivo:** `_classificar_tier_decisao(filename, texto?)`. Se nome tem **1grau, ATOrd, Sentenca** → **1GRAU**. Se nome tem **2grau, ROT, Acordao** → **TRT**. Só usa regex no texto se o nome for genérico; ao usar texto, ignora os primeiros 1000 chars (cabeçalho PJe). Documentos com tier diferente são mantidos ambos. `_extrair_data_documento`: remove linha "Data da Autuação"; prioriza final do doc. `_extrair_titulo_executivo_multiplos` mantém um doc por tier, desempate por data.
+
+### Card Amostragens e Provas Adicionais (hub único — Parecer + Amostragens + Manifestações)
+- Frontend: `_amostragensFiles[]`; input `lab-amostragens` com `multiple`; aviso "Arraste aqui seu Parecer, Amostragens e Manifestações"; `form.append("amostragens", f)` em loop.
+- API: `amostragens: List[UploadFile] = File(default=[])` em `main.py`; lidos como `amostragens_arquivos: List[(bytes, filename)]`.
+- Backend: `_fusionar_provas_com_cards(amostragens_arquivos, parecer*, amostragem_*, manifestacao*)` — para cada arquivo extrai texto e `_classificar_tipo_documento_prova(texto, filename)` → parecer | amostragem | manifestacao | generic; preenche parecer_bytes, amostragem_pdf/word_bytes, manifestacao_bytes quando cards 5/8 ou amostragem não foram enviados. Texto completo concatenado (por arquivo `--- PROVA: nome ---`) vai para `_bloco_amostragens_perita`, que injeta em `<AMOSTRAGENS_DA_PERITA>` com **prompt unificado**: "Identifique qual arquivo é o Parecer e qual é a Amostragem; use o Parecer para estratégia de combate e a Amostragem para conferir valores centavo a centavo no .PJC" + "verdade absoluta para confrontar os cálculos da empresa".
+
+### Duplo Style Transfer (Cards 6 + 8)
+- `_extrair_manifestacao_pericial(bytes, filename)` é chamado para **impugnacao (Card 6) E manifestacao (Card 8)**.
+- `_merge_dados_manifestacao(base, novo)` funde os resultados sem duplicatas em `relatorio["manifestacao_pericial"]`.
+- Ambos alimentam `skills/manifestacao_style.md`.
+
+### Guardrails anti-alucinação "verba_ausente" (3 camadas)
+- `_canon_empresa_e_verba_esta(relatorio)` — helper compartilhado: constrói set canônico da liquidação + PJC.
+- `_filtrar_falsos_positivos_verba_ausente(relatorio)` — remove discrepâncias falsas **após enriquecimento, antes do return**.
+- `_filtrar_logicas_verba_ausente_falsas(logicas, relatorio)` — filtra hipóteses Gemini antes do Knowledge Base.
+- `_filtrar_aprendizados_verba_ausente_falsas(relatorio)` — limpa `aprendizados` **antes do return ao frontend**.
+- Nunca duplicar lógica de canonização; sempre usar `LegalRule._canonizar_verba(nome)`.
+
+### Prompt Gemini (_extrair_logica_correcao_gemini)
+- REGRA 1: proibido `verba_ausente` não listado nas discrepâncias filtradas.
+- REGRA 2: priorizar argumentos matemáticos/jurídicos da impugnação (avos, frações, métodos).
+- REGRA 3: retornar `[]` se discrepâncias vazias e sem tese matemática.
+- Early-exit Python antes de chamar Gemini se não há base.
+
+### Ghostwriter — Minuta Manifestação (Lab)
+- **Endpoint:** `POST /lab/gerar-docx` — body = relatório JSON (mesmo de `/lab/analisar`). Retorna .docx para download. O endpoint envia `skills/manifestacao_style.md` como **Instrução de Tom e Voz** (IA imita estilo: "esperando haver se desincumbido do múnus", "vem, respeitosamente").
+- **Backend:** `document_generator.gerar_minuta`: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções por discrepância, tabela **Table Grid** (Valor empresa x Valor correto — prejuízo financeiro), encerramento padrão "Pede Deferimento. [Cidade], [Data atual]." e espaço para assinatura do Perito Assistente. `ai_writer.gerar_texto_manifestacao`: Gemini Perito Sênior + Instrução de Tom e Voz; retorna introdução, seções e tabela_comparativa (texto limpo, sem Markdown).
+- **Frontend:** Botão "Gerar Minuta Word" (`#btn-lab-gerar-docx`) visível quando há discrepâncias; `labGerarDocx()` envia `_relatorio` e dispara download.
+- **Validação:** Caso Victor Felipe (Teste 5) ou Gustavo Henrique (Teste 10); conferir discrepância SELIC/Horas Extras e cabeçalho do .docx (Processo, Reclamante, Reclamada).
+
+### Painel Raio-X (aba Processar) — ordem PJe-Calc
+- **Ordem de blocos (renderRaiox):** (1) Sticky: número do processo (fonte maior); (2) Dicas do Laboratório (alerta fixo no topo; destaque se erro crítico/empresa ex. Swissport); (3) Identificação e Juízo (reclamante, reclamada, data ajuizamento, prescrição quinquenal); (4) Parâmetros Estruturais (admissão, demissão, maior remuneração, divisor de horas, motivo rescisão); (5) Índices e Correção (mini-cards coloridos Índice / Juros de Mora); (6) Verbas e Adicionais (badges). Cópia inteligente: `normalizeForPjeCalc` — datas DD/MM/AAAA, CPF/CNPJ sem pontos/traços. Feedback: classe `.raiox-copied` + check verde no botão ao copiar. CSS: `.raiox-sticky`, `.raiox-minicards`, `.raiox-badges`, padding reduzido em `.raiox-row`.
+- **Backend:** `extraction_engine` inclui `prescricao_quinquenal` em ESTRUTURAL_KEYS.
+
+### Validação .doc no frontend
+- `_isDocAntigo(file)` detecta extensão `.doc` ou MIME `application/msword`.
+- `_showLabToastDocNaoSuportado()` exibe toast de bloqueio com instrução de conversão.
+- Arquivos `.docx` continuam aceitos normalmente.
+
+---
+
+## Onde ler primeiro (por tipo de tarefa)
+
+| Tarefa | Ler primeiro |
+|--------|--------------|
+| Visão geral | `backend/docs/AI_NAVIGATION_LAYER.md` → `docs/SYSTEM_OVERVIEW.md`, `docs/PIPELINE.md` |
+| Qual arquivo faz o quê | `backend/docs/CODE_MAP.md` |
+| Adicionar/modificar regra jurídica | README (§ Motor de regras), `legal_engine/rule_base.py`, template em `legal_engine/rules/` |
+| Alterar pipeline ou contrato | `docs/PIPELINE.md`, `workers/processor.py` |
+| Alterar modelo (campos) | `models.py`, `SCHEMA_VERSION`, `legal_engine/engine.py` |
+| Export (Excel, PJC, memória) | `docs/CODE_INTELLIGENCE_MAP.md` § 5 |
+| Regras de conduta da IA | `backend/docs/AI_RULES.md` |
+| Laboratório / guardrails / Style Transfer | `backend/docs/AI_NAVIGATION_LAYER.md` § 5 |
+| Diretrizes de prompt e boas práticas | `backend/docs/guia_eficiencia.md` |
+
+---
+
+## Regras críticas — nunca fazer
+
+- Não quebrar a ordem ou os contratos dos 10 passos do pipeline.
+- Não remover guardrails (`_filtrar_*`) nem mover sua posição no fluxo de `processar_cinco_arquivos`/`processar_sete_arquivos`.
+- Não duplicar lógica de canonização fora de `LegalRule._canonizar_verba`.
+- Não introduzir regressões: após mudanças, `pytest -q` (de `backend/`) com 0 falhas.
+- Não sugerir React, Vue ou outro framework no frontend; o projeto usa Vanilla JS.
+- Validação jurídica é feita **exclusivamente** pelo Legal Rule Engine.
+- Não gerar ou editar `legal_engine/rules/lab_*.py` manualmente; deixar o fluxo `codify_insight` decidir.
+
+---
+
+## Convenções de código
+
+- **Regras jurídicas**: herdar de `LegalRule`; definir `id`, `titulo`, `base_legal`, `prioridade`; implementar `aplicar(contexto: ContextoJuridico)`; usar `self._alerta` e `self._registrar`; nunca lançar exceção.
+- **Pydantic**: modelos em `models.py`; validadores `mode="before"` para normalizar tipos. Manter compatibilidade com cache (SCHEMA_VERSION).
+- **.PJC**: é XML (ISO-8859-1). Compatibilidade com PJeCalc 2.14.0.
+- **Playbooks IA**: `backend/skills/*.md`. Enriquecer sem sobrescrever blocos existentes.
+- **Comentários**: somente para intenção não óbvia. Nunca comentar o óbvio.
+
+---
+
+## Testes
+
+- `backend/tests/jurisprudencia/` — um arquivo por regra. Padrão: construir `ContextoJuridico` mínimo, aplicar regra, assertar alertas e regras_aplicadas.
+- `cd backend && pytest -q` — manter todos verdes antes de concluir alterações.
+
+---
+
+## Resumo para o Cursor
+
+1. Leia `backend/docs/AI_NAVIGATION_LAYER.md` primeiro — tem roteiros por tarefa e mapa completo do `learning_engine.py`.
+2. Use `docs/CODE_MAP.md` para localizar arquivos sem abrir código desnecessário.
+3. Respeite `docs/AI_RULES.md` e este `.cursorrules` em toda sugestão.
+4. Alterações incrementais sem regressão; documente impacto ao propor mudanças arquiteturais.

@@ -1,0 +1,21 @@
+# Segurança — nunca enviar ao GitHub
+.env
+firebase-credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# Banco local
+*.sqlite
+*.db
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
