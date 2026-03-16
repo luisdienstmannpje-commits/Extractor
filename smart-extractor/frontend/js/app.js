@@ -14,6 +14,7 @@ let _pdfObjectUrl = null;
 let _selectedFiles = [];  // array of File (multi-upload dossiê)
 let _statsCache = null;
 let _statsPollingId = null;   // ID do setInterval para o polling de estatísticas
+let _kbData = null;          // Cache do GET /api/knowledge-base (card + modal Biblioteca de Regras)
 
 // ── PDF Preview (Estados: upload / viewer) ─────────────────────────────────
 
@@ -133,6 +134,46 @@ function initCredits() {
   }
 }
 
+// ── Knowledge Base (card Inteligência Pericial + modal Biblioteca de Regras) ─
+async function carregarKnowledgeBase() {
+  var el = document.getElementById("total-regras");
+  try {
+    const res = await fetch(`${API}/api/knowledge-base`);
+    const data = res.ok ? await res.json() : { rules: [] };
+    _kbData = data && typeof data === "object" ? data : { rules: [] };
+    const rules = Array.isArray(_kbData.rules) ? _kbData.rules : [];
+    const count = rules.filter(function (r) { return (r.status || "").toLowerCase() !== "deleted"; }).length;
+    if (el) el.innerText = count;
+  } catch (e) {
+    console.error("ERRO CRÍTICO NA BIBLIOTECA:", e);
+    _kbData = { rules: [] };
+    if (el) el.innerText = "0";
+  }
+}
+
+function abrirBibliotecaRegras() {
+  if (_kbData && Array.isArray(_kbData.rules)) {
+    console.log("Dados do KB recebidos:", _kbData);
+    if (typeof renderListaRegras === "function") renderListaRegras(_kbData.rules);
+    if (typeof abrirModalRegras === "function") abrirModalRegras();
+    return;
+  }
+  fetch(`${API}/api/knowledge-base`)
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) {
+      if (!data) return;
+      console.log("Dados do KB recebidos:", data);
+      _kbData = data;
+      const rules = Array.isArray(data.rules) ? data.rules : [];
+      const aprendidas = rules.filter(function (r) { return (r.status || "").toLowerCase() !== "deleted"; });
+      const el = document.getElementById("total-regras");
+      if (el) el.textContent = aprendidas.length;
+      if (typeof renderListaRegras === "function") renderListaRegras(rules);
+      if (typeof abrirModalRegras === "function") abrirModalRegras();
+    })
+    .catch(function (err) { console.error("ERRO CRÍTICO NA BIBLIOTECA:", err); });
+}
+
 // ── Upload (single PDF ou dossiê multi-arquivo) ─────────────────────────────
 async function uploadPDF() {
   const userId = document.getElementById("user-id").value.trim();
@@ -225,6 +266,7 @@ function startPolling(jobId) {
         }
         atualizarKPIs(data.data || data.result || data);
         loadCredits();
+        carregarKnowledgeBase();
       } else {
         showErro(data.msg || "Erro desconhecido");
       }
@@ -365,6 +407,7 @@ function downloadExcel() {
 // ── Inicialização ─────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function () {
   initCredits();
+  carregarKnowledgeBase();
   iniciarPollingEstatisticas();
 
   const btnUpload = document.getElementById("btn-upload");
@@ -378,6 +421,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const btnPjcAudit = document.getElementById("btn-pjc-audit");
   if (btnPjcAudit) btnPjcAudit.addEventListener("click", function (e) { uploadPjcAudit(); e.preventDefault(); });
+
+  // Modal Biblioteca de Regras: fechar (botão + clique no backdrop)
+  const modalRegras = document.getElementById("modal-regras");
+  if (modalRegras) {
+    modalRegras.addEventListener("click", function (e) {
+      if (e.target === modalRegras && typeof fecharModalRegras === "function") fecharModalRegras();
+    });
+    const btnFechar = document.getElementById("modal-regras-fechar");
+    if (btnFechar) btnFechar.addEventListener("click", function () { if (typeof fecharModalRegras === "function") fecharModalRegras(); });
+  }
+  const tabAtivas = document.getElementById("modal-regras-tab-ativas");
+  const tabDeletadas = document.getElementById("modal-regras-tab-deletadas");
+  if (tabAtivas && typeof aplicarTabModalRegras === "function") {
+    tabAtivas.addEventListener("click", function () { aplicarTabModalRegras("ativas"); });
+  }
+  if (tabDeletadas && typeof aplicarTabModalRegras === "function") {
+    tabDeletadas.addEventListener("click", function () { aplicarTabModalRegras("deletadas"); });
+  }
 
   // PDF / dossiê: render preview and file list when file(s) selected
   const pdfFileInput = document.getElementById("pdf-file");
@@ -812,3 +873,22 @@ async function zerarContagem() {
     if (kpiEl) kpiEl.textContent = "Erro";
   }
 }
+
+// ── Inicialização reforçada: Biblioteca de Regras (card + modal) ─────────────
+document.addEventListener("DOMContentLoaded", function () {
+  carregarKnowledgeBase();
+
+  var btnBiblioteca = document.getElementById("btn-ver-biblioteca-regras");
+  if (btnBiblioteca) {
+    btnBiblioteca.onclick = function () {
+      console.log("Botão clicado, abrindo biblioteca...");
+      abrirBibliotecaRegras();
+    };
+  }
+
+  // Atualizar card ao entrar na aba Estatísticas
+  document.querySelector('[data-nav-view="estatisticas"]')?.addEventListener("click", carregarKnowledgeBase);
+});
+
+// Carregamento inicial imediato da Biblioteca de Regras (fora de listener)
+carregarKnowledgeBase();

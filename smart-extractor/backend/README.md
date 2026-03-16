@@ -256,7 +256,7 @@ Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado
 
 ### Raiz e configuração
 
-- **main.py**: FastAPI; endpoints de upload, status, WebSocket, download Excel/PJC; endpoints do Laboratório (`/lab/analisar`, `/lab/preview`, `/lab/salvar`, `/lab/historico`, `/lab/knowledge-base`); **GET /api/stats** — dashboard de estatísticas (processos_analisados, regras_oficiais_ativas, regras_em_teste_shadow, omissoes_detectadas, eficiencia_motor, ultimas_regras, top_verbas_divergencias); gestão de jobs em memória + SQLite; timeout 5 min.
+- **main.py**: FastAPI; endpoints de upload, status, WebSocket, download Excel/PJC; Laboratório (`/lab/*`); **GET /api/knowledge-base** (knowledge_base.json para card Biblioteca de Regras na **aba Estatísticas**); **GET /api/stats** (dashboard); gestão de jobs + SQLite; timeout 5 min.
 - **config.py**: Variáveis de ambiente (GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION etc.).
 - **models.py**: `ProcessoTrabalhista`, `VerbaDeferida` (Pydantic); validadores de normalização; `SCHEMA_VERSION` para cache.
 

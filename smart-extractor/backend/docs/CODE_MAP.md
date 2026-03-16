@@ -168,5 +168,6 @@ Funções privadas notáveis:
 | Duplo Style Transfer | `services/learning_engine.py` → `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`; `skills/manifestacao_style.md` |
 | Self-Healing Rule Engine | `services/learning_engine.py` → `processar_aprendizado_autonomo`, `_evaluate_shadow_rules`; `services/knowledge_base.py`; `legal_engine/dynamic_rule_loader.py` |
 | Dashboard Estatísticas | `main.py` (`GET /api/stats`); `services/knowledge_base.py`; `database.get_total_extractions`; `frontend/js/app.js` (`carregarEstatisticas`, polling) |
+| Biblioteca de Regras (card + modal) | Card em **aba Estatísticas** (`index.html` #view-estatisticas, #btn-ver-biblioteca-regras, #total-regras). Modal #modal-regras (z-index 9999). `main.py` GET /api/knowledge-base; `app.js` carregarKnowledgeBase, abrirBibliotecaRegras; `render.js` renderListaRegras, abrirModalRegras. |
 | IA e prompt | `services/ai_client.py`; `skills/*.md` |
 | PDF e texto | `services/sentence_finder.py`, `text_processor.py`, `pre_extractor.py` |

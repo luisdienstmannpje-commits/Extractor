@@ -506,3 +506,134 @@ JÉSSICA PRISCILA DO NASCIMENTO, Graduada em Ciências Contábeis e Estudante de
 I. DIFERENÇAS:
 Caso o MM. Juízo não reconheça os horários conforme explanado na exordial, que não foram considerados nos cartões de ponto, mesmo assim há hor
 ```
+
+
+---
+
+## Amostragem Analisada — 2026-03-16 00:19 | Deferimentos.docx
+
+**Resumo do estilo:**
+O estilo de escrita é formal e objetivo, com forte embasamento legal e jurisprudencial. A perita utiliza uma linguagem técnica e precisa, detalhando os critérios de cálculo e atualização monetária das verbas deferidas.
+
+**Tom:** objetivo|formal|técnico
+**Estrutura argumentativa:** A estrutura argumentativa é baseada na análise de cada pedido do reclamante, seguida da apresentação de provas (principalmente documentais), e finalizada com a decisão judicial (procedente, improcedente ou parcialmente procedente) e a definição dos critérios de cálculo e atualização monetária.
+**Tabelas comparativas:** Não
+
+**Vocabulário técnico identificado:**
+- horas extraordinárias
+- cartões-ponto
+- CLT
+- adicional de 50%
+- adicional normativo
+- divisor de 220
+- hora noturna reduzida
+- Súmula n. 264 do E. TST
+- adicional noturno
+- adicional de periculosidade
+- repousos semanais
+- aviso-prévio
+- gratificações natalinas
+- FGTS
+- indenização compensatória de 40%
+- Orientação Jurisprudencial n. 415 da SDI-I do E. TST
+- intervalo intrajornada
+- alteração contratual lesiva
+- vales-alimentação
+- exordial
+
+**Expressões características da perita:**
+- nos termos do art. ... da Constituição
+- julgo procedente o pedido para condenar a reclamada
+- para o cômputo das horas extras deve-se observar
+- defiro a repercussão das horas extras em
+- resta autorizada, ainda, a dedução das horas extras
+- os controles de jornada juntados aos autos comprovam que
+- assim sendo, julgo parcialmente procedente o pedido
+- em relação ao valor do benefício
+- ônus que lhe incumbia em razão do princípio da aptidão para a prova
+- conforme a fundamentação acima esposada
+
+**Exemplo de abertura:**
+> suscitada quanto a eventuais direitos trabalhistas de cunho pecuniário que sejam
+anteriores a 20-08-2019, inclusive, ou seja, 5 (cinco) anos antes do ingresso da presente
+ação, nos termos do art. 7º, inciso XXIX, da Constituição.
+
+**Exemplo de conclusão de irregularidade:**
+> A reclamada, contudo, deve pagar honorários sucumbenciais
+aos patronos do autor, os quais arbitro no percentual de 10% sobre o valor bruto da
+condenação, apurado em liquidação de sentença, na forma do caput art. 791-A da CLT
+
+**Trecho original (referência):**
+```
+suscitada quanto a eventuais direitos trabalhistas de cunho pecuniário que sejam
+anteriores a 20-08-2019, inclusive, ou seja, 5 (cinco) anos antes do ingresso da presente
+ação, nos termos do art. 7º, inciso XXIX, da Constituição.
+1 - julgo procedente o pedido para
+condenar a reclamada ao pagamento das horas extraordinárias prestadas pela parte
+autora, considerando-se como tais as horas excedentes da 8a diária (nos limites do
+pedido), tudo com base nos cartões-ponto anexados aos autos
+Para o cômp
+```
+
+
+---
+
+## Amostragem Analisada — 2026-03-16 00:57 | Deferimentos.docx
+
+**Resumo do estilo:**
+A escrita é objetiva e densamente técnica, utilizando jargão jurídico-trabalhista e fazendo referência constante a dispositivos legais e normativos. A estrutura é pragmática e direcionada, focando na apresentação de fatos, suas consequências financeiras e os critérios precisos para sua apuração.
+
+**Tom:** formal|técnico
+**Estrutura argumentativa:** A estrutura parte da delimitação do objeto (prescrição), segue para a constatação de um fato (ex: não anotação de horas), estabelece a consequência jurídica (ex: condenação ao pagamento), detalha minuciosamente os critérios técnicos e legais para o cálculo da verba, e finaliza com as penalidades e ônus processuais decorrentes.
+**Tabelas comparativas:** Sim
+
+**Vocabulário técnico identificado:**
+- ajuizamento
+- ação reclamatória
+- marco prescricional
+- resolução de mérito
+- intervalo intrajornada
+- reflexos
+- RSR (Repouso Semanal Remunerado)
+- FGTS
+- conta vinculada
+- apuração das parcelas
+- divisor 180
+- normas convencionais
+- redução ficta da hora noturna
+- labor suplementar
+- carreados ao feito
+- suspensão e interrupção do contrato
+- Súmulas do TST
+- convenções coletivas
+- sucumbência parcial
+- honorários de sucumbência
+
+**Expressões características da perita:**
+- Oportunamente alegada e, tendo em vista...
+- extinguindo o feito, no particular, com resolução de mérito, nos termos do...
+- Para a apuração das parcelas ora deferidas, deverão ser observados...
+- consoante controles de ponto carreados ao feito
+- deduzidos os períodos de suspensão e interrupção do contrato de trabalho
+- Constatado o descumprimento das cláusulas...
+- deve incidir a multa prevista na cláusula...
+- Diante da sucumbência parcial em razão dos pedidos que foram julgados procedentes...
+- no importe de 5% (cinco por cento)
+
+**Exemplo de abertura:**
+> Oportunamente alegada e, tendo em vista o ajuizamento desta ação reclamatória em 21/06/2024, reconheço a prescrição fixando o marco prescricional em 21/06/2019 e declaro prescritas as pretensões anteriores a esta data, extinguindo o feito, no particular, com resolução de mérito, nos termos do inciso II artigo 487 do CPC, exceto quanto aos pedidos meramente declaratórios (artigo 11 da CLT).
+
+**Exemplo de conclusão de irregularidade:**
+> Constatado o descumprimento das cláusulas relativas às horas extras (intervalo intrajornada e cursos), por exemplo, deve incidir a multa prevista na cláusula 8ª das convenções coletivas aplicáveis em favor do Reclamante, sendo uma penalidade por instrumento violado.
+
+**Trecho original (referência):**
+```
+Oportunamente alegada e, tendo em vista o ajuizamento desta
+ação reclamatória em 21/06/2024, reconheço a prescrição fixando o marco
+prescricional em 21/06/2019 e declaro prescritas as pretensões anteriores a esta data,
+extinguindo o feito, no particular, com resolução de mérito, nos termos do inciso II
+artigo 487 do CPC, exceto quanto aos pedidos meramente declaratórios (artigo 11 da
+CLT).
+1 - Desse modo, considero eficazes os espelhos de ponto anexados
+aos autos, exceto em relação aos cursos re
+```

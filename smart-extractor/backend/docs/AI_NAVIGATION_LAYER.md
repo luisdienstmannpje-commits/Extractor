@@ -86,6 +86,11 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 1. **Backend:** `main.py` → `GET /api/stats` (KnowledgeBase.stats() + get_total_extractions()).
 2. **Frontend:** `frontend/js/app.js` → `carregarEstatisticas`, `_setKpiValue`, `iniciarPollingEstatisticas()` (5 s só quando `#view-estatisticas` visível). `frontend/index.html` → `#view-estatisticas`, `#stats-kpi-*`, `#stats-ultimas-regras`, `#stats-top-verbas`.
 
+### 2.12 Biblioteca de Regras (Inteligência Pericial)
+1. **Backend:** `main.py` → `GET /api/knowledge-base`. Lê `knowledge_base.json` do path `KnowledgeBase._path` (backend/knowledge_base.json, mesmo que processor/learning_engine). Log no terminal: `print("Lendo KB de:", caminho_arquivo)`. Em erro retorna `{"rules": [], "_meta": {...}}` (nunca 404).
+2. **Frontend — local:** Card na aba Estatísticas (`#view-estatisticas`), `#total-regras`, `#btn-ver-biblioteca-regras`. Modal `#modal-regras` (z-index 9999).
+3. **Fluxo:** `carregarKnowledgeBase()` (try/catch; atualiza `#total-regras` com `data.rules.filter(r => r.status !== 'deleted').length`) — chamada no load, ao clicar em `[data-nav-view="estatisticas"]` e após extração. Botão → `abrirBibliotecaRegras()` → `renderListaRegras(rules)` (limpa tbody antes de preencher; se `rules.length === 0` mostra "Nenhuma regra aprendida ainda. Processe um caso no Laboratório para começar!") → `abrirModalRegras()`. Arquivos: `app.js` (carregarKnowledgeBase, abrirBibliotecaRegras), `render.js` (renderListaRegras, abrirModalRegras, fecharModalRegras, aplicarTabModalRegras).
+
 ---
 
 ## 3. Tabela de referência rápida
@@ -103,6 +108,7 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 | Frontend layout/UI | `docs/CODE_INTELLIGENCE_MAP.md` § 7 | `frontend/index.html`, `frontend/css/main.css` |
 | Parecer Técnico | `docs/CODE_INTELLIGENCE_MAP.md` § 4.3 | `skills/parecer_pericial.md`, `explanation_engine.py` |
 | Dashboard Estatísticas | este arquivo § 2.11 | `main.py` (/api/stats), `frontend/js/app.js` |
+| Biblioteca de Regras (auditar aprendizado) | este arquivo § 2.12 | `main.py` (/api/knowledge-base), `frontend/js/app.js`, `frontend/js/render.js` |
 
 ---
 

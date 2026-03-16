@@ -655,3 +655,120 @@ function copiarParecerTecnico() {
     document.body.removeChild(textarea);
   }
 }
+
+// ── Biblioteca de Regras (modal #modal-regras) ───────────────────────────────
+
+/**
+ * Deriva categoria legível a partir de condicao.tipo (Cálculo vs Texto).
+ * @param {Object} condicao - condicao da regra
+ * @returns {string} "Cálculo" ou "Texto"
+ */
+function categoriaRegra(condicao) {
+  if (!condicao || !condicao.tipo) return "Texto";
+  var t = String(condicao.tipo).toLowerCase();
+  if (t.indexOf("verba") !== -1 || t === "campo_diferente" || t === "campo_ausente") return "Cálculo";
+  return "Texto";
+}
+
+/**
+ * Popula o modal Biblioteca de Regras com as regras do Knowledge Base.
+ * Regras com status "deleted" vão para a aba "Removidas"; demais para "Ativas / Shadow".
+ * @param {Array} rules - array de regras (knowledge_base.rules)
+ */
+function renderListaRegras(rules) {
+  var list = Array.isArray(rules) ? rules : [];
+  console.log("Dados do KB recebidos:", list);
+  var ativas = list.filter(function (r) { return (r.status || "").toLowerCase() !== "deleted"; });
+  var deletadas = list.filter(function (r) { return (r.status || "").toLowerCase() === "deleted"; });
+
+  var tbodyAtivas = document.getElementById("modal-regras-tbody-ativas");
+  var tbodyDeletadas = document.getElementById("modal-regras-tbody-deletadas");
+  var emptyAtivas = document.getElementById("modal-regras-empty-ativas");
+  var emptyDeletadas = document.getElementById("modal-regras-empty-deletadas");
+
+  // Limpar tabelas antes de inserir para evitar duplicações
+  if (tbodyAtivas) tbodyAtivas.innerHTML = "";
+  if (tbodyDeletadas) tbodyDeletadas.innerHTML = "";
+
+  function badgeStatus(status) {
+    var s = (status || "shadow").toLowerCase();
+    if (s === "active") return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-positive/15 text-positive border border-positive/40">Ativa</span>';
+    if (s === "deleted") return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-muted/20 text-muted border border-border">Removida</span>';
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-warn/15 text-warn border border-warn/40">Shadow</span>';
+  }
+
+  function row(r) {
+    var id = escapeHtml(r.rule_id || "—");
+    var cat = categoriaRegra(r.condicao);
+    var badge = badgeStatus(r.status);
+    var desc = escapeHtml(r.descricao || "—");
+    var score = r.confidence_score != null ? Number(r.confidence_score) : 0;
+    return "<tr class=\"border-b border-border/60 hover:bg-white/[0.03]\">" +
+      "<td class=\"py-2.5 pr-3 font-mono text-[11px] text-muted\">" + id + "</td>" +
+      "<td class=\"py-2.5 pr-3 text-[#e8eaf0]\">" + escapeHtml(cat) + "</td>" +
+      "<td class=\"py-2.5 pr-3\">" + badge + "</td>" +
+      "<td class=\"py-2.5 pr-3 text-[#e8eaf0] max-w-[280px]\">" + desc + "</td>" +
+      "<td class=\"py-2.5 pl-3 text-right font-mono text-muted\">" + score + "</td>" +
+      "</tr>";
+  }
+
+  if (tbodyAtivas) {
+    tbodyAtivas.innerHTML = ativas.map(row).join("");
+  }
+  if (tbodyDeletadas) {
+    tbodyDeletadas.innerHTML = deletadas.map(row).join("");
+  }
+  if (emptyAtivas) {
+    emptyAtivas.classList.toggle("hidden", ativas.length > 0);
+    emptyAtivas.textContent = list.length === 0
+      ? "Nenhuma regra aprendida ainda. Processe um caso no Laboratório para começar!"
+      : "Nenhuma regra ativa ou em shadow.";
+  }
+  if (emptyDeletadas) {
+    emptyDeletadas.classList.toggle("hidden", deletadas.length > 0);
+  }
+}
+
+/**
+ * Abre o modal Biblioteca de Regras e aplica a aba ativa.
+ */
+function abrirModalRegras() {
+  var modal = document.getElementById("modal-regras");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  document.getElementById("modal-regras-tab-ativas").focus();
+  aplicarTabModalRegras("ativas");
+}
+
+/**
+ * Fecha o modal Biblioteca de Regras.
+ */
+function fecharModalRegras() {
+  var modal = document.getElementById("modal-regras");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+/**
+ * Alterna a aba visível no modal (ativas | deletadas).
+ * @param {string} tab - "ativas" ou "deletadas"
+ */
+function aplicarTabModalRegras(tab) {
+  var paneAtivas = document.getElementById("modal-regras-conteudo-ativas");
+  var paneDeletadas = document.getElementById("modal-regras-conteudo-deletadas");
+  var btnAtivas = document.getElementById("modal-regras-tab-ativas");
+  var btnDeletadas = document.getElementById("modal-regras-tab-deletadas");
+  if (tab === "deletadas") {
+    if (paneAtivas) paneAtivas.classList.add("hidden");
+    if (paneDeletadas) paneDeletadas.classList.remove("hidden");
+    if (btnAtivas) { btnAtivas.classList.remove("border-accent", "text-accent"); btnAtivas.classList.add("border-transparent", "text-muted"); }
+    if (btnDeletadas) { btnDeletadas.classList.add("border-accent", "text-accent"); btnDeletadas.classList.remove("border-transparent", "text-muted"); }
+  } else {
+    if (paneAtivas) paneAtivas.classList.remove("hidden");
+    if (paneDeletadas) paneDeletadas.classList.add("hidden");
+    if (btnAtivas) { btnAtivas.classList.add("border-accent", "text-accent"); btnAtivas.classList.remove("border-transparent", "text-muted"); }
+    if (btnDeletadas) { btnDeletadas.classList.remove("border-accent", "text-accent"); btnDeletadas.classList.add("border-transparent", "text-muted"); }
+  }
+}

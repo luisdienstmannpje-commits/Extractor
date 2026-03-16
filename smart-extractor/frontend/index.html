@@ -343,8 +343,6 @@
       <!-- ── COLUNA DIREITA: KPIs + Resultados ──────────────────── -->
       <div class="flex-1 flex flex-col overflow-hidden min-w-0">
 
-        <!-- KPI Bar removido: indicadores agora apenas no Raio-X / Estatísticas (mais espaço vertical para PDF) -->
-
         <!-- Results scroll area -->
         <div id="results-scroll-area" class="flex-1 overflow-y-auto min-h-0 px-3 pt-3 pb-5">
 
@@ -744,6 +742,28 @@
           </button>
         </div>
 
+        <!-- Card Inteligência Pericial (Biblioteca de Regras) — aba Estatísticas -->
+        <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-lg bg-accent2/15 border border-accent2/30 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 text-accent2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+                <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[11px] font-medium text-muted uppercase tracking-wider">Inteligência Pericial</p>
+              <p class="text-[14px] font-semibold text-[#e8eaf0] leading-tight">
+                <span id="total-regras">0</span> Regras Aprendidas
+              </p>
+            </div>
+          </div>
+          <button type="button" id="btn-ver-biblioteca-regras"
+            class="shrink-0 text-[12px] font-medium px-3 py-1.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 transition-colors focus:outline-none whitespace-nowrap">
+            Ver Biblioteca de Regras
+          </button>
+        </div>
+
         <!-- KPI Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div class="bg-surface border border-border rounded-xl px-4 py-3 shadow-card">
@@ -829,6 +849,69 @@
 
 
 <!-- ════════════════════════════════════════════
+     MODAL: Biblioteca de Regras (Knowledge Base)
+════════════════════════════════════════════════ -->
+<div id="modal-regras" class="fixed inset-0 z-[9999] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+     role="dialog" aria-modal="true" aria-labelledby="modal-regras-title">
+  <div class="bg-surface border border-border rounded-2xl shadow-card-lg w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div class="shrink-0 flex items-center justify-between px-5 py-4 border-b border-border">
+      <h2 id="modal-regras-title" class="text-[15px] font-semibold text-[#e8eaf0] flex items-center gap-2">
+        <svg class="w-5 h-5 text-accent2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+        </svg>
+        Biblioteca de Regras
+      </h2>
+      <button type="button" id="modal-regras-fechar" class="p-2 rounded-lg text-muted hover:text-[#e8eaf0] hover:bg-white/5 transition-colors focus:outline-none" aria-label="Fechar">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <!-- Tabs: Ativas/Shadow | Deletadas -->
+    <div class="shrink-0 flex gap-0 border-b border-border px-5">
+      <button type="button" id="modal-regras-tab-ativas" class="modal-regras-tab px-4 py-3 text-[13px] font-medium border-b-2 border-accent text-accent" data-tab="ativas">
+        Ativas / Shadow
+      </button>
+      <button type="button" id="modal-regras-tab-deletadas" class="modal-regras-tab px-4 py-3 text-[13px] font-medium border-b-2 border-transparent text-muted hover:text-[#e8eaf0]" data-tab="deletadas">
+        Removidas (histórico)
+      </button>
+    </div>
+    <div class="flex-1 overflow-auto min-h-0 p-5">
+      <div id="modal-regras-conteudo-ativas" class="modal-regras-pane">
+        <table class="w-full text-left text-[12px] border-collapse">
+          <thead>
+            <tr class="border-b border-border text-muted uppercase tracking-wider text-[10px]">
+              <th class="py-2 pr-3 font-semibold">ID</th>
+              <th class="py-2 pr-3 font-semibold">Categoria</th>
+              <th class="py-2 pr-3 font-semibold">Status</th>
+              <th class="py-2 pr-3 font-semibold">Descrição do erro</th>
+              <th class="py-2 pl-3 font-semibold text-right">Score</th>
+            </tr>
+          </thead>
+          <tbody id="modal-regras-tbody-ativas"></tbody>
+        </table>
+        <p id="modal-regras-empty-ativas" class="text-[12px] text-muted py-6 text-center hidden">Nenhuma regra ativa ou em shadow.</p>
+      </div>
+      <div id="modal-regras-conteudo-deletadas" class="modal-regras-pane hidden">
+        <table class="w-full text-left text-[12px] border-collapse">
+          <thead>
+            <tr class="border-b border-border text-muted uppercase tracking-wider text-[10px]">
+              <th class="py-2 pr-3 font-semibold">ID</th>
+              <th class="py-2 pr-3 font-semibold">Categoria</th>
+              <th class="py-2 pr-3 font-semibold">Status</th>
+              <th class="py-2 pr-3 font-semibold">Descrição do erro</th>
+              <th class="py-2 pl-3 font-semibold text-right">Score</th>
+            </tr>
+          </thead>
+          <tbody id="modal-regras-tbody-deletadas"></tbody>
+        </table>
+        <p id="modal-regras-empty-deletadas" class="text-[12px] text-muted py-6 text-center hidden">Nenhuma regra removida.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════
      INLINE VIEW SWITCHER
 ════════════════════════════════════════════════ -->
 <script>
@@ -864,8 +947,9 @@
       carregarHistorico();
     }
     // Auto-load stats
-    if (v === 'estatisticas' && typeof carregarEstatisticas === 'function') {
-      carregarEstatisticas();
+    if (v === 'estatisticas') {
+      if (typeof carregarEstatisticas === 'function') carregarEstatisticas();
+      if (typeof carregarKnowledgeBase === 'function') carregarKnowledgeBase();
     }
 
     // Sidebar active state
@@ -897,8 +981,8 @@
 }());
 </script>
 
-<script src="js/app.js"></script>
-<script src="js/render.js"></script>
-<script src="js/lab.js"></script>
+<script src="js/app.js?v=1.0.1"></script>
+<script src="js/render.js?v=1.0.1"></script>
+<script src="js/lab.js?v=1.0.1"></script>
 </body>
 </html>

@@ -1155,3 +1155,99 @@ Fundamento mencionado na manifestação da perita
 Fundamento mencionado na manifestação da perita
 
 <!-- Revisar e expandir com trecho real da sentença se necessário -->
+
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 16/03/2026 00:28 | Processo: 0000648-34.2019.5.12.0008 -->
+
+### Padrão de erro identificado
+Omissão, na planilha de cálculos, da verba referente ao intervalo previsto no artigo 384 da CLT, embora tenha sido expressamente deferida no dispositivo da sentença. O erro consiste na não apuração dos 15 minutos suprimidos como labor extraordinário nos dias em que a empregada prestou sobrejornada.
+
+### Como identificar na sentença
+Buscar no dispositivo ou na fundamentação da sentença por palavras-chave como: "art. 384 da CLT", "intervalo da mulher", "15 minutos", "descanso antecedente à sobrejornada". Identificar expressões de deferimento associadas, tais como "defiro o pagamento de 15 minutos extraordinários", "condeno ao pagamento do intervalo do art. 384" ou "procedente o pedido de horas extras pela supressão do intervalo".
+
+### Correção correta
+Apurar, para cada dia em que houve prestação de horas extras pela trabalhadora, 15 minutos como tempo extraordinário. Aplicar o divisor de horas e o adicional de horas extras definidos na sentença (geralmente 50% ou o normativo, se mais benéfico). A base de cálculo deve ser a mesma utilizada para as demais horas extras. Totalizar os valores e incluir a verba "Intervalo Art. 384" na planilha de liquidação, com os devidos reflexos em DSR, 13º salário, férias + 1/3 e FGTS, se também deferidos.
+
+### Base legal
+Artigo 384 da Consolidação das Leis do Trabalho (CLT) em sua redação anterior à Lei 13.467/2017. A aplicabilidade e os parâmetros de cálculo (base, divisor, adicional e reflexos) são definidos no corpo da decisão judicial e detalhados na manifestação sobre os cálculos.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Ante o exposto, julgo PROCEDENTE o pedido para condenar a reclamada ao pagamento de 15 (quinze) minutos diários, como horas extras, pela supressão do intervalo previsto no art. 384 da CLT, nos dias de efetivo labor extraordinário, com adicional de 50% e reflexos em DSR, 13º salário, férias + 1/3 e FGTS.
+
+**Interpretação correta:**
+A sentença determina que, para cada dia em que a reclamante realizou horas extras, deve-se adicionar 15 minutos ao cálculo de horas extras. Este valor deve ser calculado com um acréscimo de 50% e integrado ao salário para o cálculo de Descanso Semanal Remunerado, 13º salário, férias acrescidas de um terço e depósitos de FGTS. A ausência da rubrica "Intervalo Art. 384" ou similar na planilha final de liquidação configura um erro a ser corrigido.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 16/03/2026 00:34 | Processo: 0000648-34.2019.5.12.0008 -->
+
+### Padrão de erro identificado
+Ausência de inclusão do intervalo intrajornada previsto no artigo 384 da CLT no cálculo das horas extras, mesmo após deferimento expresso na sentença. O erro reside na não identificação da necessidade de integração deste intervalo específico no cômputo das horas suplementares, especialmente em casos de prorrogação da jornada da mulher.
+
+### Como identificar na sentença
+*   **Palavras-chave:** "artigo 384 CLT", "intervalo intrajornada mulher", "repouso", "horas extras", "prorrogação da jornada".
+*   **Padrões textuais:** Sentenças com a expressão "defiro o intervalo do art. 384 da CLT" ou similar, indicando o direito ao intervalo específico. Verificar se há condenação ao pagamento de horas extras decorrentes da supressão ou não concessão deste intervalo.
+*   **Campos a verificar:** Seção da sentença referente aos pedidos da reclamante, fundamentação da decisão sobre o intervalo do art. 384 da CLT e dispositivo da sentença (parte dispositiva).
+
+### Correção correta
+Incluir o intervalo do art. 384 da CLT no cálculo das horas extras como tempo à disposição do empregador.  O cálculo deve considerar a duração total do intervalo suprimido (15 minutos) multiplicado pelo número de dias trabalhados em que houve prorrogação da jornada. Aplicar o adicional de horas extras, conforme determinado na sentença, sobre o valor da hora normal.  Integrar o valor apurado ao salário para fins de reflexos em outras verbas (DSR, férias + 1/3, 13º salário, FGTS + 40%).
+
+### Base legal
+Artigo 384 da CLT; Jurisprudência consolidada do Tribunal Superior do Trabalho (TST) sobre o tema; Verificar fundamentação na manifestação.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Defiro o pedido de pagamento do intervalo previsto no artigo 384 da CLT, em face da comprovada prorrogação da jornada da autora, conforme controles de ponto. Condeno a reclamada ao pagamento de 15 minutos diários a título de horas extras, com adicional de 50%, e reflexos em DSRs, férias + 1/3, 13º salários e FGTS+40%."
+
+**Interpretação correta:**
+A sentença é clara ao deferir o intervalo do art. 384 da CLT e condenar a reclamada ao pagamento de 15 minutos diários como horas extras. O cálculo deverá considerar:
+1.  Identificar os dias em que houve prorrogação da jornada da autora.
+2.  Multiplicar o número de dias com prorrogação por 15 minutos.
+3.  Converter o resultado em horas.
+4.  Aplicar o adicional de 50% sobre o valor da hora normal da autora.
+5.  Integrar o valor resultante nas demais verbas (DSR, férias + 1/3, 13º salários e FGTS+40%), conforme determinado na sentença.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 16/03/2026 00:40 | Processo: 0000648-34.2019.5.12.0008 -->
+
+### Padrão de erro identificado
+Omissão no cálculo liquidando da verba "Intervalo do artigo 384 da CLT", apesar de seu expresso deferimento no título executivo judicial. A liquidação deixa de apurar os 15 minutos diários devidos à trabalhadora como horas extras nos dias em que houve prorrogação da jornada normal de trabalho.
+
+### Como identificar na sentença
+Buscar no dispositivo da sentença ou do acórdão a condenação explícita ao pagamento do intervalo para descanso da mulher. Utilizar palavras-chave como: "art. 384", "artigo 384 da CLT", "intervalo da mulher", "15 minutos", "descanso antes da sobrejornada". A verba geralmente é deferida como "horas extras" ou "pagamento como extra".
+
+### Correção correta
+Incluir na planilha de cálculo a apuração de 15 minutos (0,25 hora) como hora extra para cada dia em que se verificar a existência de sobrejornada. Aplicar o divisor, o adicional de horas extras (legal ou convencional) e os reflexos em verbas contratuais e rescisórias (RSR, aviso prévio, 13º salário, férias + 1/3, FGTS + 40%) definidos no comando sentencial.
+
+### Base legal
+Art. 384 da CLT (revogado pela Lei 13.467/2017, mas aplicável aos contratos de trabalho vigentes antes de 11/11/2017) e Tese de Repercussão Geral do STF no RE 658.312 (Tema 528). Os parâmetros específicos de cálculo (base, adicional, reflexos) são ditados pelo título executivo judicial (sentença/acórdão).
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> "Face ao exposto, condeno a reclamada ao pagamento de horas extras decorrentes da supressão do intervalo previsto no art. 384 da CLT, correspondentes a 15 minutos por dia de efetivo labor em sobrejornada, com adicional de 50% e reflexos em repouso semanal remunerado, aviso prévio, 13º salários, férias acrescidas de 1/3 e FGTS com a indenização de 40%."
+
+**Interpretação correta:**
+O sistema de cálculo deve, para o período contratual anterior a 11/11/2017, verificar os cartões de ponto. Em cada dia em que a jornada contratual foi ultrapassada, deve ser adicionada à apuração de horas extras uma rubrica específica no valor de 0,25 hora (15 minutos), calculada com a remuneração da época e acrescida do adicional de 50%. O montante total desta verba deve servir de base para o cálculo dos reflexos deferidos.
+---
+## Engenharia Reversa — Discrepância: verba_ausente
+<!-- Laboratório de Aprendizado | 16/03/2026 00:49 | Processo: 0000648-34.2019.5.12.0008 -->
+
+### Padrão de erro identificado
+Omissão no cálculo da verba referente ao intervalo do Artigo 384 da CLT (intervalo da mulher), apesar de seu deferimento explícito no dispositivo da sentença. O erro consiste na não apuração dos 15 minutos como labor extraordinário nos dias em que houve prestação de horas extras pela reclamante, no período contratual anterior à vigência da Lei 13.467/2017.
+
+### Como identificar na sentença
+Buscar no dispositivo ou na fundamentação da decisão por palavras-chave como: "art. 384", "artigo 384 da CLT", "intervalo da mulher", "descanso antecedente à sobrejornada", "15 minutos". A identificação é confirmada pela presença de verbos de comando como "defiro", "condeno", "julgo procedente" associados a esses termos.
+
+### Correção correta
+Apurar, para cada dia com registro de labor extraordinário no período imprescrito e anterior a 11/11/2017, o pagamento de 15 minutos como hora extra. O cálculo deve aplicar o divisor e o adicional de horas extras definidos na sentença (usualmente 50% ou superior, conforme CCT/ACT), e computar os reflexos deferidos em verbas como DSR, aviso prévio, 13º salários, férias acrescidas de 1/3 e FGTS com a multa de 40%.
+
+### Base legal
+Artigo 384 da CLT (em sua redação anterior à Lei nº 13.467/2017). Constitucionalidade validada pelo Supremo Tribunal Federal no julgamento do Tema de Repercussão Geral 528. A fundamentação específica do título executivo judicial deve ser sempre consultada para verificar os parâmetros exatos do deferimento.
+
+### Exemplo prático
+**Texto na sentença (padrão problemático):**
+> Pelo exposto, condeno a reclamada ao pagamento de horas extras pela supressão do intervalo do art. 384 da CLT, correspondente a 15 (quinze) minutos nos dias em que houve prorrogação da jornada normal, com adicional de 50% e reflexos em repouso semanal remunerado, férias com 1/3, 13º salário, aviso prévio e FGTS (8% + 40%).
+
+**Interpretação correta:**
+O sistema deve identificar a condenação ao pagamento do "intervalo do art. 384 da CLT". Para o período contratual até 10/11/2017, deve-se verificar, dia a dia, a existência de horas extras. Nos dias em que houver, deve-se adicionar 0,25 hora (15 minutos) à base de cálculo das horas extras, aplicar o adicional de 50% e calcular os reflexos determinados (DSR, férias+1/3, 13º, etc.) sobre o valor apurado para esta verba específica.

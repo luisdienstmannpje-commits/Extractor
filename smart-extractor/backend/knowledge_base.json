@@ -40,7 +40,7 @@
         "mensagem": "A verba 'INTERVALO INTRAJORNADA', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
       },
       "base_legal": "Art. 71, § 4º, CLT; Título executivo judicial (Coisa julgada)",
-      "confidence_score": -69,
+      "confidence_score": -81,
       "status": "deleted",
       "casos_vistos": [
         "0010070-87.2020.5.03.0092",
@@ -49,9 +49,9 @@
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 15,
-      "punicoes": 85,
+      "punicoes": 97,
       "created_at": "2026-03-13T12:04:38.985257",
-      "updated_at": "2026-03-15T10:37:35.540301"
+      "updated_at": "2026-03-16T01:50:32.185000"
     },
     {
       "rule_id": "DYN_20260313_120438_9852",
@@ -93,16 +93,16 @@
         "mensagem": "A verba 'saldo de salário', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
       },
       "base_legal": "artigo 467 e 477 da CLT",
-      "confidence_score": -211,
+      "confidence_score": -247,
       "status": "deleted",
       "casos_vistos": [
         "0011219-69.2024.5.15.0052",
         "1002192-49.2025.5.02.0221"
       ],
       "acertos": 25,
-      "punicoes": 237,
+      "punicoes": 273,
       "created_at": "2026-03-13T12:09:13.876415",
-      "updated_at": "2026-03-15T10:37:35.557936"
+      "updated_at": "2026-03-16T01:50:32.202028"
     },
     {
       "rule_id": "DYN_20260313_120913_8764",
@@ -271,15 +271,15 @@
         "mensagem": "Identificamos que verbas deferidas na sentença (itens 05 a 10 da fundamentação) não constam na liquidação. É necessário incluir todos os títulos deferidos no cálculo."
       },
       "base_legal": "Verificar fundamentação na manifestação",
-      "confidence_score": -80,
+      "confidence_score": -92,
       "status": "deleted",
       "casos_vistos": [
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 1,
-      "punicoes": 82,
+      "punicoes": 94,
       "created_at": "2026-03-13T12:44:25.716014",
-      "updated_at": "2026-03-15T10:37:35.561953"
+      "updated_at": "2026-03-16T01:50:32.202028"
     },
     {
       "rule_id": "DYN_20260313_124425_7160",
@@ -320,13 +320,13 @@
         "mensagem": "Sugerir fundamento: Princípio da prova documental (implícito) — Rebate: A ausência dos registros de jornada torna os cálculos inválidos e sem credibilidade, pois a origem das horas não pode se"
       },
       "base_legal": "Princípio da prova documental (implícito)",
-      "confidence_score": 118,
+      "confidence_score": 131,
       "status": "active",
       "casos_vistos": [],
-      "acertos": 117,
+      "acertos": 130,
       "punicoes": 0,
       "created_at": "2026-03-13T15:05:36.790828",
-      "updated_at": "2026-03-14T23:02:24.692287"
+      "updated_at": "2026-03-16T01:50:32.181758"
     },
     {
       "rule_id": "DYN_20260313_150545_4577",
@@ -1122,20 +1122,67 @@
         "mensagem": "A verba 'Adicional de Insalubridade', deferida em sentença, não foi localizada nos cálculos da liquidação e deve ser incluída."
       },
       "base_legal": "Art. 189 a 192 da CLT",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "0010170-07.2025.5.03.0144"
       ],
       "acertos": 1,
-      "punicoes": 1,
+      "punicoes": 3,
       "created_at": "2026-03-14T23:04:01.178730",
-      "updated_at": "2026-03-15T10:37:35.564155"
+      "updated_at": "2026-03-16T00:20:07.198113"
+    },
+    {
+      "rule_id": "DYN_20260316_002738_7549",
+      "descricao": "Omissão da verba 'Intervalo do art. 384 da CLT' deferida em sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Intervalo do artigo 384 da CLT"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A liquidação não incluiu a verba 'Intervalo do artigo 384 da CLT', que foi expressamente deferida em sentença, em descumprimento à coisa julgada."
+      },
+      "base_legal": "Coisa Julgada (Art. 502, CPC)",
+      "confidence_score": 5,
+      "status": "active",
+      "casos_vistos": [
+        "0000648-34.2019.5.12.0008"
+      ],
+      "acertos": 4,
+      "punicoes": 0,
+      "created_at": "2026-03-16T00:27:38.754952",
+      "updated_at": "2026-03-16T00:48:38.080546"
+    },
+    {
+      "rule_id": "DYN_20260316_011634_1080",
+      "descricao": "Índice de correção monetária diverso do definido na sentença (ADC 58 / Súmula 439 TST)",
+      "condicao": {
+        "tipo": "indice_ausente",
+        "campo": "indice_correcao",
+        "valor_esperado": "Sem Correção (conforme Súmula nº 381 do TST para valores principais, SELIC para honorários)"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "O índice de correção monetária aplicado no cálculo está em desacordo com a determinação judicial (ADC 58 / Súmula 439 TST)."
+      },
+      "base_legal": "ADC 58 / Súmula 439 TST",
+      "confidence_score": -1,
+      "status": "deleted",
+      "casos_vistos": [
+        "0011028-45.2024.5.03.0153"
+      ],
+      "acertos": 0,
+      "punicoes": 2,
+      "created_at": "2026-03-16T01:16:34.108099",
+      "updated_at": "2026-03-16T01:36:49.244296"
     }
   ],
   "_meta": {
     "version": "1.0",
     "created_at": "2026-03-13T12:04:38.968437",
-    "updated_at": "2026-03-15T10:37:35.564155"
+    "updated_at": "2026-03-16T01:50:32.202028"
   }
 }

@@ -82,6 +82,11 @@ class KnowledgeBase:
         """Recarrega do disco para evitar conflitos entre workers."""
         self._data = self._carregar()
 
+    def get_all(self) -> Dict[str, Any]:
+        """Retorna o dicionário completo (rules + _meta) para a API. Cópia para não alterar estado."""
+        import copy
+        return copy.deepcopy(self._data) if self._data else {"rules": [], "_meta": {"version": "1.0"}}
+
     # ── Consultas ─────────────────────────────────────────────────────────────
 
     def get_todas(self) -> List[Dict]:
