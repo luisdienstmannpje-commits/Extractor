@@ -1,0 +1,263 @@
+PJeCalc Smart Extractor — Refatoração Necessária (Backlog SaaS)
+
+Objetivo: registrar, em um único lugar, tudo o que ainda precisa ser atualizado/refatorado para o sistema evoluir com segurança como SaaS (multi-tenant, escalável, observável) — e evitar que mudanças pontuais gerem bugs ou dívida técnica silenciosa.
+
+Regra de uso (obrigatória)
+
+- A cada nova funcionalidade, refatoração relevante ou alteração de contrato (backend, frontend, infra, docs), adicione aqui:
+  - um item curto descrevendo a mudança;
+  - o risco potencial (onde pode quebrar, qual fluxo é sensível);
+  - a recomendação de hardening (teste, monitoria, validação, alerta, migração futura).
+- Este arquivo é parte da “fonte de verdade” arquitetural: antes de mexer em domínios críticos (Lab, Learning Engine, Knowledge Base, Exportadores, Autenticação), leia os itens pendentes aqui.
+
+1. Autenticação, multi-tenant e segurança de APIs
+
+- Situação atual:
+  - Multi-tenant já existe na Knowledge Base (`KnowledgeBase(tenant_id=user_id)`), mas a autenticação/identidade de usuário ainda não está padronizada como “SaaS de produção” (tokens, escopos, roles, rate limit por tenant/usuário).
+- Riscos:
+  - Vazamento cruzado de dados entre tenants se `user_id` não for consistente em todos os fluxos (Lab, extrator, stats, KB).
+  - Abuso de API (ataques de força bruta, scraping) sem rate limiting/côteas claras.
+- Recomendações:
+  - Definir modelo oficial de identidade (ex.: `user_id` vindo de JWT validado por middleware) e mapear TODOS os lugares que hoje aceitam `user_id` “livre”.
+  - Introduzir camada de auth no backend (FastAPI dependencies/middlewares) antes de abrir o sistema como SaaS público.
+  - Implementar rate limiting por chave de API/tenant (Redis ou similar) + logs de segurança (tentativas inválidas, picos).
+
+2. Persistência e banco de dados (SQLite → Postgres gerenciável)
+
+- Situação atual:
+  - SQLite central (`services/database.py`) funciona bem para ambiente controlado, mas é frágil para multi-tenant com muitos jobs concorrentes (lock de arquivo, backup, replicação).
+- Riscos:
+  - Contenção de escrituras em alto volume.
+  - Dificuldade de migração para infra em nuvem (RDS/Cloud SQL).
+- Recomendações:
+  - Planejar migração progressiva para Postgres:
+    - Introduzir camada de repositórios (interfaces) em vez de chamar SQLite direto.
+    - Isolar DDL/queries em módulo próprio (`repositories/` ou similar).
+  - Garantir migração idempotente dos dados críticos: créditos, jobs, histórico, knowledge_base (ou mantê-la em storage separado).
+
+3. Observabilidade, logs estruturados e métricas
+
+- Situação atual:
+  - Sprint 1 iniciou a migração para logs estruturados (JSON) com middleware central em `backend/main.py` e contexto de requisição em `services/request_context.py`.
+- Riscos:
+  - Dificuldade de debugar incidentes em produção multi-tenant.
+  - Falta de métricas para dimensionar uso (tempo de IA, retries, falhas por endpoint).
+- Recomendações:
+  - Padronizar logs estruturados (JSON) com campos fixos: `tenant_id`, `user_id`, `job_id`, `doc_type`, `endpoint`, `latencia_ms`, `model_used`, `erro_categoria`.
+  - Integrar com stack de observabilidade (ex.: OpenTelemetry → Prometheus/Grafana/Cloud Logging).
+  - Definir SLOs básicos (latência de /upload, taxa de erro por endpoint, backlog de jobs).
+
+4. Learning Engine e Laboratório — hardening para SaaS
+
+- Situação atual:
+  - `learning_engine.py` é o “único cérebro” do Lab; fluxo complexo (8 arquivos, Timeline, Self-Healing, Knowledge Base).
+  - Frontend React (`Laboratory.tsx` + `useAnalyze.ts`) já abstrai upload e estado dos cards.
+- Riscos:
+  - Pequenas mudanças em `learning_engine.py`, `extractors.py` ou `style_transfer.py` podem quebrar contratos de `/lab/analisar` e `/lab/salvar` sem teste automatizado cobrindo todo o fluxo.
+  - Knowledge Base multi-tenant mal configurada pode misturar hipóteses de regra entre clientes.
+- Recomendações:
+  - Criar suíte de testes de integração para o Lab (mínimo: cenários com 1 arquivo, 3 arquivos, 8 arquivos; e casos de Timeline).
+  - Garantir invariantes documentadas em `AI_NAVIGATION_LAYER.md` e `CODE_INTELLIGENCE_MAP.md` (não quebrar contratos de retorno).
+  - Adicionar validações de entrada mais rígidas nos endpoints `/lab/*` (tamanho, tipo de arquivo, campos obrigatórios por modo).
+
+5. Exportadores (PJeCalc, Excel, Word) como serviço estável
+
+- Situação atual:
+  - Exportadores dependem de código legado em `_archive/pjc/pjc_exporter_v5.9.py` e templates específicos.
+- Riscos:
+  - Mudanças futuras no PJeCalc podem exigir ajustes finos em XML e campos.
+  - Difícil versionar comportamentos por tenant/versão jurídica.
+- Recomendações:
+  - Isolar contratos de exportação em módulo próprio (ex.: `services/export/` com interfaces claras).
+  - Introduzir versionamento explícito da “versão de exportador” usada por job (para reproduzir bugs e regressões).
+  - Planejar extração gradual de lógica do `_archive` para módulo mantido oficialmente (com testes).
+
+6. Frontend SPA React — consistência de rotas e contratos
+
+- Situação atual:
+  - UI oficial em `frontend/src/` (React + Vite), com rotas `/`, `/extractor`, `/lab`.
+  - Documentação antiga ainda menciona 4 views HTML/JS e `lab.js`.
+- Riscos:
+  - Novos devs/IA seguirem instruções erradas e tentarem mexer em arquivos que não existem mais.
+- Recomendações:
+  - Manter alinhamento contínuo entre:
+    - `DEVELOPER.md` (§ 1 e § 3),
+    - `backend/docs/CODE_MAP.md` (§ Frontend),
+    - `backend/docs/AI_NAVIGATION_LAYER.md` (§ 2.8, 2.9, 2.11, 2.12),
+    - `backend/docs/AI_RULES.md` (tabela “Onde ler primeiro”).
+  - Sempre que criar nova rota ou página, adicionar referência aqui e em CODE_MAP.
+
+7. Tratamento de erros e UX SaaS
+
+- Situação atual:
+  - Backend já retorna mensagens ricas em alguns fluxos, mas UX ainda depende muito de logs e toasts genéricos.
+- Riscos:
+  - Em SaaS, erros pouco claros geram suporte caro e perda de confiança (especialmente para peritos e escritórios).
+- Recomendações:
+  - Padronizar envelope de erro (códigos internos, mensagens para usuário final vs. mensagem técnica).
+  - No frontend, tratar estados de loading/falha/retry de forma consistente (React Query ou afim).
+  - Mapear fluxos críticos que não podem falhar em silêncio (upload, export, salvar aprendizado) e garantir feedback explícito.
+
+8. Checklist para futuras mudanças
+
+Sempre que você fizer uma alteração relevante:
+
+- [ ] Descrever aqui em 1–3 linhas o que mudou (com arquivos principais).
+- [ ] Anotar o risco de regressão (quais endpoints/rotas podem quebrar).
+- [ ] Sugerir pelo menos 1 melhoria futura (teste, observabilidade, isolamento de módulo, contrato mais claro).
+- [ ] Atualizar, se necessário, os seguintes docs:
+      - `DEVELOPER.md`
+      - `backend/README.md`
+      - `backend/docs/AI_NAVIGATION_LAYER.md`
+      - `backend/docs/CODE_MAP.md`
+      - `backend/docs/CODE_INTELLIGENCE_MAP.md`
+      - `backend/docs/AI_RULES.md`
+
+9. Sprint 1 — Logs Estruturados e Propagação de Tenant (concluída)
+
+- O que foi feito:
+  - Criado `services/request_context.py` com `RequestContext` baseado em `contextvars`, expondo `tenant_id`, `user_id`, `request_id` e `job_id`.
+  - Adicionado middleware em `backend/main.py` que:
+    - lê `x-user-id` (fase 1: `tenant_id == user_id`, documentado no código),
+    - inicializa o contexto de requisição,
+    - mede latência e registra logs estruturados em JSON com contrato:
+      `{"ts", "level", "request_id", "tenant_id", "user_id", "job_id", "method", "path", "status_code", "latencia_ms", "error"}` para `/api/extract`, `/lab/analisar` e `/api/stats`.
+  - Endpoints críticos passaram a usar o contexto em vez de `user_id` solto:
+    - `api/routers/extractor.py` (`/upload`, `/api/extract`) agora toma o `user_id` efetivo do contexto (header `x-user-id`) e propaga para jobs e pipeline.
+    - `api/routers/lab.py` (`/lab/analisar`) usa o `user_id` efetivo do contexto ao salvar extrações.
+    - `api/routers/admin.py` (`/api/knowledge-base`, `/api/stats`) instanciam `KnowledgeBase(tenant_id=...)` a partir do contexto e `get_total_extractions(user_id=tenant_id)`.
+  - `KnowledgeBase` e consumidores dinâmicos passaram a respeitar `tenant_id` do contexto quando antes usavam padrão global:
+    - `services/learning_engine` (self_healing), `services/lab/style_transfer.py`, `services/extraction_engine.py` e `services/legal_engine/dynamic_rule_loader.py` agora invocam `KnowledgeBase(tenant_id=current_tenant_id())`.
+  - `services/database.get_total_extractions` passou a aceitar `user_id` opcional para contar processos únicos por tenant/usuário.
+- Risco de regressão:
+  - Mudança no caminho de instanciamento de `KnowledgeBase` e contagem de extrações pode afetar estatísticas e shadow rules caso `x-user-id` não seja enviado corretamente pelo frontend.
+- Contrato alvo de identidade (fase 1):
+  - `tenant_id` é igual a `user_id` e ambos vêm de `x-user-id`.
+  - Fase futura: separar `tenant_id` de `user_id` (ex.: `x-tenant-id` + claim de usuário no JWT) mantendo a mesma interface de contexto (`RequestContext`).
+
+Este arquivo deve crescer junto com o produto: não é “documentação morta”, é o backlog vivo de refatoração necessária para o Smart Extractor se comportar como um SaaS robusto.
+
+## 9. Sprint 2 — Repository Pattern (Postgres Readiness)
+
+Commit A ✅ Concluído:
+  - interfaces ABC: `services/repositories/base.py` (Extraction, Cache, Job, Credits stub).
+  - implementações SQLite: `services/repositories/sqlite_repo.py`.
+  - `services/database.py` refatorado como factory + shims temporários para compatibilidade.
+
+Commit B ✅ Concluído:
+  - `workers/processor.py`: passou a usar `get_cache_repo()` e `get_extraction_repo(tenant_id=user_id)` em ambos os pipelines (`process_lawsuit_pdf`, `process_lawsuit_dossie`), mantendo créditos (`get_user_credits`, `deduct_credit`) intactos.
+  - `api/routers/extractor.py`: captura `tenant_id` no handler assíncrono (`upload_pdf`) via `RequestContext`, passa explicitamente `tenant_id` para `_start_job` / `_run_job_with_timeout` (threads) e usa `get_job_repo()` para persistir status de jobs (sem depender de `contextvars` dentro das threads).
+  - `api/routers/admin.py`: passou a usar `get_extraction_repo(tenant_id=user_id)` em `get_historico` (shape preservado: campo `user_id` na raiz) e `get_extraction_repo(tenant_id=tenant_id)` em `/api/stats` para obter `get_total_extractions()` isolado por tenant.
+  - `services/database.py`: shims antigos removidos (`save_extraction`, `get_cache`, `save_cache`, `save_job_status`, `get_job_status`, `get_user_history`, `get_total_extractions`, `clear_extracoes`); arquivo agora expõe apenas as factories (`get_extraction_repo`, `get_cache_repo`, `get_job_repo`) e as funções de créditos (`get_user_credits`, `deduct_credit`, `add_credits`) + `cleanup_old_jobs`.
+  - Logs residuais de `print` migrados para o logger estruturado `_logger = logging.getLogger("smart_extractor")` em `api/routers/extractor.py` e `api/routers/admin.py`.
+  - `api/routers/lab.py`: deixou de usar o shim `save_extraction` diretamente e passou a registrar análises do Laboratório via `get_extraction_repo(tenant_id=effective_user_id).save_extraction(...)`, garantindo que as contagens de processos analisados pelo Lab também respeitem o isolamento por tenant.
+
+Decisões técnicas:
+  - Identidade em threads garantida via injeção explícita de `tenant_id` na criação das threads (`_start_job` / `_run_job_with_timeout`); **nunca** se lê `current_tenant_id()` dentro de threads nativas.
+  - Repositórios isolados por domínio (Extraction, Cache, Job), permitindo futura implementação Postgres apenas trocando as factories em `services/database.py` / `services/repositories`.
+  - `get_total_extractions(tenant_id=None)` passa a ser responsabilidade do repositório:
+      - `tenant_id is None` → contagem global (painel administrativo master).
+      - `tenant_id` definido → contagem isolada por tenant/usuário (dashboard individual).
+  - `reset_contagem` (`DELETE /api/admin/reset-contagem`) é operação global deliberada — não filtra por tenant — e está documentada como tal no docstring (usada para zerar ambiente de teste).
+  - `_init_db()` continua garantido via import das classes SQLite nos repositórios; a camada de factories não reimplementa lógica de conexão.
+
+Limitações conhecidas (sprint futura):
+  - `KnowledgeBase` e consumidores dentro de threads ainda usam contexto anônimo (`contextvars` não se propaga para `threading.Thread`). Precisa de estratégia específica (injeção explícita de `tenant_id` nas chamadas ou uso de workers async/queue).
+  - Billing/Credits ainda acoplado ao SQLite via helpers internos (`_get_conn`) em `services.database.get_user_credits` / `deduct_credit` / `add_credits`.
+
+## 10. Sprint 3 — Billing/Credits Repository
+
+Concluído:
+  - `CreditsRepository` já existia em `services/repositories/base.py` e recebeu implementação concreta `SQLiteCreditsRepository` em `services/repositories/sqlite_repo.py`, reutilizando a tabela `users`.
+  - `services/database.py` deixou de usar `_get_conn` diretamente para créditos e passou a expor:
+      - `get_credits_repo() -> CreditsRepository`
+      - `get_user_credits`, `deduct_credit`, `add_credits` apenas como wrappers de compatibilidade que delegam para o `CreditsRepository`.
+  - Últimos `print(..., flush=True)` críticos em `services/learning_engine.py` foram migrados para `_logger = logging.getLogger("smart_extractor")`, com `tenant_id` vindo de `current_tenant_id()`:
+      - `_extrair_texto_docx`, `_extrair_texto_arquivo`, auto-classificação de arquivos, atualização de `amostragem_style.md`, extração de lógica (`KB`), pipeline completo de `/lab/analisar` e timeline passaram a registrar logs estruturados.
+  - `services.lab.self_healing.evaluate_shadow_rules` deixou de depender cegamente de `current_tenant_id()`:
+      - Agora calcula `tid = user_id or current_tenant_id()`; se ambos ausentes, faz fallback explícito para `"anonimo"` e registra um `warning` estruturado.
+      - A mensagem de “Modo Observação Ativo” também passou para o logger estruturado (`kb_modo_observacao_ativo`).
+
+Decisões técnicas:
+  - `services.database` permanece como “hub de factories” — qualquer implementação futura (Postgres) pluga apenas novas classes de repositório, sem SQL direto ali.
+  - O domínio de Billing/Credits agora está totalmente encapsulado no `CreditsRepository`, permitindo:
+      - Diferenciar lógicas por plano em sprint futura (limites, grace-period, etc.).
+      - Instrumentar métricas por tenant a partir de um único ponto.
+  - Logs do `learning_engine` foram mantidos com granularidade alta (inicio/fim de análise, etapas de dossiê, falhas de timeline), mas centralizados em `_logger` com `tenant_id` sempre que possível.
+  - `evaluate_shadow_rules` passou a tratar explicitamente a ausência de `tenant_id` em threads, reduzindo risco de KB ser lido/escrito em contexto anônimo sem rastreabilidade.
+
+Limitações remanescentes / Pendente Sprint 4:
+  - (endereçadas na Sprint 4; ver seção abaixo)
+
+## 11. Sprint 4 — Billing por Plano e Usage por Tenant
+
+Concluído:
+  - `CreditsRepository` ampliado em `services/repositories/base.py` com operações de plano e uso:
+      - `get_plan`, `set_plan`, `get_usage_stats`, `registrar_uso_lab`, mantendo compatibilidade com `get_user_credits` / `deduct_credit` / `add_credits`.
+  - `SQLiteCreditsRepository` em `services/repositories/sqlite_repo.py` passou a:
+      - Criar/atualizar colunas `plan` e `lab_analises_usadas` na tabela `users` via migração suave (`ALTER TABLE` em `try/except`).
+      - Implementar:
+          - `get_plan(user_id)`: devolvendo `'free'` por padrão.
+          - `set_plan(user_id, plan)`: valida `'free' | 'pro' | 'enterprise'` e persiste em `users.plan`.
+          - `get_usage_stats(user_id)`: monta dict com `creditos_restantes`, `plano`, `limite_pdfs`, `limite_lab`, `pdfs_usados`, `lab_analises_usadas`, usando `_PLANOS` como fonte de limites.
+          - `registrar_uso_lab(user_id)`: incrementando `lab_analises_usadas` com `INSERT ... ON CONFLICT ... UPDATE`.
+      - Adotou constante `_PLANOS` no módulo para centralizar limites por plano (`free`, `pro`, `enterprise`).
+  - `services/database.py` agora expõe wrappers de compatibilidade para o domínio de Billing:
+      - `get_plan`, `set_plan`, `get_usage_stats`, `registrar_uso_lab`, delegando a `get_credits_repo()`.
+  - `api/routers/admin.py` ganhou o endpoint `GET /api/billing/usage`:
+      - Usa `RequestContext` (`tenant_id`) com fallback em `user_id` de query para definir `effective_user_id`.
+      - Retorna JSON `{ "user_id", "creditos_restantes", "plano", "limite_pdfs", "limite_lab", "pdfs_usados", "lab_analises_usadas" }`.
+      - Em caso de erro, registra `_logger.error("billing_usage_error", ...)` e devolve um payload seguro em modo `free`.
+  - `api/routers/lab.py` passou a registrar o uso do Laboratório:
+      - Após `save_extraction` bem sucedido em `/lab/analisar`, chama `registrar_uso_lab(effective_user_id)`.
+      - Erros nesse registro não quebram o fluxo — são apenas logados via `_logger.warning("lab_registrar_uso_error", ...)`.
+  - `services.lab.self_healing`:
+      - Logger `_logger = logging.getLogger("smart_extractor")` movido para o topo do módulo.
+      - `evaluate_shadow_rules` agora usa esse `_logger` global e trata ausência de `tenant_id` com `evaluate_shadow_rules_sem_tenant`.
+      - `_registrar_log_enriquecido` e o bloco crítico de `codify_insight` passaram de `print` para `_logger.error(...)`.
+
+Decisões técnicas:
+  - `_PLANOS` foi definido em `sqlite_repo.py` por ora, permitindo ajustes rápidos de limites sem alterar a interface pública. Está documentado como ponto fácil de migração para `config.py` se necessário.
+  - O endpoint `/api/billing/usage` foi desenhado apenas para leitura; a mudança de plano (`set_plan`) permanece como operação administrativa interna (script ou shell) até uma sprint futura.
+  - O contador `lab_analises_usadas` é incrementado apenas em `/lab/analisar` após análise bem sucedida, para refletir uso real do motor de aprendizado.
+
+Limitações remanescentes / Pendente Sprint 5:
+  - `PDFS_GRATUITOS_POR_USUARIO` ainda é a base dos limites, mas agora _por plano_ via `_PLANOS`; diferenciação mais fina por tipo de operação pode ser adicionada no `CreditsRepository`.
+  - Ainda não existe endpoint público para alterar planos (`POST /api/admin/billing/plan`); mudança de plano continua manual.
+  - `deduct_credit` ainda não aplica lógica diferenciada por plano (ex.: não debitar créditos em `enterprise`, ou aplicar limites adicionais por tipo de operação).
+  - Não há alertas automáticos de quota (ex.: 80% e 100% do limite) — recomendável implementar notificações via logs estruturados e/ou endpoint dedicado.
+
+## 12. Sprint 5 — Validação de Quota e Admin de Planos
+
+Concluído:
+  - `CreditsRepository` e `SQLiteCreditsRepository` ampliados com:
+      - `quota_excedida(user_id, tipo)`, onde `tipo` ∈ `{"pdfs", "lab_analises"}`, encapsulando toda a lógica de verificação de limites por plano.
+  - `services.database` passou a expor o wrapper `quota_excedida(user_id, tipo)` delegando para `get_credits_repo()`, mantendo o padrão de factory + wrappers.
+  - `workers/processor.py`:
+      - No Passo 1 (freemium), após checar `get_user_credits`, passou a validar a quota de PDFs por plano via `quota_excedida(user_id, "pdfs")`.
+      - Em caso de limite atingido, retorna `{"status": "erro", "msg": "Limite de PDFs do plano atingido. Faça upgrade para continuar."}` sem avançar no pipeline.
+  - `api/routers/lab.py`:
+      - Antes de chamar `processar_sete_arquivos`, passou a validar `quota_excedida(effective_user_id, "lab_analises")`.
+      - Se o limite de análises do Lab for atingido, lança `HTTPException(429, ...)` com mensagem clara e loga `_logger.warning("quota_lab_excedida", extra={"tenant_id": ...})`.
+      - Continua registrando uso bem-sucedido via `registrar_uso_lab` como definido na Sprint 4.
+  - `SQLiteCreditsRepository.get_usage_stats`:
+      - Agora retorna um dict `resultado` e, antes de devolvê-lo, emite **alertas de quota**:
+          - `quota_80pct` quando uso de PDFs ou análises do Lab ≥ 80% do limite.
+          - `quota_100pct` quando uso ≥ 100% do limite.
+      - Os alertas são registrados via `_logger.warning` com `user_id`, `tipo`, `usados`, `limite`.
+  - `api/routers/admin.py`:
+      - Novo endpoint `POST /api/admin/billing/plan` com payload Pydantic `PlanUpdateRequest { user_id, plan }`.
+      - Valida `plan` ∈ `{"free", "pro", "enterprise"}` e usa `set_plan` de `services.database`.
+      - Em sucesso, loga `billing_plan_updated` e retorna `{ "ok": true, "user_id", "plano" }`.
+      - Em erro, loga `billing_plan_update_error` e retorna `JSONResponse(500, {"error": ...})`.
+
+Decisões técnicas:
+  - Toda a lógica de limites e quota permanece encapsulada no `CreditsRepository`/`SQLiteCreditsRepository` (`_PLANOS` + `quota_excedida` + `get_usage_stats`), evitando espalhar regras de plano pelo código.
+  - As guard clauses em `processor.py` e `lab.py` apenas chamam `quota_excedida` e retornam/lançam erro sem duplicar regra de cálculo.
+  - Os alertas de quota (80%/100%) são emitidos automaticamente sempre que `get_usage_stats` é chamado, o que centraliza a telemetria de consumo.
+
+Limitações remanescentes / Pendente Sprint 6:
+  - `_PLANOS` ainda está hardcoded em `sqlite_repo.py`; mover para `config.py` (com suporte a variáveis de ambiente) é desejável para permitir ajustes de plano sem deploy.
+  - `deduct_credit` ainda não diferencia entre planos (`enterprise` poderia ter comportamento especial, como não debitar créditos).
+  - Não há histórico de recargas de crédito por tenant (apenas o saldo atual); uma tabela `credits_ledger` poderia ser introduzida em sprint futura.
+  - Frontend React ainda não tem painel dedicado de billing/usage; o endpoint `/api/billing/usage` é o primeiro passo para uma tela `/billing` ou seção no Dashboard.

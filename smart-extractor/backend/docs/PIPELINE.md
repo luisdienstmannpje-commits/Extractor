@@ -36,3 +36,5 @@ Referência única para os 10 passos. Não alterar a ordem ou os contratos sem a
 - **Validação jurídica**: `legal_validator.validar_dados(dados)` retorna `list[str]`; `validar_dados_completo(dados)` retorna dict com `alertas`, `regras_aplicadas`, `memorial_juridico`.
 
 Para alterar um passo, verificar testes em `tests/` e `tests/jurisprudencia/` e rodar `pytest -q` após a mudança.
+
+**Nota:** O Laboratório de Aprendizado (`learning_engine.py` como facade; módulos `services/lab/learning_io.py`, `services/lab/extractors.py`, `services/lab/self_healing.py` — codify e Shadow Rules) possui fluxo próprio (analisar, preview, salvar, codify); ver `CODE_MAP.md` e `AI_NAVIGATION_LAYER.md` § 2.9 e § 2.10.

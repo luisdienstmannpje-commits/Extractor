@@ -160,8 +160,32 @@ Estes campos são críticos para o cálculo correto no PjeCalc:
 - `multa_art_477`: buscar "multa do art. 477", "1 salário por atraso na quitação rescisória" —
   registrar o texto ou valor
 
+### Upgrade jurídico-pericial: extração agressiva de verbas (Quadro de Verbas)
+
+**Mapeamento pelo DISPOSITIVO (obrigatório)**
+- Altere a extração para buscar explicitamente o tópico "DISPOSITIVO" (ou "CONCLUSÃO") da sentença. Tudo que foi julgado PROCEDENTE ou PROCEDENTE EM PARTE no dispositivo DEVE ser extraído e colocado em `verbas_deferidas`.
+- O JSON de retorno DEVE conter o campo `verbas_deferidas` (array de objetos com pelo menos `nome` e opcionalmente `status_final`, `periodo`, `reflexos`, `observacoes`). Nunca retorne `verbas_deferidas: []` se o texto do dispositivo ou do memorial descreveu deferimentos.
+
+**Mapeamento de verbas típicas (buscar ativamente)**
+- Verbas rescisórias: Saldo de Salário, Aviso Prévio (indenizado/trabalhado/proporcional), 13º proporcional/integral, Férias + 1/3 (simples, em dobro ou proporcionais).
+- Indenizações: Multas dos Arts. 467 e 477 da CLT, Multa de 40% do FGTS.
+- Cotas e horas: Horas Extras, Adicional Noturno, Insalubridade, Periculosidade, Intervalo Intrajornada.
+
+**Lógica de reflexos (essencial)**
+- Se a sentença disser "Horas extras com reflexos em FGTS e 13º", crie o item "Horas Extras" e liste os reflexos no campo `observacoes` ou como verbas acessórias / array `reflexos` com status deferido.
+- Reflexos típicos: DSR, Aviso Prévio, Férias + 1/3, 13º Salário, FGTS + 40%.
+
+**Tratamento de Embargos de Declaração**
+- Caso o texto seja de Embargos de Declaração, extraia o que foi acrescido ou modificado na sentença original, mantendo a integridade do que já havia sido deferido.
+
+**Requisitos do JSON de saída**
+- Se o valor for "a apurar em liquidação", mantenha o campo `valor` (ou `valor_fixado`) como null, mas o `nome` da verba e `status_final`: "deferido" ou "mantida" devem estar presentes.
+- Use a nomenclatura padrão do PJe-Calc: ex. "Aviso Prévio Indenizado" (não "Pagamento de aviso"), "Horas Extras", "Multa art. 477 CLT", "FGTS + Multa de 40%", "Saldo de Salário", "Férias Proporcionais + 1/3", "13º Salário Proporcional".
+
+---
+
 ### Verbas deferidas — lista completa (Dispositivo)
-Leia APENAS o DISPOSITIVO para extrair o que foi deferido. Ignore pedidos INDEFERIDOS.
+Leia APENAS o DISPOSITIVO (e CONCLUSÃO) para extrair o que foi deferido. Ignore pedidos INDEFERIDOS.
 Para cada verba deferida, extraia:
 
 - `nome`: nome exato da verba (ex: "Horas Extras", "Adicional Noturno", "FGTS + 40%",

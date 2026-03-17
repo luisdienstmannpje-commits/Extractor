@@ -13,16 +13,22 @@ class ConsistenciaSalario(LegalRule):
     prioridade = 50
     def aplicar(self, contexto):
         s = contexto.salario_base
-        if not s: self._registrar(contexto); return contexto
+        if not s:
+            self._registrar(contexto)
+            return contexto
         v = _parse(s)
         if v is None:
             self._alerta(contexto, f"Salario '{s}' nao interpretavel.", nivel="AVISO")
         elif v <= 0:
-            # Mantém consistência básica de salário positivo; regra de mínimo oficial
-            # é tratada em CONSISTENCIA_SALARIO_BASE_MINIMO (LegalRuleEngine).
             self._alerta(contexto, f"Salario invalido: R$ {v:.2f}.", nivel="ERRO")
+        elif v < _MIN:
+            # Abaixo do mínimo legal vigente — gera AVISO (não ERRO).
+            self._alerta(
+                contexto,
+                f"Salario R$ {v:,.2f} abaixo do minimo legal vigente (R$ {_MIN:,.2f}).",
+                nivel="AVISO",
+            )
         elif v > _MAX:
-            # Apenas alerta para valores muito altos (possível erro de extração)
             self._alerta(
                 contexto,
                 f"Salario R$ {v:,.2f} acima de R$ {_MAX:,.0f}. Verificar extracao.",

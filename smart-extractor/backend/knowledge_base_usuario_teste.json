@@ -1,0 +1,33 @@
+{
+  "rules": [
+    {
+      "rule_id": "DYN_20260317_153212_4429",
+      "descricao": "Ausência da verba 'Enquadramento Sindical' na liquidação, conforme determinado na sentença.",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Enquadramento Sindical"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "Incluir a verba 'Enquadramento Sindical' no cálculo da liquidação, conforme determinado na sentença."
+      },
+      "base_legal": "artigo 195 da CLT; art. 193 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010850-56.2022.5.03.0092"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-17T15:32:12.442944",
+      "updated_at": "2026-03-17T15:32:12.442944"
+    }
+  ],
+  "_meta": {
+    "version": "1.0",
+    "tenant_id": "usuario_teste",
+    "last_updated": "2026-03-17T15:32:12.442944",
+    "updated_at": "2026-03-17T15:32:12.443944"
+  }
+}

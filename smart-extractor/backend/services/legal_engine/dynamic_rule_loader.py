@@ -150,7 +150,9 @@ def carregar_regras_ativas() -> List[DynamicLegalRule]:
     """
     try:
         from services.knowledge_base import KnowledgeBase
-        kb = KnowledgeBase()
+        from services.request_context import current_tenant_id
+
+        kb = KnowledgeBase(tenant_id=current_tenant_id())
         ativas = kb.get_regras_ativas()
         regras = [DynamicLegalRule(e) for e in ativas]
         if regras:
@@ -168,7 +170,9 @@ def carregar_regras_shadow() -> List[DynamicLegalRule]:
     """
     try:
         from services.knowledge_base import KnowledgeBase
-        kb = KnowledgeBase()
+        from services.request_context import current_tenant_id
+
+        kb = KnowledgeBase(tenant_id=current_tenant_id())
         shadow = kb.get_regras_shadow()
         regras = [DynamicLegalRule(e) for e in shadow]
         if regras:

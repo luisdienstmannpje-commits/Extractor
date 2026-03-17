@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional
 
 _HERE       = os.path.dirname(__file__)
 _BACKEND    = os.path.abspath(os.path.join(_HERE, ".."))
-_KB_PATH    = os.path.join(_BACKEND, "knowledge_base.json")
 
 THRESHOLD_ACTIVE = 3
 THRESHOLD_DELETE = -1
@@ -53,21 +52,59 @@ class KnowledgeBase:
     }
     """
 
-    def __init__(self, path: str = _KB_PATH):
-        self._path = path
+    _instances: Dict[str, "KnowledgeBase"] = {}
+
+    def __new__(cls, tenant_id: str = "default"):
+        if tenant_id not in cls._instances:
+            instance = super(KnowledgeBase, cls).__new__(cls)
+            instance._initialized = False
+            cls._instances[tenant_id] = instance
+        return cls._instances[tenant_id]
+
+    def __init__(self, tenant_id: str = "default"):
+        if getattr(self, "_initialized", False):
+            return
+
+        self.tenant_id = tenant_id
+
+        if self.tenant_id == "default":
+            self._path = os.path.join(_BACKEND, "knowledge_base.json")
+        else:
+            self._path = os.path.join(_BACKEND, f"knowledge_base_{self.tenant_id}.json")
+
         self._data: Dict[str, Any] = self._carregar()
+        self._initialized = True
 
     # ── I/O ──────────────────────────────────────────────────────────────────
 
     def _carregar(self) -> Dict[str, Any]:
         if not os.path.exists(self._path):
-            return {"rules": [], "_meta": {"version": "1.0", "created_at": _now()}}
+            return {
+                "rules": [],
+                "_meta": {
+                    "version": "1.0",
+                    "tenant_id": getattr(self, "tenant_id", "default"),
+                    "last_updated": _now(),
+                },
+            }
         try:
             with open(self._path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[KB] Erro ao carregar knowledge_base.json: {e}")
-            return {"rules": [], "_meta": {"version": "1.0", "created_at": _now()}}
+            # Usa logging estruturado indireto via stderr/stdout; mensagem simples aqui.
+            import logging
+
+            logging.getLogger("smart_extractor").error(
+                f"[KB] Erro ao carregar knowledge_base.json: {e}"
+            )
+            return {
+                "rules": [],
+                "_meta": {
+                    "version": "1.0",
+                    "tenant_id": getattr(self, "tenant_id", "default"),
+                    "last_updated": _now(),
+                },
+            }
 
     def _salvar(self) -> None:
         try:
@@ -76,7 +113,11 @@ class KnowledgeBase:
             with open(self._path, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"[KB] Erro ao salvar knowledge_base.json: {e}")
+            import logging
+
+            logging.getLogger("smart_extractor").error(
+                f"[KB] Erro ao salvar knowledge_base.json: {e}"
+            )
 
     def _recarregar(self) -> None:
         """Recarrega do disco para evitar conflitos entre workers."""
@@ -183,7 +224,6 @@ class KnowledgeBase:
 
         self._data.setdefault("rules", []).append(nova_regra)
         self._salvar()
-        print(f"[KB] Nova regra shadow criada: {rule_id} — {nova_regra['descricao'][:60]}")
         return {"acao": "criada", "rule_id": rule_id, "status": "shadow"}
 
     def _incrementar(self, rule_id: str, numero_processo: str = "") -> Dict:
@@ -203,9 +243,6 @@ class KnowledgeBase:
             if regra["confidence_score"] >= THRESHOLD_ACTIVE and regra["status"] == "shadow":
                 regra["status"] = "active"
                 acao = "ativada"
-                print(f"[KB] Regra ATIVADA (score={regra['confidence_score']}): {rule_id}")
-            else:
-                print(f"[KB] Score incrementado ({regra['confidence_score']}): {rule_id}")
 
             self._salvar()
             return {"acao": acao, "rule_id": rule_id, "status": regra["status"]}

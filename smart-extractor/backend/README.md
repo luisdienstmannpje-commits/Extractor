@@ -197,7 +197,7 @@ analisar → relatório enriquecido (linha do tempo + `triade_pericial` com nós
 
 - `learning_engine.py`: `processar_sete_arquivos` / `processar_cinco_arquivos` (8 arquivos + `processo_arquivos`); `_extrair_peticao_inicial`, `_extrair_contestacao`; `_extrair_titulo_executivo_multiplos` (hierarquia + data do texto); `_extrair_amostragem_pdf/word` (retrocompat.); `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_atualizar_skill_manifestacao`; guardrails: `_canon_empresa_e_verba_esta`, `_filtrar_*_verba_ausente` (3 camadas); Self-Healing. Ver mapa em `docs/AI_NAVIGATION_LAYER.md` § 5.
 - `skills/amostragem_style.md`, `skills/manifestacao_style.md`: Style Transfer (amostragem Word + impugnação/manifestação).
-- Frontend: `lab.js` — 8 LAB_CAMPOS (peticao, contestacao, processo, …), Card 3 múltiplos (`_processoFiles`), barra de eficiência (`_EFICIENCIA_PESOS`, `_calcularEficiencia`, `_atualizarBarraEficiencia`), `_isDocAntigo` + toast .doc.
+- Frontend: `frontend/src/pages/Laboratory.tsx` e `frontend/src/hooks/useAnalyze.ts` — 8 campos de upload, Card processo múltiplos, barra de eficiência, análise completa, HITL e Gerar Minuta Word/PJC/Excel.
 
 ### Self-Healing Rule Engine (aprendizado autônomo de regras)
 
@@ -236,19 +236,18 @@ Resultado: o sistema **cria, testa, ativa e descarta** regras jurídicas de form
 
 ## Frontend (site)
 
-O site está em `frontend/` (relativo à raiz do repositório smart-extractor). Layout **SaaS profissional**:
+O site está em `frontend/` (relativo à raiz do repositório smart-extractor) e é uma **SPA React (Vite + TypeScript + Tailwind)**:
 
-- **index.html**: estrutura da aplicação; **Tailwind CSS** (CDN) para layout: sidebar fixa (nav Extrator / Laboratório / **Meus Processos** / **Estatísticas**), header fixo com título dinâmico, créditos e avatar; quatro painéis de conteúdo (`#view-extrator`, `#view-lab`, `#view-historico`, `#view-estatisticas`). Script inline de troca de view (localStorage). Todos os IDs e classes usados por `app.js`, `render.js` e `lab.js` são preservados.
-- **css/main.css**: estilos dos **componentes dinâmicos** (seções, campos, verbas, alertas, modal do lab) gerados por `render.js` e `lab.js`. Não contém layout estrutural da página (sidebar/header); isso fica no Tailwind em `index.html`.
-- **js/app.js**: upload de PDF, polling `/status/{job_id}`, exibição de status, export PJC/Excel, créditos, auditoria .PJC; **histórico** (`carregarHistorico`, `renderizarHistorico`, `filtrarHistorico` — busca em tempo real por nº processo / reclamante / reclamada); **Dashboard de Estatísticas** (`carregarEstatisticas`, `iniciarPollingEstatisticas` — polling a cada 5 s só quando a aba Estatísticas está visível; animação `.kpi-updated` quando um KPI muda).
-- **js/render.js**: montagem do HTML dos dados extraídos (resumo, seções, verbas, alertas, fundamentação, parecer técnico); helpers `val`, `vv`, `statusClass`, `renderResultado`, etc.
-- **js/lab.js**: Laboratório com **8 campos de upload** (LAB_CAMPOS + formKey explícito); `/lab/analisar` (processar_sete_arquivos); exibição em linha do tempo (Resultado 1: 3 fases visuais; Conclusão da Tríade de Ouro Expandida: grid 2×2 com nós Amostragem / Processo / .PJC / Manifestação; Resultado 3: regras preditivas no topo); modal pré-visualização editável; `/lab/preview` e `/lab/salvar`; após salvar, toast `_labToastEstatisticas()` sugere a aba Estatísticas.
+- **Estrutura:** `frontend/index.html` (entry, `#root`) + `frontend/src/main.tsx`, `App.tsx` (rotas: `/`, `/extractor`, `/lab`).
+- **Páginas:** `src/pages/Dashboard.tsx`, `Extractor.tsx`, `Laboratory.tsx`.
+- **Layout:** `src/components/layout/MainLayout.tsx` (sidebar, header, navegação).
+- **API e estado:** `src/services/api.ts` (upload, status, export PJC/Excel, créditos, `/api/stats`, `/api/knowledge-base`, `/lab/*`); `src/hooks/useAnalyze.ts` (Laboratório: POST `/lab/analisar`, relatório, pré-visualização, salvar).
+- **Extrator:** upload PDF, polling `/status/{job_id}`, exibição de resultado e Raio-X, export PJC/Excel; histórico e estatísticas consumidos via `api.ts`.
+- **Laboratório:** 8 campos de upload, barra de eficiência, análise completa (processar_sete_arquivos), linha do tempo, modal de pré-visualização, salvar aprendizado, Gerar Minuta Word/PJC/Excel.
 
-**Aba "Meus Processos" (Histórico)**: painel `#view-historico` carregado automaticamente ao entrar na aba. Consome `GET /historico/{user_id}` (endpoint em `main.py`, fonte `database.get_user_history`). Exibe cards com tipo de documento, nº do processo, reclamante, reclamada, data e model usado, com botões de download direto (.PJC e Excel). A barra de busca (`#search-historico`) filtra em tempo real o cache local `_historicoDados` por nº processo, reclamante ou reclamada (sem nova requisição ao servidor).
+**Dashboard:** rota `/`; estatísticas e biblioteca de regras via `GET /api/stats` e `GET /api/knowledge-base`.
 
-**Dashboard de Estatísticas (reativo)**: painel `#view-estatisticas` exibe KPIs do aprendizado (processos analisados, regras ativas/shadow, omissões) e listas (últimas regras, top verbas com divergências). Dados vêm de `GET /api/stats` (main.py): lê `knowledge_base.json` + `database.get_total_extractions()`; retorna também `eficiencia_motor` (acertos/(acertos+punicoes) em % ou null). O frontend faz **polling a cada 5 s** apenas quando essa aba está visível (`view-estatisticas.style.display !== 'none'`); ao detectar mudança de valor, aplica animação de brilho verde (`.kpi-updated`) nos números. Ao salvar aprendizado no Laboratório, um toast orienta o usuário a ver a evolução na aba Estatísticas. Autocorreção (regras shadow punidas/deletadas) reflete imediatamente nos contadores na próxima leitura do endpoint.
-
-Ao alterar o frontend: manter os IDs e as classes que o JS usa (ex.: `#resultado`, `.show`, `.lab-section.open`, `.btn-pjc.show`, `#view-estatisticas`, `.kpi-updated`).
+Build: `npm run build` em `frontend/` → `dist/`. Servir `dist/` estaticamente ou via mesmo host do backend.
 
 ---
 

@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.cell.cell import MergedCell
 
 
 def _flatten_value(v: Any) -> str:
@@ -32,7 +33,20 @@ def _auto_ajustar_colunas(ws, max_col_widths: Optional[Dict[int, int]] = None) -
     """
     max_col_widths = max_col_widths or {}
     for col_cells in ws.columns:
-        col_idx = col_cells[0].column if col_cells else 0
+        if not col_cells:
+            continue
+
+        # Encontrar uma célula "mestre" válida (não mesclada) para obter a letra da coluna
+        master_cell = None
+        for c in col_cells:
+            if not isinstance(c, MergedCell):
+                master_cell = c
+                break
+        if master_cell is None:
+            # Todas as células desta coluna são MergedCell — pula ajuste
+            continue
+
+        col_idx = master_cell.column
         max_length = 0
         for cell in col_cells:
             try:
@@ -43,11 +57,18 @@ def _auto_ajustar_colunas(ws, max_col_widths: Optional[Dict[int, int]] = None) -
                 max_length = max(max_length, len(value))
         if max_length == 0:
             continue
+
         width = max_length + 2
         limit = max_col_widths.get(col_idx)
         if limit is not None:
             width = min(width, limit)
-        ws.column_dimensions[cell.column_letter].width = width
+
+        try:
+            ws.column_dimensions[master_cell.column_letter].width = width
+        except AttributeError:
+            # Algumas implementações de MergedCell/Cell podem não expor column_letter;
+            # neste caso, simplesmente não ajustamos esta coluna.
+            continue
 
 
 def _montar_texto_parecer(dados: dict) -> str:
@@ -143,10 +164,16 @@ def exportar_excel(dados: dict, job_id: str) -> str:
     # Dados do contrato
     ws_resumo.cell(row=row, column=1, value="Dados do Contrato").font = bold_font
     row += 1
+    salario_base_val = dados.get("salario_base")
+    salario_base_display = (
+        "Não identificado na sentença"
+        if (salario_base_val is None or salario_base_val == "")
+        else _flatten_value(salario_base_val)
+    )
     campos_contrato = [
         ("Data de Admissão", dados.get("data_admissao") or ""),
         ("Data de Demissão", dados.get("data_demissao") or ""),
-        ("Salário base", dados.get("salario_base") or ""),
+        ("Salário base", salario_base_display),
         ("Aviso Prévio (dias)", dados.get("aviso_previo_dias") or ""),
     ]
     for rotulo, valor in campos_contrato:
@@ -194,47 +221,50 @@ def exportar_excel(dados: dict, job_id: str) -> str:
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     verbas: List[dict] = dados.get("verbas_deferidas") or []
+    if not isinstance(verbas, list):
+        verbas = []
     divisor_geral = dados.get("divisor_horas") or ""
 
-    for verba in verbas:
-        if not isinstance(verba, dict):
-            continue
-        nome = verba.get("nome") or ""
-        status = verba.get("status_final") or ""
-        periodo = verba.get("periodo") or ""
-        base_calculo = verba.get("base_calculo") or ""
-        percentual = verba.get("percentual") or ""
-        quantidade = verba.get("quantidade_diaria") or ""
-        integracao = verba.get("integracao_salarial")
-        integracao_str = ""
-        if isinstance(integracao, bool):
-            integracao_str = "Sim" if integracao else "Não"
-        elif integracao is not None:
-            integracao_str = str(integracao)
+    if verbas:
+        for verba in verbas:
+            if not isinstance(verba, dict):
+                continue
+            nome = verba.get("nome") or ""
+            status = verba.get("status_final") or ""
+            periodo = verba.get("periodo") or ""
+            base_calculo = verba.get("base_calculo") or ""
+            percentual = verba.get("percentual") or ""
+            quantidade = verba.get("quantidade_diaria") or ""
+            integracao = verba.get("integracao_salarial")
+            integracao_str = ""
+            if isinstance(integracao, bool):
+                integracao_str = "Sim" if integracao else "Não"
+            elif integracao is not None:
+                integracao_str = str(integracao)
 
-        reflexos_raw = verba.get("reflexos") or []
-        if isinstance(reflexos_raw, (list, tuple)):
-            reflexos = ", ".join(str(r) for r in reflexos_raw if r is not None)
-        else:
-            reflexos = str(reflexos_raw) if reflexos_raw is not None else ""
+            reflexos_raw = verba.get("reflexos") or []
+            if isinstance(reflexos_raw, (list, tuple)):
+                reflexos = ", ".join(str(r) for r in reflexos_raw if r is not None)
+            else:
+                reflexos = str(reflexos_raw) if reflexos_raw is not None else ""
 
-        qtd_divisor = ""
-        if quantidade:
-            qtd_divisor = str(quantidade)
-        elif divisor_geral:
-            qtd_divisor = str(divisor_geral)
+            qtd_divisor = ""
+            if quantidade:
+                qtd_divisor = str(quantidade)
+            elif divisor_geral:
+                qtd_divisor = str(divisor_geral)
 
-        row_values = [
-            nome,
-            status,
-            periodo,
-            base_calculo,
-            str(percentual) if percentual is not None else "",
-            qtd_divisor,
-            integracao_str,
-            reflexos,
-        ]
-        ws_verbas.append(row_values)
+            row_values = [
+                nome,
+                status,
+                periodo,
+                base_calculo,
+                str(percentual) if percentual is not None else "",
+                qtd_divisor,
+                integracao_str,
+                reflexos,
+            ]
+            ws_verbas.append(row_values)
 
     # Freeze panes após o cabeçalho
     ws_verbas.freeze_panes = "A2"

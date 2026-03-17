@@ -23,13 +23,25 @@ from services.ai_writer import gerar_texto_manifestacao
 
 
 def _dados_processo_from_relatorio(relatorio: Dict[str, Any]) -> Dict[str, Any]:
-    """Extrai numero_processo, reclamante, reclamada do relatório para o cabeçalho e para a IA."""
+    """
+    Extrai do relatório os dados obrigatórios para redação: numero_processo, partes,
+    Quadro de Verbas (verbas_deferidas) e Alertas Jurídicos, para a IA redigir a peça formal.
+    """
     dados = {}
     dados["numero_processo"] = relatorio.get("numero_processo") or "Sem número"
     sentenca = relatorio.get("sentenca") or {}
     campos = sentenca.get("campos_chave") or {}
     dados["reclamante"] = campos.get("reclamante") or "Reclamante"
     dados["reclamada"] = campos.get("reclamada") or "Reclamada"
+    dados["vara_trabalho"] = campos.get("vara_trabalho") or ""
+    dados["indice_correcao"] = campos.get("indice_correcao") or ""
+    dados["juros_mora"] = campos.get("juros_mora") or ""
+    verbas = sentenca.get("verbas") or []
+    if not verbas and isinstance(sentenca.get("dados"), dict):
+        raw = (sentenca.get("dados") or {}).get("verbas_deferidas") or []
+        verbas = [v.get("nome") if isinstance(v, dict) else str(v) for v in raw if v]
+    dados["verbas_deferidas"] = [v if isinstance(v, dict) else {"nome": str(v)} for v in verbas]
+    dados["alertas_juridicos"] = relatorio.get("alertas_juridicos") or []
     return dados
 
 
@@ -83,22 +95,18 @@ def gerar_minuta(dados_auditoria: Dict[str, Any], estilo_mapeado: str) -> bytes:
     run_t.font.name = "Times New Roman"
     doc.add_paragraph()
 
-    if not discrepancias:
-        doc.add_paragraph("Nenhuma discrepância registrada na auditoria. Não há minuta a gerar.")
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
-        return buf.getvalue()
-
-    # ── Texto gerado pela IA (estilo da perita) ───────────────────────────────
+    # ── Texto gerado pela IA (com ou sem discrepâncias: minuta completa ou esqueleto/template) ───────────────────────────────
     resultado_ia = gerar_texto_manifestacao(discrepancias, estilo_mapeado, dados_proc)
     erro_ia = resultado_ia.get("erro")
     introducao = resultado_ia.get("introducao") or ""
     secoes = resultado_ia.get("secoes") or []
     tabela_comparativa = resultado_ia.get("tabela_comparativa") or []
+    fecho = resultado_ia.get("fecho") or ""
 
     if erro_ia:
-        doc.add_paragraph(f"[Erro ao gerar texto com a IA: {erro_ia}]. Segue resumo das discrepâncias.")
+        doc.add_paragraph(f"[Erro ao gerar texto com a IA: {erro_ia}].")
+        if discrepancias:
+            doc.add_paragraph("Resumo das discrepâncias:")
         for d in discrepancias[:15]:
             if isinstance(d, dict):
                 doc.add_paragraph(
@@ -152,15 +160,18 @@ def gerar_minuta(dados_auditoria: Dict[str, Any], estilo_mapeado: str) -> bytes:
             row[1].text = str(row_data.get("valor_empresa") or "").strip() or "—"
             row[2].text = str(row_data.get("valor_correto") or "").strip() or "—"
 
-    # ── Encerramento padrão (tom aprendido nos testes: Pede Deferimento, data, espaço assinatura) ──
+    # ── Fecho (redação pericial: homologação, quantum debeatur, Pede deferimento, local e data) ──
     doc.add_paragraph()
-    meses_pt = ("janeiro", "fevereiro", "março", "abril", "maio", "junho",
-                "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
-    d = datetime.now()
-    data_atual = f"{d.day} de {meses_pt[d.month - 1]} de {d.year}"
-    p_encerramento = doc.add_paragraph()
-    p_encerramento.add_run("Pede Deferimento.").bold = True
-    p_encerramento.add_run(f"\n[Cidade], {data_atual}.")
+    if fecho:
+        doc.add_paragraph(fecho)
+    else:
+        meses_pt = ("janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
+        d = datetime.now()
+        data_atual = f"{d.day} de {meses_pt[d.month - 1]} de {d.year}"
+        p_encerramento = doc.add_paragraph()
+        p_encerramento.add_run("Pede Deferimento.").bold = True
+        p_encerramento.add_run(f"\n[Cidade], {data_atual}.")
     doc.add_paragraph()
     p_assinatura = doc.add_paragraph()
     p_assinatura.add_run("_________________________________________")

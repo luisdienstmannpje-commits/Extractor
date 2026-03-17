@@ -101,7 +101,9 @@ def _dicas_do_laboratorio(dados: Dict[str, Any]) -> List[Dict[str, str]]:
     """
     try:
         from services.knowledge_base import KnowledgeBase
-        kb = KnowledgeBase()
+        from services.request_context import current_tenant_id
+
+        kb = KnowledgeBase(tenant_id=current_tenant_id())
     except Exception:
         return []
 

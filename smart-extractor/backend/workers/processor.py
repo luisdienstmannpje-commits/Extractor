@@ -6,7 +6,13 @@ from datetime import datetime, date, timedelta
 from services.sentence_finder import extract_sentence_from_pdf
 from services.ai_client import extract_data_with_gemini
 from services.text_processor import find_section_hybrid
-from services.database import save_extraction, get_cache, save_cache, get_user_credits, deduct_credit
+from services.database import (
+    get_user_credits,
+    deduct_credit,
+    get_cache_repo,
+    get_extraction_repo,
+    quota_excedida,
+)
 from services.legal_validator import validar_dados
 from services.legal_engine.rule_registry import carregar_todas_as_regras   # Gap 2
 from services.legal_engine.engine import LegalRuleEngine                   # Gap 2
@@ -445,14 +451,25 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     """
     print(f"[PROCESSOR] user={user_id}", flush=True)
 
+    # 0. Repositórios — Sprint 2: tenant_id == user_id (separação futura em RequestContext)
+    cache_repo = get_cache_repo()
+    extraction_repo = get_extraction_repo(tenant_id=user_id)
+
     # 1. Freemium — verifica créditos
     credits = get_user_credits(user_id)
     if credits <= 0:
         return {"status": "erro", "msg": "Saldo esgotado. Adquira mais créditos."}
 
+    # Sprint 5: validação de quota por plano (PDFs)
+    if quota_excedida(user_id, "pdfs"):
+        return {
+            "status": "erro",
+            "msg": "Limite de PDFs do plano atingido. Faça upgrade para continuar.",
+        }
+
     # 2. Cache — só usa se tiver qualidade mínima
     pdf_hash = _hash_pdf(file_bytes)
-    cached = get_cache(pdf_hash)
+    cached = cache_repo.get_cache(pdf_hash)
     if cached:
         ok, motivo = _qualidade_ok(cached)
         if ok:
@@ -633,12 +650,22 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     ok, motivo = _qualidade_ok(dados_finais)
     if ok:
         dados_finais["_meta_doc_type"] = doc_type
-        save_cache(pdf_hash, dados_finais)
-        doc_id = save_extraction(user_id, dados_finais)
+        cache_repo.save_cache(pdf_hash, dados_finais)
+        doc_id = extraction_repo.save_extraction(
+            user_id=user_id,
+            data=dados_finais,
+            doc_type=doc_type,
+            model_used=ai_result["model_used"],
+        )
         deduct_credit(user_id)
         print(f"[PROCESSOR] Resultado salvo (qualidade ok)", flush=True)
     else:
-        doc_id = save_extraction(user_id, dados_finais)
+        doc_id = extraction_repo.save_extraction(
+            user_id=user_id,
+            data=dados_finais,
+            doc_type=doc_type,
+            model_used=ai_result["model_used"],
+        )
         print(f"[PROCESSOR] Qualidade insuficiente — NÃO cacheado: {motivo}", flush=True)
 
     # 10. Memória de cálculo — M1 (trilha de auditoria por extração)
@@ -681,6 +708,10 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
     """
     print(f"[PROCESSOR] Dossiê: user={user_id} | {len(files_list)} arquivo(s)", flush=True)
 
+    # 0. Repositórios — Sprint 2: tenant_id == user_id
+    cache_repo = get_cache_repo()
+    extraction_repo = get_extraction_repo(tenant_id=user_id)
+
     # 1. Freemium
     credits = get_user_credits(user_id)
     if credits <= 0:
@@ -688,7 +719,7 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
 
     # 2. Cache — hash composto (ordenado por nome)
     dossie_hash = _hash_dossie(files_list)
-    cached = get_cache(dossie_hash)
+    cached = cache_repo.get_cache(dossie_hash)
     if cached:
         ok, motivo = _qualidade_ok(cached)
         if ok:
@@ -833,12 +864,22 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
     ok, motivo = _qualidade_ok(dados_finais)
     if ok:
         dados_finais["_meta_doc_type"] = doc_type
-        save_cache(dossie_hash, dados_finais)
-        doc_id = save_extraction(user_id, dados_finais)
+        cache_repo.save_cache(dossie_hash, dados_finais)
+        doc_id = extraction_repo.save_extraction(
+            user_id=user_id,
+            data=dados_finais,
+            doc_type=doc_type,
+            model_used=ai_result["model_used"],
+        )
         deduct_credit(user_id)
         print(f"[PROCESSOR] Dossiê salvo (qualidade ok)", flush=True)
     else:
-        doc_id = save_extraction(user_id, dados_finais)
+        doc_id = extraction_repo.save_extraction(
+            user_id=user_id,
+            data=dados_finais,
+            doc_type=doc_type,
+            model_used=ai_result["model_used"],
+        )
         print(f"[PROCESSOR] Dossiê qualidade insuficiente — NÃO cacheado: {motivo}", flush=True)
 
     gerar_memoria(

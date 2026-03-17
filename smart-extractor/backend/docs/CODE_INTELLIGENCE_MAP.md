@@ -32,17 +32,17 @@ Use este arquivo junto com:
 
 | Domínio | Arquivos de entrada principais |
 |--------|---------------------------------|
-| API (HTTP/WebSocket) | `main.py` |
+| API (HTTP/WebSocket) | `api/routers/extractor.py`, `api/routers/admin.py`, `api/routers/lab.py`, `api/routers/exports.py` |
 | Pipeline de extração | `workers/processor.py` |
 | Motor jurídico | `services/legal_engine/engine.py`, `services/legal_engine/rule_registry.py` |
 | Regras jurídicas | `services/legal_engine/rules/*.py`, `services/jurisprudencia/**/*.py` |
 | Explanation Engine | `services/explanation_engine.py` |
 | Exportadores | `services/pjc_exporter.py`, `_archive/pjc/pjc_exporter_v5.9.py`, `services/pjc_template_patcher.py`, `services/excel_exporter.py`, `memoria_calculo/generator.py` |
 | Modelos e cache | `models.py`, `services/database.py`, `services/schema_version_guard.py` |
-| Frontend | `frontend/index.html`, `frontend/css/main.css`, `frontend/js/app.js`, `frontend/js/render.js`, `frontend/js/lab.js` |
-| Laboratório de Aprendizado | `services/learning_engine.py`, `services/learning_skill_loader.py`, `main.py` (bloco lab), `frontend/js/lab.js` |
-| Self-Healing Rule Engine | `services/learning_engine.py` (processar_aprendizado_autonomo, _evaluate_shadow_rules), `services/knowledge_base.py`, `services/legal_engine/dynamic_rule_loader.py`, `workers/processor.py` (passo 8b+/8d), `main.py` (`/lab/knowledge-base*`) |
-| Dashboard de Estatísticas | `main.py` (GET /api/stats), `services/knowledge_base.py`, `services/database.py` (get_total_extractions), `frontend/js/app.js` (carregarEstatisticas, iniciarPollingEstatisticas) |
+| Frontend | `frontend/index.html`, `frontend/src/main.tsx`, `frontend/src/App.tsx`, `frontend/src/pages/*.tsx`, `frontend/src/hooks/useAnalyze.ts`, `frontend/src/services/api.ts` |
+| Laboratório de Aprendizado | `services/learning_engine.py`, `services/learning_skill_loader.py`, `main.py` (bloco lab), `frontend/src/pages/Laboratory.tsx`, `frontend/src/hooks/useAnalyze.ts` |
+| Self-Healing Rule Engine | **`services/lab/self_healing.py`** (codify_insight, processar_aprendizado_autonomo, evaluate_shadow_rules; KB Multi-tenant), `services/learning_engine.py` (facades), `services/knowledge_base.py`, `legal_engine/dynamic_rule_loader.py`, `workers/processor.py`, `main.py` (`/lab/knowledge-base*`) |
+| Dashboard de Estatísticas | `main.py` (GET /api/stats), `services/knowledge_base.py`, `services/database.py` (get_total_extractions), frontend React `api.ts` (stats) |
 | Testes | `backend/tests/**`, `backend/tests/jurisprudencia/**` |
 
 ---
@@ -54,16 +54,21 @@ Use este arquivo junto com:
 - `workers/processor.py`
   - Função central: `process_lawsuit_pdf(user_id, file_bytes, job_id)`.
   - Implementa os 10 passos descritos em `PIPELINE.md`.
-- `main.py`
+- `api/routers/extractor.py`
   - Endpoints que chamam o worker:
-    - `/upload` → inicia job e chama `process_lawsuit_pdf` em background.
+    - `/upload` → inicia job e chama `process_lawsuit_pdf`/`process_lawsuit_dossie` em background.
     - `/status/{job_id}` → consulta estado do job.
-    - `/export-pjc/{job_id}`, `/export-excel/{job_id}` → consomem o resultado do pipeline.
+    - `/export-excel/{job_id}` → consome o resultado do pipeline para gerar Excel.
+    - `/upload-pjc/{job_id}` → auditoria cruzada com arquivo `.pjc`.
+    - WebSocket `/ws/{job_id}` → push de resultados por job.
+- `api/routers/lab.py`
   - Endpoints do Laboratório de Aprendizado (independentes do pipeline):
-    - `POST /lab/analisar` — 8 arquivos (peticao, contestacao, processo, liquidacao, parecer, impugnacao, calculo_pjc, manifestacao); processar_sete_arquivos → relatório (peticao_inicial, contestacao, triade_pericial, manifestacao_pericial, etc.).
+    - `POST /lab/analisar` — 8 arquivos (peticao, contestacao, processo, liquidacao, parecer, impugnacao, calculo_pjc, manifestacao); `processar_sete_arquivos` → relatório (peticao_inicial, contestacao, triade_pericial, manifestacao_pericial, etc.).
     - `POST /lab/preview` — pré-visualização do conteúdo a gravar (sem gravar).
     - `POST /lab/salvar` — chama `learning_engine.codify_insight()` (log + regra/playbook); aceita `conteudo_editado`.
     - `GET /lab/historico` — últimos aprendizados (learning_log.jsonl).
+- `api/routers/exports.py`
+  - Endpoints de exportação dedicados para `.pjc` e outros formatos, compatíveis com o resultado do pipeline.
 
 ### 2.2 Fluxo entre módulos (resumo)
 
@@ -248,15 +253,14 @@ O parecer técnico final é montado em camadas:
 
 ### 7.1 Localização e estrutura
 
-- **Layout SaaS** (Tailwind CSS em `index.html`):
-  - **Sidebar retrátil** (classe `.sidebar-retractil` em `main.css`): largura 4rem recolhida, 16rem ao hover; fixa à esquerda (`position: fixed`); textos dos itens com `opacity-0 group-hover:opacity-100`. Main workspace tem `margin-left: 4rem`. Navegação Extrator / Laboratório / Meus Processos / Estatísticas; troca via `data-nav-view` e `_showView`; preferência em `localStorage`.
-  - **Header fixo**: título e subtítulo dinâmicos, créditos, avatar; backdrop blur.
-  - **Quatro views**: `#view-extrator` (split-view: upload + **resultados sem barra de KPIs** — Verbas/Alertas/Índice removidos; mais espaço vertical; Raio-X + corpo do relatório), `#view-lab`, `#view-historico`, `#view-estatisticas` (KPIs do dashboard permanecem aqui). **Identificação do processo** existe apenas no Painel Raio-X (Bloco 1); a seção "Identificação do Processo" no corpo do relatório foi removida.
-- `frontend/index.html` — estrutura da aplicação; IDs/classes preservados (ex.: `#resultado`, `#status-bar`, `#view-estatisticas`, `.kpi-updated`, `#lab-section`, `.lab-steps.open`).
-- `frontend/css/main.css` — estilos dos **componentes dinâmicos** (dark theme, seções, verbas, alertas, `.lab-*`, `.lab-modal-*`). Layout estrutural em Tailwind em `index.html`; animações `.kpi-updated` e `labToastIn` no inline `<style>`.
-- `frontend/js/app.js` — upload PDF, polling `/status/{job_id}`, export PJC/Excel, créditos, auditoria .PJC; histórico (carregarHistorico, filtrarHistorico); **Estatísticas**: `carregarEstatisticas(silencioso)`, `iniciarPollingEstatisticas()` (5 s só quando aba Estatísticas visível), `_setKpiValue` (animação .kpi-updated ao mudar valor).
-- `frontend/js/lab.js` — Lab: 8 cards (LAB_CAMPOS: peticao, contestacao, processo, …); Card 3 múltiplos (`_processoFiles`); barra de eficiência (0–100%, _EFICIENCIA_PESOS, _atualizarBarraEficiencia); `/lab/analisar`, linha do tempo, modal pré-visualização, salvar; toast .doc; após salvar: _labToastEstatisticas.
-- `frontend/js/render.js` — `renderResultado(dados)` e montagem do HTML (resumo, **sem** seção "Identificação do Processo" — essa informação está só no Raio-X); `renderRaiox(raiox)` com **Bloco 1** na ordem `BLOCO1_KEYS` (alinhada a `ESTRUTURAL_KEYS` em `extraction_engine.py`: vara, juiz, datas, valor_causa, reclamante/reclamada, advogados, rito, justiça gratuita). Helpers `val`, `vv`, `statusClass`, `statusLabel`.
+- **SPA React (Vite + TypeScript + Tailwind):**
+  - **Entry:** `frontend/index.html` (mount `#root`) + `frontend/src/main.tsx`.
+  - **Rotas:** `frontend/src/App.tsx` — `/` (Dashboard), `/extractor` (Extrator), `/lab` (Laboratório).
+  - **Páginas:** `frontend/src/pages/Dashboard.tsx`, `Extractor.tsx`, `Laboratory.tsx`.
+  - **Layout:** `frontend/src/components/layout/MainLayout.tsx` (sidebar, header, navegação).
+  - **Hooks:** `frontend/src/hooks/useAnalyze.ts` — POST `/lab/analisar`, estado do relatório.
+  - **API:** `frontend/src/services/api.ts` — upload, status, export, créditos, `/api/stats`, `/api/knowledge-base`, endpoints lab.
+  - **Componentes:** `AnalysisReport.tsx`, `LearningPreview.tsx`, etc.; tipos em `frontend/src/types/`.
 
 ### 7.2 Integração com backend
 
@@ -268,7 +272,7 @@ Principais endpoints consumidos:
 - `GET /export-excel/{job_id}` — baixa o `.xlsx`.
 - `GET /credits/{user_id}` — exibe créditos disponíveis.
 - Laboratório: `POST /lab/analisar`, `POST /lab/preview`, `POST /lab/salvar`, `GET /lab/historico`.
-- **Dashboard de Estatísticas**: `GET /api/stats` — retorna `processos_analisados`, `regras_oficiais_ativas`, `regras_em_teste_shadow`, `omissoes_detectadas`, `eficiencia_motor` (acertos/(acertos+punicoes) % ou null), `ultimas_regras`, `top_verbas_divergencias`. Dados vêm de `knowledge_base.json` e `database.get_total_extractions()`; polling no frontend a cada 5 s só quando a aba está visível.
+- **Dashboard de Estatísticas**: `GET /api/stats` — retorna `processos_analisados`, `regras_oficiais_ativas`, etc.; frontend React consome via `api.ts`.
 
 Ao alterar o frontend, mantenha:
 
@@ -286,12 +290,12 @@ Ao alterar o frontend, mantenha:
 
 ### 8.2 Arquivos e funções
 
-- **learning_engine.py**: `processar_sete_arquivos` / `processar_cinco_arquivos` (8 args + peticao/contestacao opcionais); `_extrair_peticao_inicial`, `_extrair_contestacao`; `_extrair_titulo_executivo_multiplos` (data do texto, desempate); `_extrair_amostragem_pdf/word` (retrocompat.); `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_atualizar_skill_manifestacao`; guardrails; Self-Healing; `preview_aprendizado`, `codify_insight`.
+- **learning_engine.py**: facade orquestrador; `processar_sete_arquivos` / `processar_cinco_arquivos`; extrações (petição, contestação, título executivo, amostragem, manifestação) e guardrails via `lab/*`; **Self-Healing** e **codify_insight** via `lab/self_healing.py` (facades); `preview_aprendizado`, `salvar_aprendizado`.
   - `preview_aprendizado(aprendizado)` — retorna o conteúdo que seria gravado (Python ou Markdown), sem gravar.
   - `codify_insight(aprendizado, numero_processo, conteudo_editado=None)` — usado por `POST /lab/salvar`: (1) registra em `learning_log.jsonl` (log enriquecido); (2) grava regra em `legal_engine/rules/` e/ou injeta exemplo em `skills/sentenca_ordinaria.md` (Gemini para gerar; fallback com template). Se `conteudo_editado` for passado, usa esse texto. Também existe `salvar_aprendizado` (compatibilidade).
 - **services/learning_skill_loader.py**: `carregar_skill_para_lab(doc_type)` — carrega playbook .md para o lab (sem depender do processor).
 - **main.py**: blocos dos endpoints `/lab/analisar`, `/lab/preview`, `/lab/salvar`, `/lab/historico`.
-- **frontend/js/lab.js**: upload, análise, lista de aprendizados, abertura do modal de pré-visualização, envio de `conteudo_editado` em "Confirmar e Salvar".
+- **Frontend React:** `frontend/src/pages/Laboratory.tsx` e `useAnalyze.ts`: upload (8 campos), análise, lista de aprendizados, modal de pré-visualização, envio de `conteudo_editado` em "Confirmar e Salvar".
 
 ### 8.3 Invariantes
 

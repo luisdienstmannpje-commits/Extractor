@@ -21,12 +21,14 @@ def calcular_numero_cnj(nnnnnnn, aaaa, j, tt, oooo):
     return f"{nnnnnnn}-{_calcular_dd(nnnnnnn,aaaa,j,tt,oooo)}.{aaaa}.{j}.{tt}.{oooo}"
 
 def validar_cnj(numero):
-    if not numero: return False, "Numero nao informado."
+    if not numero:
+        return False, "Numero nao informado."
     partes = extrair_partes_cnj(numero)
-    if partes is None: return False, f"Formato inválido: {numero}"
-    dd_esp = _calcular_dd(partes["nnnnnnn"],partes["aaaa"],partes["j"],partes["tt"],partes["oooo"])
+    if partes is None:
+        return False, f"Formato inválido: {numero}"
+    dd_esp = _calcular_dd(partes["nnnnnnn"], partes["aaaa"], partes["j"], partes["tt"], partes["oooo"])
     if partes["dd"] != dd_esp:
-        return False, f"Dígito verificador inválido: informado={partes[chr(100)+chr(100)]}, esperado={dd_esp}."
+        return False, f"Dígito verificador inválido: informado={partes['dd']}, esperado={dd_esp}."
     return True, ""
 
 class NumeroCNJValidator(LegalRule):
@@ -40,10 +42,10 @@ class NumeroCNJValidator(LegalRule):
             ok, motivo = validar_cnj(numero)
             if not ok:
                 msg = (
-                    f"[AVISO] Dígito verificador CNJ parece atípico: {numero}. "
+                    f"[ERRO] Dígito verificador CNJ parece atípico: {numero}. "
                     f"{motivo} Apenas confira se o número do processo foi extraído corretamente."
                 )
-                self._alerta(contexto, msg, nivel="AVISO")
+                self._alerta(contexto, msg, nivel="ERRO")
             self._registrar(contexto)
         except Exception as exc:
             self._alerta(contexto,f"[AVISO] Falha interna: {exc}",nivel="AVISO"); self._registrar(contexto)

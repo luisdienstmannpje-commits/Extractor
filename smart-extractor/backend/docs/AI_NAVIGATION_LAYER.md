@@ -12,6 +12,7 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 - **Regras jurídicas:** só em `legal_engine/`; uma regra por arquivo; `LegalRule._canonizar_verba` para canonização.
 - **Guardrails:** `_filtrar_*` em `learning_engine.py` após enriquecimento; não remover nem mover.
 - **Frontend:** Vanilla JS; IDs preservados; sem React/Vue.
+- **Arquitetura SaaS e Multi-tenancy:** `main.py` atua apenas como **API Gateway** (inicialização FastAPI + middleware + inclusão de roteadores em `api/routers/`). As rotas vivem em roteadores especializados (`extractor.py`, `lab.py`, `admin.py`, `exports.py`). O KnowledgeBase é **Multi-tenant** (Multiton por `tenant_id`/`user_id`), gravando regras por cliente em arquivos `knowledge_base_{tenant_id}.json` para evitar vazamento de aprendizado entre escritórios.
 
 ---
 
@@ -62,34 +63,32 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 3. `models.py` (ProcessoTrabalhista, VerbaDeferida, SCHEMA_VERSION), `services/database.py`, `services/legal_engine/engine.py`.
 
 ### 2.8 Frontend (UI, layout, views)
-1. `docs/CODE_INTELLIGENCE_MAP.md` § 7.
-2. Arquivos: `frontend/index.html`, `frontend/css/main.css`, `frontend/js/app.js` (upload, polling, export), `frontend/js/render.js` (renderResultado, **renderRaiox**), `frontend/js/lab.js` (Laboratório 8 cards).
-3. **Painel Raio-X (aba Processar):** Ordem PJe-Calc (reduz rolagem): (1) Sticky: número do processo; (2) Dicas do Laboratório (alerta fixo); (3) Identificação e Juízo; (4) Parâmetros Estruturais; (5) Índices (mini-cards); (6) Verbas/Adicionais (badges). Cópia inteligente (datas DD/MM/AAAA, CPF/CNPJ sem pontuação); feedback check verde ao copiar. Dados de `envelope.raiox`.
-4. Nunca introduzir React/Vue. Preservar IDs: `#resultado`, `#raiox-panel`, `#view-extrator`, `#view-lab`, `.kpi-updated`.
+1. `docs/CODE_MAP.md` (§ Por arquivo — Frontend).
+2. **SPA React (Vite + TypeScript + Tailwind):** `frontend/index.html` (entry, `#root` + `src/main.tsx`), `frontend/src/App.tsx` (rotas: `/`, `/extractor`, `/lab`), `frontend/src/pages/Dashboard.tsx`, `Extractor.tsx`, `Laboratory.tsx`; `frontend/src/components/layout/MainLayout.tsx`; `frontend/src/hooks/useAnalyze.ts`; `frontend/src/services/api.ts`.
+3. **Painel Raio-X (aba Processar):** Exibido no Extractor; dados de `envelope.raiox`. Ordem: número do processo, Dicas Lab, Identificação e Juízo, Parâmetros Estruturais, Índices, Verbas/Adicionais.
 
 ### 2.9 Laboratório de Aprendizado da Perita
-**Backend:** `services/learning_engine.py` (§ 5) + `services/learning_skill_loader.py`.
+**Backend:** `services/learning_engine.py` (§ 5) + `services/learning_skill_loader.py`. Persistência e I/O em `services/lab/learning_io.py`; regex e limpeza em `services/lab/extractors.py` (learning_engine expõe facade).
 **Endpoints:** `/lab/analisar` (8 campos + `amostragens`), `/lab/preview`, `/lab/salvar`, `/lab/gerar-docx` (Ghostwriter: body = relatório JSON → retorna .docx da Manifestação), `/lab/historico`, `/lab/knowledge-base`.
-**Frontend:** `lab.js` — 8 cards, Card Amostragens múltiplos, barra de eficiência, botão "Gerar Minuta Word" (`labGerarDocx()`, visível quando há discrepâncias). **Detalhes Lab:** `docs/guia_eficiencia.md`.
+**Frontend:** `frontend/src/pages/Laboratory.tsx` — Cérebro Analítico (termômetro de eficiência, 5 cards de upload, botão global "Analisar Processo Completo" com log animado, painel HITL de aprendizados, relatório de discrepância, Gerar Minuta Word/PJC/Excel). `frontend/src/hooks/useAnalyze.ts` — POST /lab/analisar. **Detalhes Lab:** `docs/guia_eficiencia.md`.
 **Ghostwriter:** O endpoint envia `manifestacao_style.md` como **Instrução de Tom e Voz** (IA imita estilo: "esperando haver se desincumbido do múnus", "vem, respeitosamente"). `document_generator.gerar_minuta`: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções, tabela **Table Grid** (prejuízo financeiro), encerramento "Pede Deferimento. [Cidade], [Data]." + espaço assinatura Perito Assistente. `ai_writer.gerar_texto_manifestacao` → Gemini Perito Sênior; retorna `introducao`, `secoes[]`, `tabela_comparativa[]` (texto limpo). Validar com Teste 5 (Victor Felipe) ou Teste 10 (Gustavo Henrique).
 **Card de Provas como hub:** O usuário pode anexar **tudo** (Parecer, Amostragens, Manifestações) no Card "Amostragens e Provas". O backend usa `_fusionar_provas_com_cards`: para cada arquivo extrai texto e `_classificar_tipo_documento_prova(texto, filename)` → `parecer` | `amostragem` | `manifestacao` | `generic` (por termos como "Parecer Técnico", "Conclui-se", "R$", meses, tabelas); preenche `parecer_bytes`, `amostragem_pdf/word_bytes`, `manifestacao_bytes` quando os cards 5/6/8 não foram enviados. Todo o texto continua em `<AMOSTRAGENS_DA_PERITA>` com o **prompt unificado**: "Identifique qual arquivo é o Parecer e qual é a Amostragem; use o Parecer para a estratégia de combate e a Amostragem para conferir valores centavo a centavo no .PJC."
 
 ### 2.10 Self-Healing Rule Engine
 1. README § Self-Healing.
-2. `services/learning_engine.py` → `_extrair_logica_correcao_gemini`, `processar_aprendizado_autonomo`, `_evaluate_shadow_rules`.
+2. **`services/lab/self_healing.py`** — `codify_insight`, `processar_aprendizado_autonomo`, `evaluate_shadow_rules`; integração com `knowledge_base.py` via `user_id` (Multi-tenancy). `learning_engine.py` expõe facades e mantém `_extrair_logica_correcao_gemini` (callback injetado no self_healing).
 3. `services/knowledge_base.py` → estrutura `knowledge_base.json` e ciclo de vida.
 4. `services/legal_engine/dynamic_rule_loader.py` → `DynamicLegalRule`, `carregar_regras_ativas`, `executar_shadow_pipeline`.
 5. `workers/processor.py` → passo 8 (regras ativas + shadow mode).
 6. Nunca editar diretamente `services/legal_engine/rules/` a partir deste domínio.
 
 ### 2.11 Dashboard de Estatísticas
-1. **Backend:** `main.py` → `GET /api/stats` (KnowledgeBase.stats() + get_total_extractions()).
-2. **Frontend:** `frontend/js/app.js` → `carregarEstatisticas`, `_setKpiValue`, `iniciarPollingEstatisticas()` (5 s só quando `#view-estatisticas` visível). `frontend/index.html` → `#view-estatisticas`, `#stats-kpi-*`, `#stats-ultimas-regras`, `#stats-top-verbas`.
+1. **Backend:** `api/routers/admin.py` → `GET /api/stats` (KnowledgeBase.stats() + get_total_extractions()).
+2. **Frontend:** React consome `/api/stats` via `services/api.ts` (Dashboard ou página de estatísticas); exibir KPIs e atualizar conforme necessário.
 
 ### 2.12 Biblioteca de Regras (Inteligência Pericial)
-1. **Backend:** `main.py` → `GET /api/knowledge-base`. Lê `knowledge_base.json` do path `KnowledgeBase._path` (backend/knowledge_base.json, mesmo que processor/learning_engine). Log no terminal: `print("Lendo KB de:", caminho_arquivo)`. Em erro retorna `{"rules": [], "_meta": {...}}` (nunca 404).
-2. **Frontend — local:** Card na aba Estatísticas (`#view-estatisticas`), `#total-regras`, `#btn-ver-biblioteca-regras`. Modal `#modal-regras` (z-index 9999).
-3. **Fluxo:** `carregarKnowledgeBase()` (try/catch; atualiza `#total-regras` com `data.rules.filter(r => r.status !== 'deleted').length`) — chamada no load, ao clicar em `[data-nav-view="estatisticas"]` e após extração. Botão → `abrirBibliotecaRegras()` → `renderListaRegras(rules)` (limpa tbody antes de preencher; se `rules.length === 0` mostra "Nenhuma regra aprendida ainda. Processe um caso no Laboratório para começar!") → `abrirModalRegras()`. Arquivos: `app.js` (carregarKnowledgeBase, abrirBibliotecaRegras), `render.js` (renderListaRegras, abrirModalRegras, fecharModalRegras, aplicarTabModalRegras).
+1. **Backend:** `api/routers/admin.py` → `GET /api/knowledge-base`. Lê `knowledge_base_{tenant_id}.json` via `KnowledgeBase(tenant_id=user_id)`. Em erro retorna `{"rules": [], "_meta": {...}}` (nunca 404).
+2. **Frontend:** React consome `/api/knowledge-base` via `api.ts`; exibir contagem de regras (status !== 'deleted') e lista em modal ou painel; mensagem quando `rules.length === 0`.
 
 ---
 
@@ -103,12 +102,12 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 | Legal Rule Engine | `docs/CODE_INTELLIGENCE_MAP.md` § 3 | `services/legal_engine/` + `services/jurisprudencia/` |
 | Exportadores | `docs/CODE_INTELLIGENCE_MAP.md` § 5 | `services/pjc_*`, `memoria_calculo/` |
 | Testes | `docs/CODE_INTELLIGENCE_MAP.md` § 9 | `backend/tests/` |
-| Laboratório | README § Laboratório, `docs/guia_eficiencia.md` (níveis, pesos, marcha) | `learning_engine.py`, `main.py`, `lab.js` |
+| Laboratório | README § Laboratório, `docs/guia_eficiencia.md` (níveis, pesos, marcha) | `learning_engine.py`, `main.py`, `frontend/src/pages/Laboratory.tsx`, `frontend/src/hooks/useAnalyze.ts` |
 | Diretrizes prompt Lab | `docs/guia_eficiencia.md` | Não duplicar em outros docs (economia tokens) |
-| Frontend layout/UI | `docs/CODE_INTELLIGENCE_MAP.md` § 7 | `frontend/index.html`, `frontend/css/main.css` |
+| Frontend layout/UI | `docs/CODE_MAP.md` (§ Frontend) | `frontend/src/App.tsx`, `frontend/src/components/layout/MainLayout.tsx`, `frontend/src/pages/*.tsx` |
 | Parecer Técnico | `docs/CODE_INTELLIGENCE_MAP.md` § 4.3 | `skills/parecer_pericial.md`, `explanation_engine.py` |
-| Dashboard Estatísticas | este arquivo § 2.11 | `main.py` (/api/stats), `frontend/js/app.js` |
-| Biblioteca de Regras (auditar aprendizado) | este arquivo § 2.12 | `main.py` (/api/knowledge-base), `frontend/js/app.js`, `frontend/js/render.js` |
+| Dashboard Estatísticas | este arquivo § 2.11 | `api/routers/admin.py` (/api/stats), frontend React `api.ts` |
+| Biblioteca de Regras (auditar aprendizado) | este arquivo § 2.12 | `api/routers/admin.py` (/api/knowledge-base), frontend React `api.ts` |
 
 ---
 
@@ -189,9 +188,9 @@ Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0
 ### Funções de aprendizado autônomo
 | Função | Descrição |
 |--------|-----------|
-| `processar_aprendizado_autonomo(relatorio, numero)` | Fase 1: extrai hipóteses (Gemini + guardrail) → KB; Fase 2: avalia shadow rules |
-| `_evaluate_shadow_rules(relatorio, kb)` | Acerto (+1) / Punição (-1); shadow→active em score≥3; shadow→deleted em score≤-1 |
-| `_extrair_logica_correcao_gemini(relatorio)` | Gemini → hipóteses JSON; com 3 REGRAS ESTRITAS no prompt + early-exit Python |
+| `processar_aprendizado_autonomo(relatorio, numero, user_id?)` | **Facade** → `lab/self_healing`; Fase 1: hipóteses → KB(tenant_id=user_id); Fase 2: evaluate_shadow_rules |
+| `evaluate_shadow_rules(relatorio, kb, user_id?)` | Em `lab/self_healing.py`; acerto (+1) / punição (-1); shadow→active/deleted |
+| `_extrair_logica_correcao_gemini(relatorio)` | Gemini → hipóteses JSON; callback injetado no self_healing; 3 REGRAS ESTRITAS + early-exit |
 
 ### Entrypoints públicos
 | Função | Descrição |
@@ -201,7 +200,7 @@ Sempre que tocar uma zona acima: atualize os docs relevantes + `pytest -q` com 0
 | `gerar_relatorio_discrepancia(dados_sentenca, dados_liquidacao, dados_manifestacao)` | Cross-reference principal; usa `LegalRule._canonizar_verba` + `_verba_corresponde_na_liquidacao` |
 | `preview_aprendizado(aprendizado)` | Retorna conteúdo que seria gravado (sem gravar) |
 | `salvar_aprendizado(...)` | Persiste regra/playbook em disco |
-| `codify_insight(...)` | Self-Healing: gera rascunho Python + few-shot + registra log |
+| `codify_insight(...)` | **Facade** → `lab/self_healing.codify_insight`; regra Python + skill + learning_log |
 
 ---
 

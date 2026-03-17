@@ -17,7 +17,7 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 
 | Componente | Onde | Função |
 |------------|------|--------|
-| API | `main.py` | FastAPI: upload, jobs, WebSocket, download Excel/PJC, endpoints `/lab/*`, `GET /api/stats`. |
+| API | `main.py` + `api/routers/` | `main.py` atua como **API Gateway**: inicializa o FastAPI, aplica middleware (CORS, logs) e inclui os roteadores. As rotas vivem em `api/routers/extractor.py` (upload/jobs/WebSocket/export Excel), `api/routers/lab.py` (Laboratório), `api/routers/admin.py` (stats, histórico, biblioteca de regras) e `api/routers/exports.py` (exportação dedicada). |
 | Pipeline | `workers/processor.py` | Orquestra os 10 passos (créditos → cache → texto → IA → validação → persistência → memória). |
 | Extração de texto | `services/sentence_finder.py` | PDF → texto, tipo de doc, OCR híbrido. |
 | IA | `services/ai_client.py` | Gemini (Flash → Pro fallback), playbook, truncagem. |
@@ -25,7 +25,7 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 | Explicações / Parecer | `services/explanation_engine.py` + `services/ai_client.py` | Templates jurídicos (sem LLM) + seção I do Parecer Padrão Ouro via Gemini. |
 | Memória de cálculo | `memoria_calculo/generator.py` | Gera `memoria_{job_id}.json` (trilha de auditoria). |
 | Persistência | `services/database.py` | SQLite: créditos, cache, extrações, jobs. |
-| Laboratório de Aprendizado | `services/learning_engine.py`, `main.py (/lab/*)` | Ver abaixo. |
+| Laboratório de Aprendizado | `services/learning_engine.py`, `services/lab/discrepancy.py`, `services/lab/style_transfer.py`, `services/lab/self_healing.py` (codify + Shadow Rules, Multi-tenant), `main.py (/lab/*)` | Ver abaixo. |
 | Frontend | `frontend/` | Workspace App Tailwind + Vanilla JS. Ver abaixo. |
 
 ---
@@ -38,15 +38,17 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 |---|-------|--------|
 | 1 | `peticao` | Petição Inicial → verbas pedidas, causa de pedir |
 | 2 | `contestacao` | Contestação → argumentos exclusão, teses empresa |
-| 3 | `processo` | Título Executivo (múltiplos; tier + data do texto) |
+| 3 | `processo` | Título Executivo (múltiplos; tier + data do texto). Hierarquia e fusão em `lab/titulo_executivo.py`; tier diferente = ambos mantidos; cabeçalho PJe 1000 chars ignorado. |
 | 4–8 | liquidacao, parecer, impugnacao, calculo_pjc, manifestacao | Cálculo empresa, parecer, Style Transfer (6+8), PJC, retórica combate |
 
-**Duplo Style Transfer**: Card 6 + Card 8 → `manifestacao_style.md` (`_merge_dados_manifestacao`).
+**Duplo Style Transfer**: Card 6 (Impugnação) + Card 8 (Manifestação) → `skills/manifestacao_style.md`. Lógica em `lab/style_transfer.py` (`merge_dados_manifestacao`, `extrair_manifestacao_pericial`).
 
-**Guardrails anti-alucinação** (3 camadas):
-1. Discrepâncias (`_filtrar_falsos_positivos_verba_ausente`) — remove `verba_ausente` se a verba está na liquidação.
-2. Hipóteses KB (`_filtrar_logicas_verba_ausente_falsas`) — remove hipóteses Gemini falsas antes do Knowledge Base.
-3. Aprendizados frontend (`_filtrar_aprendizados_verba_ausente_falsas`) — limpa o JSON retornado ao UI.
+**Confronto Sentença vs. Cálculo:** `lab/discrepancy.py` — `gerar_relatorio_discrepancia` (verbas deferidas vs. liquidação, índice, juros; canonização via `LegalRule._canonizar_verba`).
+
+**Guardrails anti-alucinação** (3 camadas; implementados em `lab/discrepancy.py`):
+1. Discrepâncias (`filtrar_falsos_positivos_verba_ausente`) — remove `verba_ausente` se a verba está na liquidação/PJC.
+2. Hipóteses KB (`filtrar_logicas_verba_ausente_falsas`) — remove hipóteses Gemini falsas antes do Knowledge Base.
+3. Aprendizados frontend (`filtrar_aprendizados_verba_ausente_falsas`) — limpa o JSON retornado ao UI.
 
 ---
 
@@ -60,6 +62,9 @@ PDF(s) → hash → cache? → sentence_finder (texto + doc_type) → playbook �
 → persistência (cache + extração + crédito)
 → memoria_calculo/generator.py
 ```
+
+> **Multi-Tenancy (isolamento por cliente)**  
+> O Cérebro da IA (KnowledgeBase) isola dados de aprendizado por cliente usando padrão **Multiton**: cada tenant é mapeado para um arquivo físico (`knowledge_base_{tenant_id}.json`, ou `knowledge_base.json` para o default). As rotas administrativas (`/api/knowledge-base`, `/api/stats`) recebem `user_id` e instanciam `KnowledgeBase(tenant_id=user_id)`, evitando que regras de um escritório vazem para outro.
 
 ---
 
@@ -75,14 +80,15 @@ PDF(s) → hash → cache? → sentence_finder (texto + doc_type) → playbook �
 
 ---
 
-## Frontend — 4 views
+## Frontend — SPA React (Vite + TypeScript + Tailwind)
 
-| View | ID | Conteúdo |
-|------|-----|----------|
-| Extrator | `#view-extrator` | Upload PDF, split-view, KPIs, resultado JSON renderizado, export PJC/Excel. |
-| Laboratório | `#view-lab` | 8 cards de upload; Card 3 aceita múltiplos arquivos; resultado em 4 passos; modal de pré-visualização. |
-| Meus Processos | `#view-historico` | Histórico de extrações; busca em tempo real; download PJC/Excel por job. |
-| Estatísticas | `#view-estatisticas` | KPIs do aprendizado; polling 5 s; animação `.kpi-updated`. |
+| Rota | Página | Conteúdo |
+|------|--------|----------|
+| `/` | Dashboard | Página inicial / resumo. |
+| `/extractor` | Extractor | Upload PDF/dossiê, processar, exibir resultado e Raio-X; export PJC/Excel. |
+| `/lab` | Laboratory | **Cérebro Analítico:** termômetro de eficiência, 5 cards de upload (Sentença, Liquidação, PJC, Manifestação, Parecer), botão global "Analisar Processo Completo" (log animado no botão), painel de aprendizados HITL, relatório de discrepância, Gerar Minuta Word/PJC/Excel. |
+
+Arquivos principais: `frontend/src/App.tsx` (rotas), `frontend/src/pages/Laboratory.tsx`, `frontend/src/hooks/useAnalyze.ts`, `frontend/src/services/api.ts`.
 
 ---
 

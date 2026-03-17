@@ -32,6 +32,13 @@ def obter_textos_padrao_criterios_parecer() -> Dict[str, str]:
     """Retorna os textos oficiais para a seção II do Parecer Técnico."""
     return dict(TEXTOS_PADRAO_CRITERIOS_PARECER)
 
+# Funções de parecer completas agora vivem em services.parecer_engine,
+# mas continuam reexportadas aqui para compatibilidade.
+from services.parecer_engine import (  # type: ignore[F401]
+    gerar_parecer_parcelas_apuradas,
+    gerar_parecer_tecnico_completo,
+)
+
 
 _NIVEL_NORMATIVO: Dict[int, str] = {
     10: "STF", 20: "Súmula TST", 30: "Orientação Jurisprudencial TST",
@@ -237,7 +244,6 @@ class ExplanationEngine:
                 "tem_template": tem_template,
             })
         explicacoes.sort(key=lambda x: x["prioridade"])
-        print(f"[EXPLANATION] {len(explicacoes)} explicação(ões) gerada(s)")
         return explicacoes
 
     @staticmethod
@@ -248,8 +254,7 @@ class ExplanationEngine:
         if callable(template):
             try:
                 return template(dados), True
-            except Exception as e:
-                print(f"[EXPLANATION] Erro no template {regra_id}: {e}")
+            except Exception:
                 return descricao_fallback or f"Regra {regra_id} aplicada.", False
         return str(template), True
 

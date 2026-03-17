@@ -2,8 +2,8 @@ from services.legal_engine.rule_base import LegalRule, ContextoJuridico
 
 _PROIBIDOS = {
     "DSR": ["Férias", "13º Salário", "FGTS"],
-    "Multa art. 467": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
-    "Multa art. 477": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
+    "Multa Art. 467 CLT": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
+    "Multa Art. 477 CLT": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
     "Dano Moral": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
     "Dano Material": ["DSR", "Férias", "13º Salário", "FGTS", "Aviso Prévio"],
     "Aviso Prévio": ["Aviso Prévio"],
