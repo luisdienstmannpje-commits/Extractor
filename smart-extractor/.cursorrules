@@ -7,10 +7,10 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 
 ## Arquitetura em uma frase
 
-**Extração de PDF → LLM (Gemini) → Motor de Regras Python (Legal Rule Engine) → Frontend Vanilla JS → Excel / .PJC**
+**Extração de PDF → LLM (Gemini) → Motor de Regras Python (Legal Rule Engine) → Frontend React → Excel / .PJC**
 
-- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`.
-- **Frontend**: Vanilla JavaScript (sem React/Vue). `app.js` (API, upload, export, estatísticas); `render.js` (dados); `lab.js` (Laboratório 8 cards).
+- **Backend**: Python 3, FastAPI, Pydantic. Pipeline em 10 passos em `workers/processor.py`. Rotas em `api/routers/` (extractor.py, lab.py, admin.py, exports.py); `main.py` é gateway.
+- **Frontend**: React (Vite + TypeScript + Tailwind). `frontend/src/pages/` (Dashboard, Extractor, Laboratory); `frontend/src/hooks/` (useAnalyze); `frontend/src/services/api.ts` (API, upload, export, stats).
 - **Motor de regras**: Toda regra jurídica herda de `LegalRule` em `services/legal_engine/rule_base.py`. Uma regra por arquivo em `services/legal_engine/rules/`. Prioridade: 10=STF, 20=Súmulas TST, 30=OJs TST, 40=CLT, 50=Consistência.
 - **Modelo de dados**: `ProcessoTrabalhista` e `VerbaDeferida` em `backend/models.py`. Novos campos exigem atualizar `SCHEMA_VERSION`, `schema_version_guard.py` e, se a regra ler o campo, `engine._dict_para_contexto`.
 
@@ -20,12 +20,12 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 
 ### Título Executivo Complexo (Card 3)
 - Frontend: `_processoFiles[]` acumula múltiplos arquivos; `_classifyDecisaoTier(filename)` classifica badge; `_renderProcessoFiles()` atualiza UI; `form.append("processo", f)` em loop.
-- API: `processo: List[UploadFile] = File(default=[])` em `main.py`; `processo_arquivos: List[tuple]` passado para `processar_sete_arquivos`.
+- API: `processo: List[UploadFile] = File(default=[])` em `api/routers/lab.py`; `processo_arquivos: List[tuple]` passado para `processar_sete_arquivos`.
 - Backend — **prioridade ao nome do arquivo:** `_classificar_tier_decisao(filename, texto?)`. Se nome tem **1grau, ATOrd, Sentenca** → **1GRAU**. Se nome tem **2grau, ROT, Acordao** → **TRT**. Só usa regex no texto se o nome for genérico; ao usar texto, ignora os primeiros 1000 chars (cabeçalho PJe). Documentos com tier diferente são mantidos ambos. `_extrair_data_documento`: remove linha "Data da Autuação"; prioriza final do doc. `_extrair_titulo_executivo_multiplos` mantém um doc por tier, desempate por data.
 
 ### Card Amostragens e Provas Adicionais (hub único — Parecer + Amostragens + Manifestações)
 - Frontend: `_amostragensFiles[]`; input `lab-amostragens` com `multiple`; aviso "Arraste aqui seu Parecer, Amostragens e Manifestações"; `form.append("amostragens", f)` em loop.
-- API: `amostragens: List[UploadFile] = File(default=[])` em `main.py`; lidos como `amostragens_arquivos: List[(bytes, filename)]`.
+- API: `amostragens: List[UploadFile] = File(default=[])` em `api/routers/lab.py`; lidos como `amostragens_arquivos: List[(bytes, filename)]`.
 - Backend: `_fusionar_provas_com_cards(amostragens_arquivos, parecer*, amostragem_*, manifestacao*)` — para cada arquivo extrai texto e `_classificar_tipo_documento_prova(texto, filename)` → parecer | amostragem | manifestacao | generic; preenche parecer_bytes, amostragem_pdf/word_bytes, manifestacao_bytes quando cards 5/8 ou amostragem não foram enviados. Texto completo concatenado (por arquivo `--- PROVA: nome ---`) vai para `_bloco_amostragens_perita`, que injeta em `<AMOSTRAGENS_DA_PERITA>` com **prompt unificado**: "Identifique qual arquivo é o Parecer e qual é a Amostragem; use o Parecer para estratégia de combate e a Amostragem para conferir valores centavo a centavo no .PJC" + "verdade absoluta para confrontar os cálculos da empresa".
 
 ### Duplo Style Transfer (Cards 6 + 8)
@@ -49,16 +49,15 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 ### Ghostwriter — Minuta Manifestação (Lab)
 - **Endpoint:** `POST /lab/gerar-docx` — body = relatório JSON (mesmo de `/lab/analisar`). Retorna .docx para download. O endpoint envia `skills/manifestacao_style.md` como **Instrução de Tom e Voz** (IA imita estilo: "esperando haver se desincumbido do múnus", "vem, respeitosamente").
 - **Backend:** `document_generator.gerar_minuta`: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções por discrepância, tabela **Table Grid** (Valor empresa x Valor correto — prejuízo financeiro), encerramento padrão "Pede Deferimento. [Cidade], [Data atual]." e espaço para assinatura do Perito Assistente. `ai_writer.gerar_texto_manifestacao`: Gemini Perito Sênior + Instrução de Tom e Voz; retorna introdução, seções e tabela_comparativa (texto limpo, sem Markdown).
-- **Frontend:** Botão "Gerar Minuta Word" (`#btn-lab-gerar-docx`) visível quando há discrepâncias; `labGerarDocx()` envia `_relatorio` e dispara download.
+- **Frontend:** `Laboratory.tsx` — botão "Gerar Minuta Word" visível quando há discrepâncias; envia relatório e dispara download.
 - **Validação:** Caso Victor Felipe (Teste 5) ou Gustavo Henrique (Teste 10); conferir discrepância SELIC/Horas Extras e cabeçalho do .docx (Processo, Reclamante, Reclamada).
 
 ### Painel Raio-X (aba Processar) — ordem PJe-Calc
-- **Ordem de blocos (renderRaiox):** (1) Sticky: número do processo (fonte maior); (2) Dicas do Laboratório (alerta fixo no topo; destaque se erro crítico/empresa ex. Swissport); (3) Identificação e Juízo (reclamante, reclamada, data ajuizamento, prescrição quinquenal); (4) Parâmetros Estruturais (admissão, demissão, maior remuneração, divisor de horas, motivo rescisão); (5) Índices e Correção (mini-cards coloridos Índice / Juros de Mora); (6) Verbas e Adicionais (badges). Cópia inteligente: `normalizeForPjeCalc` — datas DD/MM/AAAA, CPF/CNPJ sem pontos/traços. Feedback: classe `.raiox-copied` + check verde no botão ao copiar. CSS: `.raiox-sticky`, `.raiox-minicards`, `.raiox-badges`, padding reduzido em `.raiox-row`.
+- **Ordem de blocos (Raio-X em Extractor.tsx):** (1) Sticky: número do processo (fonte maior); (2) Dicas do Laboratório (alerta fixo no topo; destaque se erro crítico/empresa ex. Swissport); (3) Identificação e Juízo (reclamante, reclamada, data ajuizamento, prescrição quinquenal); (4) Parâmetros Estruturais (admissão, demissão, maior remuneração, divisor de horas, motivo rescisão); (5) Índices e Correção (mini-cards coloridos Índice / Juros de Mora); (6) Verbas e Adicionais (badges). Cópia inteligente: `normalizeForPjeCalc` — datas DD/MM/AAAA, CPF/CNPJ sem pontos/traços. Feedback: classe `.raiox-copied` + check verde no botão ao copiar. CSS: `.raiox-sticky`, `.raiox-minicards`, `.raiox-badges`, padding reduzido em `.raiox-row`.
 - **Backend:** `extraction_engine` inclui `prescricao_quinquenal` em ESTRUTURAL_KEYS.
 
 ### Validação .doc no frontend
-- `_isDocAntigo(file)` detecta extensão `.doc` ou MIME `application/msword`.
-- `_showLabToastDocNaoSuportado()` exibe toast de bloqueio com instrução de conversão.
+- No Laboratório (upload): detectar extensão `.doc` ou MIME `application/msword` e exibir aviso de conversão para .docx.
 - Arquivos `.docx` continuam aceitos normalmente.
 
 ---
@@ -85,7 +84,7 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 - Não remover guardrails (`_filtrar_*`) nem mover sua posição no fluxo de `processar_cinco_arquivos`/`processar_sete_arquivos`.
 - Não duplicar lógica de canonização fora de `LegalRule._canonizar_verba`.
 - Não introduzir regressões: após mudanças, `pytest -q` (de `backend/`) com 0 falhas.
-- Não sugerir React, Vue ou outro framework no frontend; o projeto usa Vanilla JS.
+- Não sugerir Vue ou outro framework no frontend; o projeto usa React (Vite + TypeScript).
 - Validação jurídica é feita **exclusivamente** pelo Legal Rule Engine.
 - Não gerar ou editar `legal_engine/rules/lab_*.py` manualmente; deixar o fluxo `codify_insight` decidir.
 

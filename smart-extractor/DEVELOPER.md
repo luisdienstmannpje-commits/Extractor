@@ -1,5 +1,8 @@
 # Developer — Estrutura oficial e rastreabilidade
 
+> **Repositório único oficial a partir de 2026-03-17: `smart-extractor/`**
+> A pasta `Extractor-legacy/` é arquivo histórico — não usar para desenvolvimento.
+
 Documento mestre para desenvolvedores e agentes de IA: caminhos oficiais, unico cerebro do Lab e mapa de consolidacao frontend.
 
 ---

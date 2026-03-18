@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -73,6 +74,7 @@ class KnowledgeBase:
             self._path = os.path.join(_BACKEND, f"knowledge_base_{self.tenant_id}.json")
 
         self._data: Dict[str, Any] = self._carregar()
+        self._lock = threading.Lock()
         self._initialized = True
 
     # ── I/O ──────────────────────────────────────────────────────────────────
@@ -106,7 +108,8 @@ class KnowledgeBase:
                 },
             }
 
-    def _salvar(self) -> None:
+    def _salvar_sem_lock(self) -> None:
+        """Persiste _data em disco. Chamar apenas sob self._lock."""
         try:
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
             self._data["_meta"]["updated_at"] = _now()
@@ -222,30 +225,32 @@ class KnowledgeBase:
             "updated_at":       _now(),
         }
 
-        self._data.setdefault("rules", []).append(nova_regra)
-        self._salvar()
+        with self._lock:
+            self._data.setdefault("rules", []).append(nova_regra)
+            self._salvar_sem_lock()
         return {"acao": "criada", "rule_id": rule_id, "status": "shadow"}
 
     def _incrementar(self, rule_id: str, numero_processo: str = "") -> Dict:
-        self._recarregar()
-        for regra in self._data.get("rules", []):
-            if regra.get("rule_id") != rule_id:
-                continue
+        with self._lock:
+            self._recarregar()
+            for regra in self._data.get("rules", []):
+                if regra.get("rule_id") != rule_id:
+                    continue
 
-            regra["confidence_score"] = regra.get("confidence_score", 1) + 1
-            regra["acertos"] = regra.get("acertos", 0) + 1
-            regra["updated_at"] = _now()
+                regra["confidence_score"] = regra.get("confidence_score", 1) + 1
+                regra["acertos"] = regra.get("acertos", 0) + 1
+                regra["updated_at"] = _now()
 
-            if numero_processo and numero_processo not in regra.get("casos_vistos", []):
-                regra.setdefault("casos_vistos", []).append(numero_processo)
+                if numero_processo and numero_processo not in regra.get("casos_vistos", []):
+                    regra.setdefault("casos_vistos", []).append(numero_processo)
 
-            acao = "incrementada"
-            if regra["confidence_score"] >= THRESHOLD_ACTIVE and regra["status"] == "shadow":
-                regra["status"] = "active"
-                acao = "ativada"
+                acao = "incrementada"
+                if regra["confidence_score"] >= THRESHOLD_ACTIVE and regra["status"] == "shadow":
+                    regra["status"] = "active"
+                    acao = "ativada"
 
-            self._salvar()
-            return {"acao": acao, "rule_id": rule_id, "status": regra["status"]}
+                self._salvar_sem_lock()
+                return {"acao": acao, "rule_id": rule_id, "status": regra["status"]}
 
         return {"acao": "nao_encontrada", "rule_id": rule_id}
 
@@ -254,25 +259,26 @@ class KnowledgeBase:
         Punição: decrementa o confidence_score de uma regra.
         Se atingir THRESHOLD_DELETE, marca como 'deleted' (esquecida).
         """
-        self._recarregar()
-        for regra in self._data.get("rules", []):
-            if regra.get("rule_id") != rule_id:
-                continue
+        with self._lock:
+            self._recarregar()
+            for regra in self._data.get("rules", []):
+                if regra.get("rule_id") != rule_id:
+                    continue
 
-            regra["confidence_score"] = regra.get("confidence_score", 1) - 1
-            regra["punicoes"] = regra.get("punicoes", 0) + 1
-            regra["updated_at"] = _now()
+                regra["confidence_score"] = regra.get("confidence_score", 1) - 1
+                regra["punicoes"] = regra.get("punicoes", 0) + 1
+                regra["updated_at"] = _now()
 
-            acao = "decrementada"
-            if regra["confidence_score"] <= THRESHOLD_DELETE:
-                regra["status"] = "deleted"
-                acao = "deletada"
-                print(f"[KB] Regra DELETADA por punição (score={regra['confidence_score']}): {rule_id}")
-            else:
-                print(f"[KB] Score decrementado ({regra['confidence_score']}): {rule_id}")
+                acao = "decrementada"
+                if regra["confidence_score"] <= THRESHOLD_DELETE:
+                    regra["status"] = "deleted"
+                    acao = "deletada"
+                    print(f"[KB] Regra DELETADA por punição (score={regra['confidence_score']}): {rule_id}")
+                else:
+                    print(f"[KB] Score decrementado ({regra['confidence_score']}): {rule_id}")
 
-            self._salvar()
-            return {"acao": acao, "rule_id": rule_id, "status": regra["status"]}
+                self._salvar_sem_lock()
+                return {"acao": acao, "rule_id": rule_id, "status": regra["status"]}
 
         return {"acao": "nao_encontrada", "rule_id": rule_id}
 
@@ -284,6 +290,21 @@ class KnowledgeBase:
         """Penaliza uma regra shadow que previu incorretamente."""
         return self.decrementar(rule_id)
 
+    def forcar_exclusao(self, rule_id: str) -> None:
+        """
+        Exclusão manual de uma regra pelo perito.
+        Força status='deleted' e score=-99 independente do threshold.
+        Thread-safe — usa self._lock internamente.
+        """
+        self._recarregar()
+        with self._lock:
+            for r in self._data.get("rules", []):
+                if r.get("rule_id") == rule_id:
+                    r["status"] = "deleted"
+                    r["confidence_score"] = -99
+                    r["updated_at"] = _now()
+                    break
+            self._salvar_sem_lock()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

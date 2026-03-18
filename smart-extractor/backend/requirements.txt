@@ -12,3 +12,6 @@ pydantic
 python-dotenv
 openpyxl
 python-docx
+
+# Desenvolvimento / testes
+pytest

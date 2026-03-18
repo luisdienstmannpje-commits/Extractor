@@ -331,27 +331,38 @@ def _extrair_manifestacao_from_text(texto: str) -> Dict[str, Any]:
     }
 
 
-# ── Geração do Relatório de Discrepância ─────────────────────────────────────
+# ── Geração do Relatório de Discrepância — módulo canônico: services/lab/discrepancy.py ──
+from services.lab.discrepancy import (
+    verba_corresponde_na_liquidacao as _verba_corresponde_na_liquidacao,
+    gerar_relatorio_discrepancia,
+    filtrar_logicas_verba_ausente_falsas as _filtrar_logicas_verba_ausente_falsas,
+    filtrar_falsos_positivos_verba_ausente as _filtrar_falsos_positivos_verba_ausente,
+    filtrar_aprendizados_verba_ausente_falsas as _filtrar_aprendizados_verba_ausente_falsas,
+)
+# Helpers internos mantidos como aliases para chamadas existentes no arquivo
+from services.lab.discrepancy import (
+    gerar_relatorio_discrepancia as _gerar_relatorio_discrepancia,
+)
 
-def _verba_corresponde_na_liquidacao(
-    verba_sentenca: str,
-    verbas_liq_norm: List[str],
-    verbas_liq_canon: set,
-    threshold: int = None,
-) -> bool:
-    return discrepancy.verba_corresponde_na_liquidacao(
-        verba_sentenca, verbas_liq_norm, verbas_liq_canon, threshold
-    )
+
+def _campos_chave_sentenca(dados: dict) -> dict:
+    from services.lab.discrepancy import _campos_chave_sentenca as _cks
+    return _cks(dados)
 
 
-def gerar_relatorio_discrepancia(
-    dados_sentenca: Dict,
-    dados_liquidacao: Dict,
-    dados_manifestacao: Dict,
-) -> Dict[str, Any]:
-    return discrepancy.gerar_relatorio_discrepancia(
-        dados_sentenca, dados_liquidacao, dados_manifestacao
-    )
+def _sugerir_correcao_verba(verba: str, manifestacao: dict) -> str:
+    from services.lab.discrepancy import _sugerir_correcao_verba as _scv
+    return _scv(verba, manifestacao)
+
+
+def _buscar_fundamento_para_verba(verba: str, manifestacao: dict) -> str:
+    from services.lab.discrepancy import _buscar_fundamento_para_verba as _bfv
+    return _bfv(verba, manifestacao)
+
+
+def _extrair_aprendizados(ds, dl, dm, disc):
+    from services.lab.discrepancy import _extrair_aprendizados as _ea
+    return _ea(ds, dl, dm, disc)
 
 
 # ── Pré-visualização e Salvamento do Aprendizado (facade → learning_io) ───────
@@ -562,7 +573,7 @@ def _fusionar_provas_com_cards(
             usado_para_parecer = True
             _logger.info(
                 "learning_autoclass_parecer",
-                extra={"filename": filename, "tenant_id": current_tenant_id() or "anonimo"},
+                extra={"nome_arquivo": filename, "tenant_id": current_tenant_id() or "anonimo"},
             )
         elif tipo == "amostragem":
             if fname.endswith(".pdf") and not amostragem_pdf_bytes and not usado_para_amostragem_pdf:
@@ -571,7 +582,7 @@ def _fusionar_provas_com_cards(
                 usado_para_amostragem_pdf = True
                 _logger.info(
                     "learning_autoclass_amostragem_pdf",
-                    extra={"filename": filename, "tenant_id": current_tenant_id() or "anonimo"},
+                    extra={"nome_arquivo": filename, "tenant_id": current_tenant_id() or "anonimo"},
                 )
             elif (fname.endswith(".docx") or fname.endswith(".doc")) and not amostragem_word_bytes and not usado_para_amostragem_word:
                 amostragem_word_bytes = file_bytes
@@ -579,7 +590,7 @@ def _fusionar_provas_com_cards(
                 usado_para_amostragem_word = True
                 _logger.info(
                     "learning_autoclass_amostragem_word",
-                    extra={"filename": filename, "tenant_id": current_tenant_id() or "anonimo"},
+                    extra={"nome_arquivo": filename, "tenant_id": current_tenant_id() or "anonimo"},
                 )
         elif tipo == "manifestacao" and not manifestacao_bytes and not usado_para_manifestacao:
             manifestacao_bytes = file_bytes
@@ -587,7 +598,7 @@ def _fusionar_provas_com_cards(
             usado_para_manifestacao = True
             _logger.info(
                 "learning_autoclass_manifestacao",
-                extra={"filename": filename, "tenant_id": current_tenant_id() or "anonimo"},
+                extra={"nome_arquivo": filename, "tenant_id": current_tenant_id() or "anonimo"},
             )
 
     return (
@@ -750,24 +761,9 @@ def _extrair_calculo_pjc(file_bytes: bytes, filename: str) -> Dict[str, Any]:
 
 
 # ── Guardrail: filtro de falsos positivos (facade → discrepancy, Passo 4) ─────
-
-def _canon_empresa_e_verba_esta(relatorio: Dict[str, Any]):
-    return discrepancy.canon_empresa_e_verba_esta(relatorio)
-
-
-def _filtrar_falsos_positivos_verba_ausente(relatorio: Dict[str, Any]) -> None:
-    discrepancy.filtrar_falsos_positivos_verba_ausente(relatorio)
-
-
-def _filtrar_logicas_verba_ausente_falsas(
-    logicas: List[Dict], relatorio: Dict[str, Any]
-) -> List[Dict]:
-    return discrepancy.filtrar_logicas_verba_ausente_falsas(logicas, relatorio)
-
-
-def _filtrar_aprendizados_verba_ausente_falsas(relatorio: Dict[str, Any]) -> None:
-    discrepancy.filtrar_aprendizados_verba_ausente_falsas(relatorio)
-
+from services.lab.discrepancy import (
+    canon_empresa_e_verba_esta as _canon_empresa_e_verba_esta,
+)
 
 # ── Relatório ampliado com impugnação e cálculo PJC ──────────────────────────
 
@@ -1132,13 +1128,13 @@ def _atualizar_skill_amostragem(dados_estilo: dict, trecho_original: str, filena
                 f.write(bloco)
         _logger.info(
             "learning_amostragem_style_updated",
-            extra={"filename": filename, "tenant_id": current_tenant_id() or "anonimo"},
+            extra={"nome_arquivo": filename, "tenant_id": current_tenant_id() or "anonimo"},
         )
         return True
     except Exception as e:
         _logger.error(
             "learning_amostragem_style_update_error",
-            extra={"filename": filename, "error": str(e), "tenant_id": current_tenant_id() or "anonimo"},
+            extra={"nome_arquivo": filename, "error": str(e), "tenant_id": current_tenant_id() or "anonimo"},
         )
         return False
 
@@ -1593,7 +1589,7 @@ def processar_sete_arquivos(
         _logger.info(
             "learning_analisar_amostragem_pdf",
             extra={
-                "filename": amostragem_pdf_filename,
+                "nome_arquivo": amostragem_pdf_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )
@@ -1614,7 +1610,7 @@ def processar_sete_arquivos(
         _logger.info(
             "learning_analisar_amostragem_word",
             extra={
-                "filename": amostragem_word_filename,
+                "nome_arquivo": amostragem_word_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )
@@ -1664,7 +1660,7 @@ def processar_sete_arquivos(
         _logger.info(
             "learning_analisar_impugnacao",
             extra={
-                "filename": impugnacao_filename,
+                "nome_arquivo": impugnacao_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )
@@ -1674,7 +1670,7 @@ def processar_sete_arquivos(
         _logger.info(
             "learning_analisar_manifestacao",
             extra={
-                "filename": manifestacao_filename,
+                "nome_arquivo": manifestacao_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )
@@ -1981,7 +1977,7 @@ def processar_cinco_arquivos(
         _logger.info(
             "learning_analisar_peticao_inicial",
             extra={
-                "filename": peticao_filename,
+                "nome_arquivo": peticao_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )
@@ -2045,7 +2041,7 @@ def processar_cinco_arquivos(
         _logger.info(
             "learning_analisar_contestacao",
             extra={
-                "filename": contestacao_filename,
+                "nome_arquivo": contestacao_filename,
                 "tenant_id": current_tenant_id() or "anonimo",
             },
         )

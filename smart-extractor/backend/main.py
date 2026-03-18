@@ -79,6 +79,7 @@ app.add_middleware(
 
 
 CRITICAL_PATHS = {"/api/extract", "/lab/analisar", "/api/stats"}
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 
 @app.middleware("http")
@@ -132,6 +133,27 @@ async def _request_context_and_logging(request: Request, call_next):
             )
 
 
+@app.middleware("http")
+async def _spa_fallback(request: Request, call_next):
+    """
+    SPA fallback: qualquer GET que não seja rota de API e retorne 404
+    recebe o index.html do frontend (React Router trata o path no cliente).
+    Prefixos de API excluídos do fallback: /api, /lab, /ws.
+    """
+    response = await call_next(request)
+    _API_PREFIXES = ("/api", "/lab", "/ws")
+    if (
+        response.status_code == 404
+        and request.method == "GET"
+        and not request.url.path.startswith(_API_PREFIXES)
+    ):
+        index = _FRONTEND_DIR / "index.html"
+        if index.exists():
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(content=index.read_text(encoding="utf-8"), status_code=200)
+    return response
+
+
 app.include_router(lab.router)
 app.include_router(extractor.router)
 app.include_router(admin.router)
@@ -139,7 +161,6 @@ app.include_router(exports.router)
 
 
 # Servir frontend em / — deve ficar por último para não sombrear rotas da API (/api/*)
-_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if _FRONTEND_DIR.exists():
     from fastapi.staticfiles import StaticFiles
 

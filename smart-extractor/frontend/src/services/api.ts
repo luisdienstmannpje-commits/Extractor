@@ -1,8 +1,9 @@
 import axios, { type AxiosInstance } from "axios";
 import type { ProcessoTrabalhista } from "../types/api";
 
-// Backend FastAPI roda na porta 8001 (ver run_server.sh)
-const API_BASE_URL = "http://localhost:8001";
+// URL base dinâmica — usa a mesma origem do browser (sem hardcode de porta)
+const API_BASE_URL =
+  typeof window !== "undefined" ? window.location.origin : "http://localhost:8000";
 const DEFAULT_USER_ID = "usuario_teste";
 
 export const api: AxiosInstance = axios.create({

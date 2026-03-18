@@ -3,16 +3,10 @@ uvicorn[standard]
 pdfplumber
 pytesseract
 Pillow
-<<<<<<< HEAD
-rapidfuzz
-firebase-admin
-google-genai
-=======
 spacy
 rapidfuzz
 firebase-admin
 google-generativeai
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
 python-magic-bin
 python-multipart
 pydantic

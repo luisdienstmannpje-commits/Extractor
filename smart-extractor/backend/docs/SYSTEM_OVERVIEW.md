@@ -26,7 +26,7 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 | Memória de cálculo | `memoria_calculo/generator.py` | Gera `memoria_{job_id}.json` (trilha de auditoria). |
 | Persistência | `services/database.py` | SQLite: créditos, cache, extrações, jobs. |
 | Laboratório de Aprendizado | `services/learning_engine.py`, `services/lab/discrepancy.py`, `services/lab/style_transfer.py`, `services/lab/self_healing.py` (codify + Shadow Rules, Multi-tenant), `main.py (/lab/*)` | Ver abaixo. |
-| Frontend | `frontend/` | Workspace App Tailwind + Vanilla JS. Ver abaixo. |
+| Frontend | `frontend/` | SPA React (Vite + TypeScript + Tailwind). Ver abaixo. |
 
 ---
 

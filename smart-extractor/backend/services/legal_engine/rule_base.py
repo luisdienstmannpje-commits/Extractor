@@ -17,6 +17,7 @@ Hierarquia de prioridade (menor número = executa primeiro):
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, List, Optional
@@ -195,7 +196,6 @@ class LegalRule(ABC):
         Normaliza o nome de uma verba para comparação.
         Centralizado aqui para evitar duplicação entre regras.
         """
-        import re
         mapa = {
             r"horas?\s*extras?":                "Horas Extras",
             r"adicional\s*noturno":             "Adicional Noturno",

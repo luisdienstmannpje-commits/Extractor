@@ -11,7 +11,7 @@ Não repete toda a documentação — aponta **onde ler primeiro** e **o que nã
 - **Pipeline:** 10 passos em `workers/processor.py`; não alterar ordem/contratos. **Dossiê (multi-upload):** `POST /upload` aceita `files: List[UploadFile]` — PDF, Word, Excel (.xlsx/.xls), PJC, XML, imagens (JPG/PNG). Um PDF → `process_lawsuit_pdf`; múltiplos ou não-PDF → `process_lawsuit_dossie`. Leitura: Excel → openpyxl (texto); imagens → Gemini multimodal (OCR/descrição em `ai_client.extrair_texto_ou_descricao_imagem`). Prompt instrui a cruzar textos, tabelas e imagens para o Raio-X. Cache por hash composto (inclui binário). UI: identificação só no Raio-X.
 - **Regras jurídicas:** só em `legal_engine/`; uma regra por arquivo; `LegalRule._canonizar_verba` para canonização.
 - **Guardrails:** `_filtrar_*` em `learning_engine.py` após enriquecimento; não remover nem mover.
-- **Frontend:** Vanilla JS; IDs preservados; sem React/Vue.
+- **Frontend:** SPA React (Vite + TypeScript + Tailwind); componentes em frontend/src/; rotas em App.tsx.
 - **Arquitetura SaaS e Multi-tenancy:** `main.py` atua apenas como **API Gateway** (inicialização FastAPI + middleware + inclusão de roteadores em `api/routers/`). As rotas vivem em roteadores especializados (`extractor.py`, `lab.py`, `admin.py`, `exports.py`). O KnowledgeBase é **Multi-tenant** (Multiton por `tenant_id`/`user_id`), gravando regras por cliente em arquivos `knowledge_base_{tenant_id}.json` para evitar vazamento de aprendizado entre escritórios.
 
 ---

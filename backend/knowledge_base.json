@@ -40,7 +40,7 @@
         "mensagem": "A verba 'INTERVALO INTRAJORNADA', deferida na sentença, não foi localizada na planilha de cálculos. É necessário apurar e incluir a verba."
       },
       "base_legal": "Art. 71, § 4º, CLT; Título executivo judicial (Coisa julgada)",
-      "confidence_score": -68,
+      "confidence_score": -69,
       "status": "deleted",
       "casos_vistos": [
         "0010070-87.2020.5.03.0092",
@@ -49,9 +49,9 @@
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 15,
-      "punicoes": 84,
+      "punicoes": 85,
       "created_at": "2026-03-13T12:04:38.985257",
-      "updated_at": "2026-03-14T23:04:01.189591"
+      "updated_at": "2026-03-17T18:14:17.853598"
     },
     {
       "rule_id": "DYN_20260313_120438_9852",
@@ -93,16 +93,16 @@
         "mensagem": "A verba 'saldo de salário', deferida em sentença, não foi localizada no cálculo. É necessário incluir sua apuração."
       },
       "base_legal": "artigo 467 e 477 da CLT",
-      "confidence_score": -208,
+      "confidence_score": -211,
       "status": "deleted",
       "casos_vistos": [
         "0011219-69.2024.5.15.0052",
         "1002192-49.2025.5.02.0221"
       ],
       "acertos": 25,
-      "punicoes": 234,
+      "punicoes": 237,
       "created_at": "2026-03-13T12:09:13.876415",
-      "updated_at": "2026-03-14T23:04:01.215974"
+      "updated_at": "2026-03-17T18:14:17.922679"
     },
     {
       "rule_id": "DYN_20260313_120913_8764",
@@ -271,15 +271,15 @@
         "mensagem": "Identificamos que verbas deferidas na sentença (itens 05 a 10 da fundamentação) não constam na liquidação. É necessário incluir todos os títulos deferidos no cálculo."
       },
       "base_legal": "Verificar fundamentação na manifestação",
-      "confidence_score": -79,
+      "confidence_score": -80,
       "status": "deleted",
       "casos_vistos": [
         "0010032-85.2024.5.15.0097"
       ],
       "acertos": 1,
-      "punicoes": 81,
+      "punicoes": 82,
       "created_at": "2026-03-13T12:44:25.716014",
-      "updated_at": "2026-03-14T23:04:01.230018"
+      "updated_at": "2026-03-17T18:14:17.939333"
     },
     {
       "rule_id": "DYN_20260313_124425_7160",
@@ -1122,20 +1122,20 @@
         "mensagem": "A verba 'Adicional de Insalubridade', deferida em sentença, não foi localizada nos cálculos da liquidação e deve ser incluída."
       },
       "base_legal": "Art. 189 a 192 da CLT",
-      "confidence_score": 2,
+      "confidence_score": 1,
       "status": "shadow",
       "casos_vistos": [
         "0010170-07.2025.5.03.0144"
       ],
       "acertos": 1,
-      "punicoes": 0,
+      "punicoes": 1,
       "created_at": "2026-03-14T23:04:01.178730",
-      "updated_at": "2026-03-14T23:04:01.243395"
+      "updated_at": "2026-03-17T18:14:17.954561"
     }
   ],
   "_meta": {
     "version": "1.0",
     "created_at": "2026-03-13T12:04:38.968437",
-    "updated_at": "2026-03-14T23:04:01.243828"
+    "updated_at": "2026-03-17T18:14:17.955259"
   }
 }

@@ -27,10 +27,12 @@ from .base import ExtractionRepository, CacheRepository, JobRepository, CreditsR
 _logger = logging.getLogger("smart_extractor")
 
 # Limites por plano. -1 = ilimitado.
+# enterprise e dev: Lab + PDFs ilimitados no cálculo de quota.
 _PLANOS: dict = {
     "free":       {"pdfs": 10,  "lab_analises": 3},
     "pro":        {"pdfs": 100, "lab_analises": 30},
     "enterprise": {"pdfs": -1,  "lab_analises": -1},
+    "dev":        {"pdfs": -1,  "lab_analises": -1},
 }
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "local_db.sqlite")
@@ -135,7 +137,13 @@ class SQLiteExtractionRepository(ExtractionRepository):
         try:
             conn.execute(
                 "INSERT INTO extracoes (id, user_id, data, doc_type, model_used) VALUES (?, ?, ?, ?, ?)",
-                (doc_id, user_id, json.dumps(data, ensure_ascii=False), doc_type, model_used),
+                (
+                    doc_id,
+                    user_id,
+                    json.dumps(data, ensure_ascii=False, default=str),
+                    doc_type,
+                    model_used,
+                ),
             )
             conn.commit()
             return doc_id
@@ -354,7 +362,7 @@ class SQLiteCreditsRepository(CreditsRepository):
             return (row["plan"] or "free") if isinstance(row, sqlite3.Row) else (row[0] or "free")
 
     def set_plan(self, user_id: str, plan: str) -> None:
-        planos_validos = {"free", "pro", "enterprise"}
+        planos_validos = {"free", "pro", "enterprise", "dev"}
         if plan not in planos_validos:
             raise ValueError(f"Plano inválido: {plan}. Válidos: {planos_validos}")
         with _get_conn() as conn:
@@ -445,6 +453,11 @@ class SQLiteCreditsRepository(CreditsRepository):
         Retorna False se limite == -1 (ilimitado).
         """
         plano = self.get_plan(user_id)
+        # Desenvolvimento local: sem teto de análises do Lab para este user ou plano dev.
+        if tipo == "lab_analises" and (
+            user_id == "usuario_teste" or plano == "dev"
+        ):
+            return False
         limites = _PLANOS.get(plano, _PLANOS["free"])
         limite = limites.get(tipo, 0)
         if limite == -1:

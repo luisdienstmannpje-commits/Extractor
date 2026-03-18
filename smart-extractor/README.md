@@ -8,10 +8,10 @@ Inclui um **Laboratório de Aprendizado** que treina regras jurídicas preditiva
 ## Estrutura do repositório
 
 ```
-Extractor/
+smart-extractor/
 ├── .cursorrules               # Regras de IA para Cursor — ler antes de qualquer tarefa
-├── backend/                   # API Python/FastAPI + pipeline + motor jurídico + lab
-│   ├── README.md              # Documentação técnica detalhada do backend
+├── backend/
+│   ├── api/routers/           # extractor.py, lab.py, admin.py, exports.py
 │   ├── docs/                  # Documentação para agentes de IA (ler antes de abrir código)
 │   │   ├── AI_NAVIGATION_LAYER.md   # PONTO DE ENTRADA obrigatório para IA
 │   │   ├── SYSTEM_OVERVIEW.md       # Visão macro do produto (1 página)
@@ -19,18 +19,18 @@ Extractor/
 │   │   ├── CODE_MAP.md              # Arquivo → responsabilidade + índice por domínio
 │   │   ├── CODE_INTELLIGENCE_MAP.md # Mapa de domínios e entrypoints
 │   │   ├── AI_RULES.md              # Regras de conduta para IA
-│   │   └── guia_eficiencia.md       # Diretrizes de prompt, hierarquia processual, boas práticas
-│   ├── main.py                # API FastAPI (upload, jobs, WebSocket, lab, stats)
+│   │   └── guia_eficiencia.md      # Diretrizes de prompt, hierarquia processual, boas práticas
+│   ├── main.py                # Gateway FastAPI (monta app, inclui routers)
 │   ├── workers/processor.py   # Pipeline de extração (10 passos)
-│   ├── services/              # Todos os módulos de serviço
+│   ├── services/              # Módulos de serviço
+│   │   └── lab/               # discrepancy.py, style_transfer.py, self_healing.py, learning_io.py, extractors.py, titulo_executivo.py
 │   ├── skills/                # Playbooks .md para Gemini (sentença, parecer, estilos)
 │   └── ...
 └── frontend/
-    ├── index.html             # SPA Tailwind (4 views: Extrator, Lab, Histórico, Stats)
-    └── js/
-        ├── app.js             # Upload, polling, export, histórico, estatísticas
-        ├── render.js          # Renderização dos dados extraídos
-        └── lab.js             # Laboratório de Aprendizado (8 cards, múltiplos arquivos)
+    └── src/
+        ├── pages/             # Dashboard.tsx, Extractor.tsx, Laboratory.tsx
+        ├── hooks/             # useAnalyze.ts
+        └── services/          # api.ts
 ```
 
 ---
@@ -75,11 +75,11 @@ Variáveis de ambiente necessárias em `backend/.env`: `GEMINI_API_KEY`, `FIREBA
 | Export Excel + `.pjc` (PJeCalc 2.14.0) | `services/excel_exporter.py`, `services/pjc_exporter.py` |
 | Parecer Técnico Padrão Ouro (IA + templates) | `services/explanation_engine.py` + `services/ai_client.py` + `skills/parecer_pericial.md` |
 | Motor de regras jurídicas (STF → TST → CLT) | `services/legal_engine/` + `services/jurisprudencia/` |
-| Laboratório de Aprendizado (8 cards + Card Provas como hub) | `services/learning_engine.py` + `frontend/js/lab.js`. **Card "Amostragens e Provas Adicionais"** = hub único: o usuário pode anexar aqui **Parecer, Amostragens e Manifestações** em um só upload; o backend autoclassifica por conteúdo (parecer/amostragem/manifestação) e preenche os slots internos; texto completo vai para `<AMOSTRAGENS_DA_PERITA>`. Cards 5, 6 e 8 continuam opcionais para envio explícito. Ver `backend/docs/guia_eficiencia.md`. |
+| Laboratório de Aprendizado (8 cards + Card Provas como hub) | `services/learning_engine.py` + `frontend/src/pages/Laboratory.tsx`, `frontend/src/hooks/useAnalyze.ts`. **Card "Amostragens e Provas Adicionais"** = hub único: o usuário pode anexar aqui **Parecer, Amostragens e Manifestações** em um só upload; o backend autoclassifica por conteúdo (parecer/amostragem/manifestação) e preenche os slots internos; texto completo vai para `<AMOSTRAGENS_DA_PERITA>`. Cards 5, 6 e 8 continuam opcionais para envio explícito. Ver `backend/docs/guia_eficiencia.md`. |
 | Título Executivo Complexo (prioridade ao nome: 1grau/ATOrd→1GRAU, 2grau/ROT→TRT; data sem autuação; tier diferente=ambos mantidos) | `learning_engine.py` → `_classificar_tier_decisao`, `_extrair_data_documento`, `_extrair_titulo_executivo_multiplos` |
 | Duplo Style Transfer (impugnação + manifestação) | `_extrair_manifestacao_pericial` + `_merge_dados_manifestacao` |
 | **Ghostwriter — Minuta Manifestação (.docx)** | `POST /lab/gerar-docx`: body = relatório Lab. O botão "Gerar Minuta Word" aparece **sempre que uma análise for concluída** (mesmo com 0 discrepâncias). Com 0 discrepâncias o .docx traz cabeçalho + mensagem "Nenhuma discrepância registrada". Com discrepâncias: endpoint envia `skills/manifestacao_style.md` como **Instrução de Tom e Voz**; `document_generator.py` monta cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções, tabela **Table Grid**, encerramento "Pede Deferimento. [Cidade], [Data]." e espaço para assinatura. Validar com Caso Victor Felipe (Teste 5) ou Gustavo Henrique (Teste 10). |
 | Guardrails anti-alucinação `verba_ausente` | `_filtrar_*` em `learning_engine.py` |
 | Self-Healing Rule Engine (regras autônomas) | `services/knowledge_base.py` + `legal_engine/dynamic_rule_loader.py` |
 | **Biblioteca de Regras (Inteligência Pericial)** | **Backend:** `GET /api/knowledge-base` lê `backend/knowledge_base.json` (path em `KnowledgeBase._path`; log no terminal "Lendo KB de: ..."). Retorna `{"rules": [], "_meta": ...}` se falhar. **Frontend:** Card na aba Estatísticas; contador `#total-regras` = `data.rules.filter(r => r.status !== 'deleted').length`; try/catch em `carregarKnowledgeBase`. Listener em `[data-nav-view="estatisticas"]` chama `carregarKnowledgeBase` ao entrar na aba. Modal: `renderListaRegras` limpa tbody antes de preencher; se `rules.length === 0` mostra "Nenhuma regra aprendida ainda. Processe um caso no Laboratório para começar!". |
-| Dashboard de Estatísticas (polling reativo) | `main.py /api/stats` + `frontend/js/app.js` |
+| Dashboard de Estatísticas (polling reativo) | `api/routers/admin.py` (/api/stats) + `frontend/src/pages/Dashboard.tsx` |

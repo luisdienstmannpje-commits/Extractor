@@ -38,3 +38,5 @@ Referência única para os 10 passos. Não alterar a ordem ou os contratos sem a
 Para alterar um passo, verificar testes em `tests/` e `tests/jurisprudencia/` e rodar `pytest -q` após a mudança.
 
 **Nota:** O Laboratório de Aprendizado (`learning_engine.py` como facade; módulos `services/lab/learning_io.py`, `services/lab/extractors.py`, `services/lab/self_healing.py` — codify e Shadow Rules) possui fluxo próprio (analisar, preview, salvar, codify); ver `CODE_MAP.md` e `AI_NAVIGATION_LAYER.md` § 2.9 e § 2.10.
+
+**Nota de implementação:** Os passos 4b–10 são compartilhados entre `process_lawsuit_pdf` e `process_lawsuit_dossie` via função privada `_executar_pipeline_pos_ia` em `processor.py`. Alterações nesses passos devem ser feitas nessa função única.

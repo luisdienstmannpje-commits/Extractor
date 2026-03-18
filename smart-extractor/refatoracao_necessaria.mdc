@@ -10,6 +10,28 @@ Regra de uso (obrigatória)
   - a recomendação de hardening (teste, monitoria, validação, alerta, migração futura).
 - Este arquivo é parte da “fonte de verdade” arquitetural: antes de mexer em domínios críticos (Lab, Learning Engine, Knowledge Base, Exportadores, Autenticação), leia os itens pendentes aqui.
 
+## Consolidação de repositório — 2026-03-17
+
+- [x] Extractor/ renomeado para Extractor-legacy/
+- [x] .cursorrules atualizado para estrutura React + routers
+- [x] README.md atualizado com árvore real
+- [x] DEVELOPER.md declara smart-extractor como repositório único
+- [x] Verificar se run.sh na raiz aponta para smart-extractor/backend
+- [x] Atualizar SYSTEM_OVERVIEW.md: frontend ainda menciona "Workspace App Tailwind + Vanilla JS"
+
+## Frontend React — build de produção — 2026-03-17
+
+- [x] npm run build executado — frontend/dist/ criado
+- [x] main.py aponta para frontend/dist/
+- [x] run.sh faz build automático antes de subir o backend
+
+## Refatorações de código — 2026-03-17
+
+- [x] knowledge_base.py: thread-safe (self._lock por instância, _salvar_sem_lock)
+- [x] knowledge_base.py: método forcar_exclusao() adicionado — lab.py não chama mais _salvar() direto
+- [x] learning_engine.py: 323 linhas duplicadas removidas — imports de services/lab/discrepancy.py (concluído: bloco Relatório de Discrepância e guardrails substituídos por imports + wrappers)
+- [ ] processor.py: parecer extraído do pipeline — gerar_parecer_para_job() separado (pendente: conteúdo do arquivo refatorado)
+
 1. Autenticação, multi-tenant e segurança de APIs
 
 - Situação atual:

@@ -176,25 +176,38 @@ async def lab_analisar(
         # análises de arquivos sem processo identificável).
         numero = relatorio.get("numero_processo") or ""
         if numero and numero.lower() not in ("desconhecido", ""):
-            # Sprint 2: Repository Pattern — usa repositório com tenant_id == effective_user_id
-            extraction_repo = get_extraction_repo(tenant_id=effective_user_id or "anonimo")
-            extraction_repo.save_extraction(
-                user_id=effective_user_id or "anonimo",
-                data={"numero_processo": numero, "origem": "lab", **relatorio},
-                doc_type="lab_analise",
-                model_used=relatorio.get("model_used"),
-            )
-            # Sprint 4: registra uso do Lab para billing/usage por tenant
+            # Persistência é best-effort: falha ao serializar/gravar não deve derrubar a análise (200 + relatório).
             try:
-                registrar_uso_lab(effective_user_id or "anonimo")
-            except Exception as e:
-                _logger.warning(
-                    "lab_registrar_uso_error",
-                    extra={"user_id": effective_user_id or "anonimo", "error": str(e)},
+                extraction_repo = get_extraction_repo(tenant_id=effective_user_id or "anonimo")
+                extraction_repo.save_extraction(
+                    user_id=effective_user_id or "anonimo",
+                    data={"numero_processo": numero, "origem": "lab", **relatorio},
+                    doc_type="lab_analise",
+                    model_used=relatorio.get("model_used"),
+                )
+                try:
+                    registrar_uso_lab(effective_user_id or "anonimo")
+                except Exception as e:
+                    _logger.warning(
+                        "lab_registrar_uso_error",
+                        extra={"user_id": effective_user_id or "anonimo", "error": str(e)},
+                    )
+            except Exception as e_save:
+                _logger.exception(
+                    "lab_save_extraction_failed",
+                    extra={
+                        "user_id": effective_user_id or "anonimo",
+                        "numero_processo": numero,
+                        "error": str(e_save),
+                    },
                 )
 
         return relatorio
     except Exception as e:
+        _logger.exception(
+            "lab_analisar_failed",
+            extra={"user_id": effective_user_id or "anonimo", "error": str(e)},
+        )
         raise HTTPException(500, f"Erro na análise: {str(e)}")
 
 
@@ -380,15 +393,8 @@ def lab_kb_delete_rule(rule_id: str):
     if not regra:
         raise HTTPException(404, f"Regra '{rule_id}' não encontrada")
 
-    resultado = kb.decrementar(rule_id)  # força score abaixo do threshold
-    # Se ainda não foi deletada, força diretamente
-    kb._recarregar()
-    for r in kb._data.get("rules", []):
-        if r.get("rule_id") == rule_id:
-            r["status"] = "deleted"
-            r["confidence_score"] = -99
-            break
-    kb._salvar()
+    kb.decrementar(rule_id)  # força score abaixo do threshold
+    kb.forcar_exclusao(rule_id)
 
     return {"mensagem": f"Regra '{rule_id}' excluída manualmente", "rule_id": rule_id}
 
