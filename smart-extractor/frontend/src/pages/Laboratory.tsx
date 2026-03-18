@@ -5,7 +5,6 @@ import {
   FileSpreadsheet,
   FileCode,
   CheckCircle,
-  AlertCircle,
   Play,
   Trash2,
   Pencil,
@@ -18,59 +17,69 @@ import type { ProcessoTrabalhista } from "../types/api";
 import { api } from "../services/api";
 import type { AnalyzePayload } from "../hooks/useAnalyze";
 
-// Pesos e regras do motor IA — Termômetro de Eficiência
+// ─── Cards do Laboratório ─────────────────────────────────────────────────────
 const FILE_TYPES = [
   {
     id: "sentenca" as const,
+    card: "3",
+    phase: "TÍTULO EXECUTIVO COMPLEXO",
     name: "Sentença / Acórdão",
-    weight: 35,
+    weight: 30,
     icon: FileText,
-    desc: "Base da Coisa Julgada (O que foi deferido)",
-    color: "text-blue-400",
-    accept: ".pdf,.doc,.docx",
+    hint: "Qualquer formato · múltiplos",
+    badge: "OBRIGATÓRIO" as const,
     multiple: true,
+    dropZone: true,
   },
   {
     id: "liquidacao" as const,
-    name: "Liquidação (PDF)",
-    weight: 25,
+    card: "4",
+    phase: "CÁLCULO DA EMPRESA",
+    name: "Liquidação",
+    weight: 15,
     icon: FileSpreadsheet,
-    desc: "Cálculo a ser auditado",
-    color: "text-red-400",
-    accept: ".pdf,.doc,.docx",
+    hint: "Qualquer formato",
+    badge: "RECOMENDADO" as const,
     multiple: false,
+    dropZone: false,
   },
   {
     id: "pjc" as const,
-    name: "Arquivo .PJC",
-    weight: 20,
-    icon: FileCode,
-    desc: "Dados matemáticos precisos do PJe-Calc",
-    color: "text-green-400",
-    accept: ".pdf,.doc,.docx,.pjc,.xml",
-    multiple: false,
-  },
-  {
-    id: "manifestacao" as const,
-    name: "Manifestação/Impugnação",
+    card: "5",
+    phase: "PLANILHA PJE-CALC",
+    name: "Cálculo .PJC",
     weight: 10,
-    icon: FileText,
-    desc: "Foco nos pontos de controvérsia",
-    color: "text-yellow-400",
-    accept: ".pdf,.doc,.docx",
+    icon: FileCode,
+    hint: "Qualquer formato",
+    badge: "OPCIONAL" as const,
     multiple: false,
+    dropZone: false,
   },
   {
     id: "parecer" as const,
-    name: "Parecer/Amostragem",
-    weight: 10,
+    card: "7",
+    phase: "SEU PARECER TÉCNICO",
+    name: "Parecer",
+    weight: 20,
     icon: BrainCircuit,
-    desc: "Clonagem do seu estilo de redação",
-    color: "text-purple-400",
-    accept: ".pdf,.doc,.docx",
+    hint: "Qualquer formato",
+    badge: "OBRIGATÓRIO" as const,
     multiple: false,
+    dropZone: false,
   },
-];
+  {
+    id: "manifestacao" as const,
+    card: "8",
+    phase: "PETIÇÃO DE RESPOSTA",
+    name: "Manifestação",
+    weight: 10,
+    icon: FileText,
+    hint: "Qualquer formato",
+    badge: "OPCIONAL" as const,
+    multiple: false,
+    dropZone: false,
+  },
+] as const;
 
 type FileTypeId = (typeof FILE_TYPES)[number]["id"];
 
@@ -87,12 +96,15 @@ function hasFile(files: CerebroFiles, id: FileTypeId): boolean {
   return !!files[id];
 }
 
-// Som de notificação (estilo WhatsApp Web) — Web Audio API, sem arquivos externos
+// ─── Som de notificação ───────────────────────────────────────────────────────
 function playNotificationSound(): void {
   try {
     const AudioContextClass =
       typeof window !== "undefined"
-        ? (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+        ? (window.AudioContext ||
+            (
+              window as unknown as { webkitAudioContext: typeof AudioContext }
+            ).webkitAudioContext)
         : null;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
@@ -109,11 +121,10 @@ function playNotificationSound(): void {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
   } catch {
-    // ignorar em ambientes sem AudioContext ou bloqueio de áudio
+    // ignorar
   }
 }
 
-// Frases do "terminal" embutido no botão (atualizadas a cada ~600ms)
 const LOG_PHRASES = [
   "Iniciando motor analítico...",
   "Lendo estrutura do documento...",
@@ -123,33 +134,73 @@ const LOG_PHRASES = [
   "Consolidando aprendizado...",
 ];
 
-// Painel HITL: itens aprendidos (regras / linguagem) para auditoria humana
+// ─── Tipos do painel de conhecimento ─────────────────────────────────────────
 export interface LearnedItem {
   id: string;
-  tipo: "Regra de Cálculo" | "Linguagem";
+  tipo: "Regra de Cálculo" | "Linguagem" | "Lógica Jurídica" | "Fundamento";
   descricao: string;
+  base_legal?: string;
+  nivel_sugerido?: string;
+  correcao?: string;
   _raw?: Record<string, unknown>;
+}
+
+function mapTipoBadge(tipoBackend: unknown): LearnedItem["tipo"] {
+  const t = String(tipoBackend || "").toLowerCase().trim();
+  if (t === "regra") return "Regra de Cálculo";
+  if (t === "playbook") return "Linguagem";
+  if (t === "fundamento") return "Fundamento";
+  return "Lógica Jurídica";
 }
 
 function normalizeAprendizados(aprendizados: unknown[]): LearnedItem[] {
   return aprendizados
-    .filter((ap): ap is Record<string, unknown> => ap != null && typeof ap === "object")
+    .filter(
+      (ap): ap is Record<string, unknown> => ap != null && typeof ap === "object",
+    )
     .map((ap, idx) => {
-      const tipoBack = String(ap.tipo || "").toLowerCase();
-      const tipo: LearnedItem["tipo"] =
-        tipoBack === "playbook" ? "Linguagem" : "Regra de Cálculo";
+      const tipo = mapTipoBadge(ap.tipo);
       const id =
-        (ap.id as string) ||
-        (tipoBack === "playbook" ? `STY_${idx + 1}` : `DYN_${idx + 1}`);
+        (typeof ap.id === "string" && ap.id) ||
+        (typeof ap.rule_id === "string" && ap.rule_id) ||
+        `AP_${idx + 1}`;
       const descricao =
-        (ap.descricao as string) ||
-        (ap.titulo as string) ||
+        (typeof ap.descricao === "string" && ap.descricao) ||
+        (typeof ap.titulo === "string" && ap.titulo) ||
         "Aprendizado extraído";
-      return { id, tipo, descricao, _raw: ap };
+      return {
+        id,
+        tipo,
+        descricao,
+        base_legal: typeof ap.base_legal === "string" ? ap.base_legal : undefined,
+        nivel_sugerido:
+          typeof ap.nivel_sugerido === "string" ? ap.nivel_sugerido : undefined,
+        correcao: typeof ap.correcao === "string" ? ap.correcao : undefined,
+        _raw: ap,
+      };
     });
 }
 
-// ----- Main Laboratory: Cérebro Analítico -----
+function badgeClass(tipo: LearnedItem["tipo"]): string {
+  if (tipo === "Regra de Cálculo") return "bg-blue-500/20 text-blue-300";
+  if (tipo === "Linguagem") return "bg-purple-500/20 text-purple-300";
+  if (tipo === "Fundamento") return "bg-yellow-500/20 text-yellow-300";
+  return "bg-emerald-500/20 text-emerald-300";
+}
+
+function nivelClass(nivel?: string): string | null {
+  const n = String(nivel || "").toUpperCase();
+  if (!n) return null;
+  if (n.includes("ERRO"))
+    return "bg-rose-500/20 text-rose-300 border border-rose-500/30";
+  if (n.includes("AVISO"))
+    return "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30";
+  return "bg-slate-500/20 text-slate-300 border border-slate-500/30";
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL
+// ════════════════════════════════════════════════════════════════════════════
 export const Laboratory: React.FC = () => {
   const [files, setFiles] = useState<CerebroFiles>({
     sentenca: [],
@@ -158,104 +209,93 @@ export const Laboratory: React.FC = () => {
     manifestacao: null,
     parecer: null,
   });
-
+  const [amostragens, setAmostragens] = useState<File[]>([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [learnedItems, setLearnedItems] = useState<LearnedItem[]>([]);
-  const [isLearningsExpanded, setIsLearningsExpanded] = useState(false);
+  const [isLearningsExpanded, setIsLearningsExpanded] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState<string>("");
   const [currentLog, setCurrentLog] = useState("");
   const logIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { mutate, isLoading, data } = useAnalyze();
 
-  const { mutate, isLoading, isSuccess, data } = useAnalyze();
+  const hasAmostragens = amostragens.length > 0;
 
+  const totalFilesSelected = useMemo(() => {
+    return (
+      files.sentenca.length +
+      (files.liquidacao ? 1 : 0) +
+      (files.pjc ? 1 : 0) +
+      (files.parecer ? 1 : 0) +
+      (files.manifestacao ? 1 : 0) +
+      amostragens.length
+    );
+  }, [files, amostragens]);
+
+  // ── Eficiência ──────────────────────────────────────────────────────────
   const efficiency = useMemo(() => {
-    return FILE_TYPES.reduce((total, ft) => {
-      return total + (hasFile(files, ft.id) ? ft.weight : 0);
-    }, 0);
-  }, [files]);
+    const base = FILE_TYPES.reduce(
+      (total, ft) => total + (hasFile(files, ft.id) ? ft.weight : 0),
+      0,
+    );
+    return Math.min(100, base + (hasAmostragens ? 15 : 0));
+  }, [files, hasAmostragens]);
 
-  const getEfficiencyStatus = useCallback(() => {
-    const hasSentenca = files.sentenca.length > 0;
-    const hasLiquidacaoOrPjc = !!files.liquidacao || !!files.pjc;
-    const hasManifestacaoOrParecer = !!files.manifestacao || !!files.parecer;
-    const onlyStyleDocs =
-      !hasSentenca && !hasLiquidacaoOrPjc && hasManifestacaoOrParecer;
-
+  const efficiencyStatus = useMemo(() => {
     if (efficiency === 0)
       return {
-        color: "bg-slate-500",
-        text: "Nenhum documento anexado",
-        icon: AlertCircle,
+        bar: "bg-gray-600",
+        nivel: "Aguardando arquivos...",
+        detalhe: "Adicione arquivos para ver a previsão atualizar em tempo real.",
       };
-    if (onlyStyleDocs)
+    if (efficiency < 25)
       return {
-        color: "bg-purple-500",
-        text: "Treinamento de Estilo (Sem base de cálculo)",
-        icon: BrainCircuit,
+        bar: "bg-gray-500",
+        nivel: "Contexto inicial — aprendizado limitado",
+        detalhe: "Adicione Sentença/Acórdão e Parecer para subir para Nível 1.",
       };
-    if (efficiency < 35)
+    if (efficiency < 45)
       return {
-        color: "bg-yellow-500",
-        text: "Extração parcial (adicione Sentença para análise completa)",
-        icon: AlertCircle,
+        bar: "bg-blue-500",
+        nivel: "⚡ Nível 1 — Rápido: fundamentos jurídicos e estilo da perita",
+        detalhe: "Adicione Liquidação para subir para Nível 2.",
       };
-    if (efficiency < 60)
+    if (efficiency < 65)
       return {
-        color: "bg-yellow-500",
-        text: "Análise Básica (Apenas Extração)",
-        icon: AlertCircle,
+        bar: "bg-yellow-500",
+        nivel:
+          "🔍 Nível 2 — Auditoria: discrepâncias entre sentença e cálculo da empresa",
+        detalhe:
+          "Adicione o Cálculo PJC para ativar detecção de omissões de parâmetros.",
       };
-    if (efficiency < 80)
+    if (efficiency < 85)
       return {
-        color: "bg-blue-500",
-        text: "Auditoria Sólida (Sentença + Cálculo)",
-        icon: CheckCircle,
+        bar: "bg-orange-500",
+        nivel: "📊 Nível 3 — Tríade: detecção automática de omissões de parâmetros",
+        detalhe:
+          "Adicione Manifestação para atingir o máximo aprendizado preditivo.",
       };
     return {
-      color: "bg-green-500",
-      text: "Análise Pericial Profunda (Máxima Precisão)",
-      icon: BrainCircuit,
+      bar: "bg-green-500",
+      nivel: "🏆 Nível 4 — Tríade de Ouro: máximo aprendizado preditivo ativo",
+      detalhe: "Todos os insumos essenciais presentes. Aprendizado completo.",
     };
-  }, [efficiency, files]);
+  }, [efficiency]);
 
-  const status = getEfficiencyStatus();
-
+  // ── Efeitos ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (data) setIsReportModalOpen(true);
   }, [data]);
 
-  // Popula painel de aprendizados a partir do relatório (ou mocks) e expande o painel ao concluir
   useEffect(() => {
     if (!data) return;
-    const raw = (data.aprendizados as unknown[] | undefined) || [];
-    const normalized = normalizeAprendizados(raw);
-    if (normalized.length > 0) {
-      setLearnedItems(normalized);
-    } else {
-      // Simulação: 2–3 exemplos fictícios para visualizar a UI
-      setLearnedItems([
-        {
-          id: "DYN_123",
-          tipo: "Regra de Cálculo",
-          descricao:
-            "Se houver horas extras, incluir reflexos em FGTS e DSR conforme comandos sentenciais.",
-        },
-        {
-          id: "STY_456",
-          tipo: "Linguagem",
-          descricao: 'Uso da expressão "Ex positis" na conclusão de pareceres.',
-        },
-        {
-          id: "DYN_789",
-          tipo: "Regra de Cálculo",
-          descricao:
-            "Aplicar IPCA-E na fase pré-judicial e SELIC a partir do ajuizamento (ADC 58).",
-        },
-      ]);
-    }
+    const raw =
+      ((data as Record<string, unknown>).aprendizados as unknown[] | undefined) ||
+      [];
+    setLearnedItems(normalizeAprendizados(raw));
     setIsLearningsExpanded(true);
   }, [data]);
 
-  // Ao terminar a análise: limpar interval, tocar som e zerar currentLog
   const prevLoadingRef = useRef(false);
   useEffect(() => {
     if (prevLoadingRef.current && !isLoading) {
@@ -269,6 +309,7 @@ export const Laboratory: React.FC = () => {
     prevLoadingRef.current = isLoading;
   }, [isLoading]);
 
+  // ── Arquivo ──────────────────────────────────────────────────────────────
   const setFile = useCallback((id: FileTypeId, value: File | File[] | null) => {
     setFiles((prev) => {
       const next = { ...prev };
@@ -281,14 +322,15 @@ export const Laboratory: React.FC = () => {
     });
   }, []);
 
-  const hasAnyFile =
-    files.sentenca.length > 0 ||
-    !!files.liquidacao ||
-    !!files.pjc ||
-    !!files.manifestacao ||
-    !!files.parecer;
-
+  // ── Análise ──────────────────────────────────────────────────────────────
   const handleGlobalAnalysis = useCallback(() => {
+    const hasAnyFile =
+      files.sentenca.length > 0 ||
+      !!files.liquidacao ||
+      !!files.pjc ||
+      !!files.manifestacao ||
+      !!files.parecer ||
+      amostragens.length > 0;
     if (!hasAnyFile) {
       alert("Anexe pelo menos um documento para análise.");
       return;
@@ -299,296 +341,540 @@ export const Laboratory: React.FC = () => {
       idx = (idx + 1) % LOG_PHRASES.length;
       setCurrentLog(LOG_PHRASES[idx] ?? "Processando...");
     }, 600);
-    const payload: AnalyzePayload = {
+    mutate({
       processo: files.sentenca,
       liquidacao: files.liquidacao ?? undefined,
       calculoPjc: files.pjc ?? undefined,
       manifestacao: files.manifestacao ?? undefined,
       parecer: files.parecer ?? undefined,
-    };
-    mutate(payload);
-  }, [hasAnyFile, files, mutate]);
+      amostragens,
+    } as AnalyzePayload);
+  }, [files, mutate, amostragens]);
 
+  // ── Downloads ────────────────────────────────────────────────────────────
   const processoTrabalhista = (data || null) as unknown as
     | ProcessoTrabalhista
     | null;
 
-  const handleDownload = async (url: string, fallbackFilename: string) => {
+  const handleDownload = async (url: string, fallback: string) => {
     try {
-      const response = await api.get<Blob>(url, { responseType: "blob" });
-      const disposition = response.headers["content-disposition"] as
-        | string
-        | undefined;
-      const match = disposition?.match(/filename="?([^";]+)"?/i);
-      const filename = match?.[1] ?? fallbackFilename;
-      const blob = new Blob([response.data]);
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const r = await api.get<Blob>(url, { responseType: "blob" });
+      const m = (r.headers["content-disposition"] as string | undefined)?.match(
+        /filename="?([^";]+)"?/i,
+      );
+      const blob = new Blob([r.data]);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = m?.[1] ?? fallback;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch {
-      // silent
+      /* silent */
     }
   };
 
   const handleGenerateDocx = async () => {
     if (!data) return;
     try {
-      const response = await api.post("/lab/gerar-docx", data, {
-        responseType: "blob",
-      });
-      const disposition = response.headers["content-disposition"] as
-        | string
-        | undefined;
-      const match = disposition?.match(/filename="?([^";]+)"?/i);
-      const fallback =
-        "Manifestacao_" +
-        (processoTrabalhista?.numero_processo || "minuta") +
-        ".docx";
-      const filename = match?.[1] ?? fallback;
-      const blob = new Blob([response.data]);
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const r = await api.post("/lab/gerar-docx", data, { responseType: "blob" });
+      const m = (r.headers["content-disposition"] as string | undefined)?.match(
+        /filename="?([^";]+)"?/i,
+      );
+      const blob = new Blob([r.data]);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download =
+        m?.[1] ??
+        `Manifestacao_${processoTrabalhista?.numero_processo || "minuta"}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch {
-      // silent
+      /* silent */
     }
   };
 
-  const handleGenerateExcel = async () => {
-    const jobId = processoTrabalhista?.numero_processo || "lab";
-    await handleDownload(
-      `/export-excel/${encodeURIComponent(jobId)}`,
+  const handleGenerateExcel = () =>
+    handleDownload(
+      `/export-excel/${encodeURIComponent(
+        processoTrabalhista?.numero_processo || "lab",
+      )}`,
       "Relatorio_Lab.xlsx",
     );
-  };
-
-  const handleGeneratePjc = async () => {
-    const jobId = processoTrabalhista?.numero_processo || "lab";
-    await handleDownload(
-      `/download-pjc/${encodeURIComponent(jobId)}`,
+  const handleGeneratePjc = () =>
+    handleDownload(
+      `/download-pjc/${encodeURIComponent(
+        processoTrabalhista?.numero_processo || "lab",
+      )}`,
       "Parametros_PJeCalc_Lab.pjc",
     );
-  };
 
-  const handleRemoveLearned = useCallback((item: LearnedItem) => {
-    const ok = window.confirm(
-      `Deseja remover o aprendizado ID ${item.id} da base de conhecimento?`,
-    );
-    if (ok) {
-      setLearnedItems((prev) => prev.filter((x) => x.id !== item.id));
-    }
+  // ── Conhecimento: editar / excluir ────────────────────────────────────────
+  const handleRemoveLearned = useCallback(
+    (item: LearnedItem) => {
+      if (window.confirm(`Remover aprendizado ID ${item.id} da lista local?`)) {
+        setLearnedItems((prev) => prev.filter((x) => x.id !== item.id));
+        if (editingId === item.id) {
+          setEditingId(null);
+          setEditingText("");
+        }
+      }
+    },
+    [editingId],
+  );
+
+  const startEditLearned = useCallback((item: LearnedItem) => {
+    setEditingId(item.id);
+    setEditingText(item.descricao || "");
   }, []);
 
-  const StatusIcon = status.icon;
+  const saveEditedLearned = useCallback(
+    async (item: LearnedItem) => {
+      try {
+        await api.post("/lab/salvar", {
+          aprendizado:
+            item._raw || {
+              id: item.id,
+              tipo: item.tipo,
+              descricao: item.descricao,
+              base_legal: item.base_legal,
+            },
+          numero_processo: processoTrabalhista?.numero_processo || "lab",
+          conteudo_editado: editingText,
+        });
+        setLearnedItems((prev) =>
+          prev.map((x) =>
+            x.id === item.id ? { ...x, descricao: editingText } : x,
+          ),
+        );
+        setEditingId(null);
+        setEditingText("");
+      } catch {
+        alert("Falha ao salvar aprendizado. Verifique o backend.");
+      }
+    },
+    [editingText, processoTrabalhista],
+  );
 
+  // ── Drag & drop ──────────────────────────────────────────────────────────
+  const allowDrop = useCallback((ev: React.DragEvent) => ev.preventDefault(), []);
+  const onDropSentenca = useCallback(
+    (ev: React.DragEvent) => {
+      ev.preventDefault();
+      const f = Array.from(ev.dataTransfer.files || []);
+      if (f.length) setFile("sentenca", [...files.sentenca, ...f]);
+    },
+    [files.sentenca, setFile],
+  );
+  const onDropAmostragens = useCallback((ev: React.DragEvent) => {
+    ev.preventDefault();
+    const f = Array.from(ev.dataTransfer.files || []);
+    if (f.length) setAmostragens((prev) => [...prev, ...f]);
+  }, []);
+
+  // ════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════════════
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto min-h-screen">
-      {/* Header e barra de eficiência — Termômetro */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800/80 p-6 shadow-sm">
-        <div className="flex justify-between items-end mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-50 flex items-center gap-2">
-              <BrainCircuit className="w-7 h-7 text-indigo-400" />
-              Cérebro Analítico
-            </h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Nível de profundidade da Inteligência Artificial
-            </p>
-          </div>
-          <div className="text-right">
-            <span className="text-3xl font-black text-slate-50">
-              {efficiency}%
+    <div className="relative w-full max-w-7xl mx-auto p-6 pb-40">
+      {/* Cabeçalho */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-50">
+          🧪 Laboratório de Aprendizado da Perita
+        </h1>
+        <p className="text-slate-400 text-sm mt-1">
+          Monte o cérebro do caso anexando as peças principais. Nenhum arquivo é
+          enviado automaticamente — você controla o momento da análise.
+        </p>
+      </div>
+
+      {/* Guia de eficiência */}
+      <div className="mb-5 rounded-xl border border-indigo-500/20 bg-slate-900/30 px-4 py-3 flex items-start gap-3">
+        <div className="text-lg leading-none mt-0.5">💡</div>
+        <div>
+          <p className="text-sm font-semibold text-slate-100 mb-1">
+            Guia de Eficiência do Aprendizado
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            ⚡{" "}
+            <span className="font-semibold text-slate-100">
+              Nível 1 — Rápido (25%+)
             </span>
-          </div>
-        </div>
-
-        <div className="w-full bg-slate-700 rounded-full h-4 mb-2 overflow-hidden">
-          <div
-            className={`h-4 rounded-full transition-all duration-700 ease-out ${status.color}`}
-            style={{ width: `${efficiency}%` }}
-          />
-        </div>
-
-        <div
-          className={`flex items-center gap-2 text-sm font-medium ${
-            status.color === "bg-slate-500"
-              ? "text-slate-400"
-              : status.color === "bg-purple-500"
-                ? "text-purple-400"
-                : status.color === "bg-red-500"
-                  ? "text-red-400"
-                  : status.color === "bg-yellow-500"
-                    ? "text-yellow-400"
-                    : status.color === "bg-blue-500"
-                      ? "text-blue-400"
-                      : "text-green-400"
-          }`}
-        >
-          <StatusIcon className="w-4 h-4" />
-          <span>{status.text}</span>
+            : Processo + Parecer → fundamentos jurídicos e estilo da perita.
+            <br />
+            🔍{" "}
+            <span className="font-semibold text-slate-100">
+              Nível 2 — Auditoria (45%+)
+            </span>
+            : Processo + Parecer + Liquidação → discrepâncias entre sentença e
+            cálculo da empresa.
+            <br />
+            📊{" "}
+            <span className="font-semibold text-slate-100">
+              Nível 3 — Tríade (65%+)
+            </span>
+            : Processo + Liquidação + Cálculo PJC → detecção automática de
+            omissões de parâmetros.
+            <br />
+            🏆{" "}
+            <span className="font-semibold text-slate-100">
+              Nível 4 — Tríade de Ouro (85%+)
+            </span>
+            : Todos os anteriores + Manifestação → máximo aprendizado de retórica
+            de combate e regras preditivas.
+          </p>
         </div>
       </div>
 
-      {/* Cards de upload (sem botão analisar individual) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Grid de cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {FILE_TYPES.map((ft) => {
-          const isUploaded = hasFile(files, ft.id);
           const Icon = ft.icon;
-          const current =
-            ft.id === "sentenca"
-              ? files.sentenca
-              : files[ft.id as keyof CerebroFiles];
+          const isUploaded = hasFile(files, ft.id);
+          const currentSingle =
+            ft.id !== "sentenca"
+              ? (files[ft.id as keyof CerebroFiles] as File | null)
+              : null;
+          const badgeColor =
+            ft.badge === "OBRIGATÓRIO"
+              ? "text-blue-400 border-blue-500/30"
+              : ft.badge === "RECOMENDADO"
+                ? "text-amber-400 border-amber-500/30"
+                : "text-slate-500 border-slate-600/30";
 
           return (
             <div
               key={ft.id}
-              className={`relative rounded-xl border-2 p-5 transition-all duration-200 ${
+              className={`relative flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 ${
                 isUploaded
-                  ? "border-indigo-500 bg-indigo-500/10"
+                  ? "border-blue-500/60 bg-slate-800/90 shadow-lg shadow-blue-500/10"
                   : "border-slate-700 bg-slate-800/60 hover:border-slate-600"
               }`}
+              onDragOver={ft.dropZone ? allowDrop : undefined}
+              onDrop={ft.id === "sentenca" ? onDropSentenca : undefined}
             >
-              <div className="flex justify-between items-start mb-3">
-                <div
-                  className={`p-3 rounded-lg ${
-                    isUploaded ? "bg-indigo-500/20" : "bg-slate-700/80"
+              {/* Número */}
+              <div className="absolute top-2 left-3">
+                <span
+                  className={`text-xs font-extrabold font-mono ${
+                    isUploaded ? "text-blue-400" : "text-slate-600"
                   }`}
                 >
-                  <Icon
-                    className={`w-6 h-6 ${
-                      isUploaded ? "text-indigo-400" : "text-slate-500"
-                    } ${ft.color}`}
-                  />
-                </div>
-                {isUploaded && (
-                  <CheckCircle className="w-6 h-6 text-indigo-400 shrink-0" />
-                )}
+                  {ft.card}
+                </span>
               </div>
 
-              <h3 className="font-bold text-slate-50">{ft.name}</h3>
-              <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                {ft.desc}
-              </p>
+              <div className="pt-7 px-4 pb-4 flex flex-col flex-1">
+                <p className="text-[9px] font-bold tracking-widest uppercase text-slate-500 mb-1">
+                  {ft.phase}
+                </p>
+                <h3
+                  className={`font-bold text-sm mb-1 ${
+                    isUploaded ? "text-slate-50" : "text-slate-200"
+                  }`}
+                >
+                  {ft.name}
+                </h3>
+                <p className="text-[11px] text-slate-500 mb-3">{ft.hint}</p>
 
-              {ft.multiple ? (
-                <div className="mt-4 space-y-2" onClick={(e) => e.stopPropagation()}>
-                  <label className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 cursor-pointer hover:bg-slate-800">
-                    <span className="text-xs text-slate-300 truncate flex-1">
-                      {files.sentenca.length > 0
-                        ? `${files.sentenca.length} arquivo(s)`
-                        : "Escolher arquivo(s)"}
-                    </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept={ft.accept}
-                      multiple
-                      onChange={(e) => {
-                        const list = Array.from(e.target.files ?? []);
-                        setFile("sentenca", list);
-                      }}
-                    />
-                    <span className="text-[10px] text-indigo-400">Escolher</span>
-                  </label>
-                  {files.sentenca.length > 0 && (
-                    <button
-                      type="button"
-                      className="text-[10px] text-rose-400 hover:text-rose-300"
-                      onClick={() => setFile("sentenca", [])}
-                    >
-                      Remover todos
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-4 space-y-2" onClick={(e) => e.stopPropagation()}>
-                  <label className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 cursor-pointer hover:bg-slate-800">
-                    <span className="text-xs text-slate-300 truncate flex-1">
-                      {(current as File | null)?.name ?? "Nenhum arquivo"}
-                    </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept={ft.accept}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        setFile(ft.id, f ?? null);
-                      }}
-                    />
-                    <span className="text-[10px] text-indigo-400">Escolher</span>
-                  </label>
-                  {(current as File | null) && (
-                    <button
-                      type="button"
-                      className="text-[10px] text-rose-400 hover:text-rose-300"
-                      onClick={() => setFile(ft.id, null)}
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
-              )}
+                {/* Sentença — múltiplos + drop zone */}
+                {ft.id === "sentenca" && (
+                  <div className="flex-1 space-y-2">
+                    {files.sentenca.length === 0 ? (
+                      <label className="flex flex-col items-center gap-1 rounded-lg border-2 border-dashed border-slate-600 bg-slate-900/40 px-3 py-4 cursor-pointer hover:border-blue-500/50 hover:bg-slate-900/60 transition-colors text-center">
+                        <Icon className="w-5 h-5 text-slate-500 mb-1" />
+                        <span className="text-xs text-slate-400">
+                          Arraste e solte arquivos do processo
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Aceita vários arquivos. Duplicados são ignorados.
+                        </span>
+                        <span className="mt-2 rounded-md bg-slate-700 px-3 py-1 text-xs font-medium text-slate-200">
+                          Escolher arquivos
+                        </span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="*"
+                          multiple
+                          onChange={(e) =>
+                            setFile(
+                              "sentenca",
+                              Array.from(e.target.files ?? []),
+                            )
+                          }
+                        />
+                      </label>
+                    ) : (
+                      <div className="space-y-1">
+                        {files.sentenca.slice(0, 6).map((f, i) => (
+                          <div
+                            key={`${f.name}-${i}`}
+                            className="flex items-center gap-2 rounded-md bg-slate-900/60 px-2 py-1.5"
+                          >
+                            <FileText className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span className="text-xs text-slate-300 truncate flex-1">
+                              {f.name}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-slate-500 hover:text-rose-400"
+                              onClick={() =>
+                                setFile(
+                                  "sentenca",
+                                  files.sentenca.filter((_, j) => j !== i),
+                                )
+                              }
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {files.sentenca.length > 6 && (
+                          <p className="text-[11px] text-slate-400">
+                            +{files.sentenca.length - 6} arquivo(s)…
+                          </p>
+                        )}
+                        <div className="flex gap-3 mt-1">
+                          <label className="cursor-pointer text-[10px] text-blue-400 hover:text-blue-300">
+                            + Adicionar mais
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="*"
+                              multiple
+                              onChange={(e) => {
+                                const novos = Array.from(e.target.files ?? []);
+                                const ex = files.sentenca.map((f) => f.name);
+                                setFile("sentenca", [
+                                  ...files.sentenca,
+                                  ...novos.filter((f) => !ex.includes(f.name)),
+                                ]);
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="text-[10px] text-rose-400/70 hover:text-rose-400"
+                            onClick={() => setFile("sentenca", [])}
+                          >
+                            Remover todos
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div className="mt-4 inline-block px-2 py-1 bg-slate-700/80 text-xs font-semibold text-slate-300 rounded">
-                Peso: +{ft.weight}%
+                {/* Arquivo único */}
+                {ft.id !== "sentenca" && (
+                  <div className="flex-1 space-y-1.5">
+                    <label
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                        currentSingle
+                          ? "border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10"
+                          : "border-slate-600 bg-slate-900/40 hover:bg-slate-900/60 hover:border-slate-500"
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 ${
+                          currentSingle ? "text-blue-400" : "text-slate-500"
+                        }`}
+                      />
+                      <span className="text-xs text-slate-300 truncate flex-1">
+                        {currentSingle?.name ?? "ESCOLHER ARQUIVO"}
+                      </span>
+                      {currentSingle ? (
+                        <CheckCircle className="w-4 h-4 text-blue-400 shrink-0" />
+                      ) : (
+                        <span className="text-[10px] text-slate-500 shrink-0">
+                          Selecionar
+                        </span>
+                      )}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="*"
+                        onChange={(e) =>
+                          setFile(ft.id, e.target.files?.[0] ?? null)
+                        }
+                      />
+                    </label>
+                    {currentSingle && (
+                      <button
+                        type="button"
+                        className="text-[10px] text-rose-400/70 hover:text-rose-400 flex items-center gap-1"
+                        onClick={() => setFile(ft.id, null)}
+                      >
+                        <Trash2 className="w-3 h-3" /> Remover
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Badge */}
+                <div className="mt-4 pt-3 border-t border-slate-700/50">
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-widest border rounded px-2 py-0.5 ${badgeColor}`}
+                  >
+                    {ft.badge}
+                  </span>
+                </div>
               </div>
             </div>
           );
         })}
-      </div>
 
-      {/* Botão global de análise — integração real POST /lab/analisar */}
-      <div className="sticky bottom-6 z-10">
-        <button
-          type="button"
-          onClick={handleGlobalAnalysis}
-          disabled={isLoading || !hasAnyFile}
-          className={`w-full flex items-center justify-center gap-3 py-4 px-8 rounded-xl text-lg font-bold text-white shadow-lg transition-all duration-300 ${
-            !hasAnyFile
-              ? "bg-slate-600 cursor-not-allowed"
-              : isLoading
-                ? "bg-indigo-500 animate-pulse"
-                : "bg-indigo-600 hover:bg-indigo-700 hover:shadow-indigo-500/30 hover:-translate-y-0.5"
+        {/* Card + Amostragens */}
+        <div
+          className={`relative flex flex-col rounded-xl border-2 overflow-hidden transition-all duration-200 ${
+            hasAmostragens
+              ? "border-purple-500/60 bg-slate-800/90 shadow-lg shadow-purple-500/10"
+              : "border-dashed border-slate-700 bg-slate-800/40 hover:border-slate-600"
           }`}
+          onDragOver={allowDrop}
+          onDrop={onDropAmostragens}
         >
-          {isLoading ? (
-            <>
-              <BrainCircuit className="w-6 h-6 shrink-0 animate-spin" />
-              <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden">
-                <span className="text-[10px] uppercase tracking-wider text-indigo-200 opacity-80 leading-none">
-                  Analisando
-                </span>
-                <span className="mt-0.5 w-full max-w-[200px] truncate text-left font-mono text-sm animate-pulse sm:max-w-xs">
-                  &gt; {currentLog || "..."}
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <Play className="w-6 h-6 shrink-0" />
-              Analisar Processo Completo
-            </>
-          )}
-        </button>
+          <div className="absolute top-2 left-3">
+            <span
+              className={`text-xs font-extrabold font-mono ${
+                hasAmostragens ? "text-purple-400" : "text-slate-600"
+              }`}
+            >
+              +
+            </span>
+          </div>
+          <div className="pt-7 px-4 pb-4 flex flex-col flex-1">
+            <p className="text-[9px] font-bold tracking-widest uppercase text-slate-500 mb-1">
+              OPCIONAL
+            </p>
+            <h3
+              className={`font-bold text-sm mb-1 ${
+                hasAmostragens ? "text-slate-50" : "text-slate-400"
+              }`}
+            >
+              Amostragens e Provas Adicionais
+            </h3>
+            <p className="text-[11px] text-slate-500 mb-1">
+              Arraste aqui seu Parecer, Amostragens e Manifestações
+            </p>
+            <p className="text-[10px] text-slate-600 mb-3">
+              Qualquer formato · múltiplos
+            </p>
+            <div className="flex-1 space-y-2">
+              {amostragens.length === 0 ? (
+                <label className="flex flex-col items-center gap-1 rounded-lg border-2 border-dashed border-slate-600 bg-slate-900/40 px-3 py-4 cursor-pointer hover:border-purple-500/50 hover:bg-slate-900/60 transition-colors text-center">
+                  <span className="text-xl mb-1">📎</span>
+                  <span className="text-xs text-slate-400">
+                    Arraste arquivos ou clique para selecionar
+                  </span>
+                  <span className="mt-2 rounded-md bg-slate-700 px-3 py-1 text-xs font-medium text-slate-200">
+                    Escolher arquivo(s)
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="*"
+                    multiple
+                    onChange={(e) =>
+                      setAmostragens(Array.from(e.target.files ?? []))
+                    }
+                  />
+                </label>
+              ) : (
+                <div className="space-y-1">
+                  {amostragens.slice(0, 6).map((f, i) => (
+                    <div
+                      key={`${f.name}-${i}`}
+                      className="flex items-center gap-2 rounded-md bg-slate-900/60 px-2 py-1.5"
+                    >
+                      <span className="text-xs shrink-0">📄</span>
+                      <span className="text-xs text-slate-300 truncate flex-1">
+                        {f.name}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-slate-500 hover:text-rose-400"
+                        onClick={() =>
+                          setAmostragens((prev) => prev.filter((_, j) => j !== i))
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {amostragens.length > 6 && (
+                    <p className="text-[11px] text-slate-400">
+                      +{amostragens.length - 6} arquivo(s)…
+                    </p>
+                  )}
+                  <div className="flex gap-3 mt-1">
+                    <label className="cursor-pointer text-[10px] text-purple-400 hover:text-purple-300">
+                      + Adicionar mais
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="*"
+                        multiple
+                        onChange={(e) => {
+                          const novos = Array.from(e.target.files ?? []);
+                          const ex = amostragens.map((f) => f.name);
+                          setAmostragens((prev) => [
+                            ...prev,
+                            ...novos.filter((f) => !ex.includes(f.name)),
+                          ]);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="text-[10px] text-rose-400/70 hover:text-rose-400"
+                      onClick={() => setAmostragens([])}
+                    >
+                      Remover todos
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-700/50">
+              <span className="text-[9px] font-bold uppercase tracking-widest border rounded px-2 py-0.5 text-slate-500 border-slate-600/30">
+                OPCIONAL
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Painel de transparência: Regras e Linguagem Aprendidas (HITL) */}
+      {/* Barra de eficiência */}
+      <div className="mt-4 p-4 rounded-xl bg-slate-900/60 border border-slate-700">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-semibold text-slate-300">
+            Previsão de Eficiência de Aprendizado
+          </span>
+          <span className="text-lg font-bold text-slate-200">{efficiency}%</span>
+        </div>
+        <div className="w-full bg-slate-800 rounded-full h-3 mb-2 overflow-hidden">
+          <div
+            className={`h-3 rounded-full transition-all duration-500 ease-out ${efficiencyStatus.bar}`}
+            style={{ width: `${Math.max(efficiency, 1)}%` }}
+          />
+        </div>
+        <p className="text-xs text-slate-300">{efficiencyStatus.nivel}</p>
+        <p className="text-xs text-slate-400 mt-1">{efficiencyStatus.detalhe}</p>
+      </div>
+
+      {/* Painel: Conhecimento Adquirido */}
       {learnedItems.length > 0 && (
-        <section className="rounded-xl border border-slate-700 bg-slate-800 text-slate-300 overflow-hidden shadow-sm">
+        <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/50 overflow-hidden">
           <button
             type="button"
-            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-slate-700/50 transition-colors"
-            onClick={() => setIsLearningsExpanded((e) => !e)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-slate-800/50 transition-colors"
+            onClick={() => setIsLearningsExpanded((v) => !v)}
           >
-            <span className="font-medium text-slate-200">
-              🧠 [{learnedItems.length}] Novos Aprendizados Extraídos (Clique
-              para expandir)
+            <span className="font-semibold text-sm text-slate-100">
+              🧠 Conhecimento Adquirido nesta Análise ({learnedItems.length})
             </span>
             {isLearningsExpanded ? (
               <ChevronUp className="w-5 h-5 text-slate-400 shrink-0" />
@@ -597,58 +883,123 @@ export const Laboratory: React.FC = () => {
             )}
           </button>
           {isLearningsExpanded && (
-            <div className="border-t border-slate-700 bg-slate-900/60 max-h-80 overflow-y-auto">
-              <ul className="divide-y divide-slate-700/80 p-2">
-                {learnedItems.map((item) => (
-                  <li
+            <div className="border-t border-slate-700 p-3 space-y-2">
+              {learnedItems.map((item) => {
+                const nivelCls = nivelClass(item.nivel_sugerido);
+                const isEditing = editingId === item.id;
+                return (
+                  <div
                     key={item.id}
-                    className="flex items-start gap-3 px-3 py-2.5 text-sm font-mono rounded hover:bg-slate-800/60"
+                    className="rounded-lg border border-slate-700 bg-slate-950/40 p-3"
                   >
-                    <span
-                      className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                        item.tipo === "Regra de Cálculo"
-                          ? "bg-blue-500/20 text-blue-300"
-                          : "bg-purple-500/20 text-purple-300"
-                      }`}
-                    >
-                      {item.tipo}
-                    </span>
-                    <span className="flex-1 min-w-0 text-slate-300">
-                      {item.descricao}
-                    </span>
-                    <span className="text-[10px] text-slate-500 shrink-0">
-                      {item.id}
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        className="p-1.5 rounded text-slate-400 hover:text-amber-400 hover:bg-slate-700"
-                        title="Editar"
-                        aria-label="Editar"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1.5 rounded text-slate-400 hover:text-red-400 hover:bg-slate-700"
-                        title="Excluir"
-                        aria-label="Excluir"
-                        onClick={() => handleRemoveLearned(item)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${badgeClass(item.tipo)}`}
+                          >
+                            {item.tipo}
+                          </span>
+                          {nivelCls && (
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase ${nivelCls}`}
+                            >
+                              {String(item.nivel_sugerido || "").toUpperCase()}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {item.id}
+                          </span>
+                        </div>
+                        {!isEditing ? (
+                          <p className="text-sm text-slate-200 whitespace-pre-wrap">
+                            {item.descricao}
+                          </p>
+                        ) : (
+                          <div>
+                            <textarea
+                              className="w-full min-h-[100px] rounded-md border border-slate-700 bg-slate-950 p-2 text-sm text-slate-100 outline-none focus:border-indigo-500 resize-y"
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                            />
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500"
+                                onClick={() => saveEditedLearned(item)}
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-md bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                                onClick={() => {
+                                  setEditingId(null);
+                                  setEditingText("");
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {item.base_legal && (
+                          <p className="mt-2 text-xs text-slate-400">
+                            <span className="font-semibold text-slate-300">
+                              Base legal:
+                            </span>{" "}
+                            {item.base_legal}
+                          </p>
+                        )}
+                        {item.correcao && (
+                          <p className="mt-2 text-xs text-slate-400 whitespace-pre-wrap">
+                            <span className="font-semibold text-slate-300">
+                              Correção sugerida:
+                            </span>{" "}
+                            {item.correcao}
+                          </p>
+                        )}
+                        {item._raw && (
+                          <details className="mt-3">
+                            <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-400">
+                              Ver todos os campos do JSON
+                            </summary>
+                            <pre className="mt-2 rounded-md bg-slate-950/60 p-2 text-[11px] text-slate-400 overflow-x-auto">
+                              {JSON.stringify(item._raw, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          type="button"
+                          className="p-2 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800"
+                          title="Editar"
+                          onClick={() => startEditLearned(item)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          className="p-2 rounded text-slate-400 hover:text-rose-300 hover:bg-slate-800"
+                          title="Excluir"
+                          onClick={() => handleRemoveLearned(item)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
       )}
 
-      {/* Relatório de Discrepância */}
+      {/* Relatório inline */}
       {processoTrabalhista && (
-        <section className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+        <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-slate-50">
               Relatório de Discrepância
@@ -656,34 +1007,34 @@ export const Laboratory: React.FC = () => {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-md bg-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-600"
+                className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
                 onClick={() => setIsReportModalOpen(true)}
               >
                 Abrir em modal
               </button>
               <button
                 type="button"
-                className="rounded-md bg-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-600 disabled:opacity-50"
                 disabled={!processoTrabalhista}
+                className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700 disabled:opacity-50"
                 onClick={handleGeneratePjc}
               >
                 Gerar PJC
               </button>
               <button
                 type="button"
-                className="rounded-md bg-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-600 disabled:opacity-50"
                 disabled={!processoTrabalhista}
+                className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700 disabled:opacity-50"
                 onClick={handleGenerateExcel}
               >
                 Gerar Excel
               </button>
               <button
                 type="button"
-                className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] text-white hover:bg-emerald-500 disabled:opacity-50"
                 disabled={!processoTrabalhista}
+                className="rounded-md bg-emerald-700 px-2 py-1 text-[11px] text-white hover:bg-emerald-600 disabled:opacity-50"
                 onClick={handleGenerateDocx}
               >
-                Gerar Minuta Word
+                Gerar Parecer (Word)
               </button>
             </div>
           </div>
@@ -693,7 +1044,7 @@ export const Laboratory: React.FC = () => {
         </section>
       )}
 
-      {/* Modal: Relatório (tela cheia) */}
+      {/* Modal tela cheia */}
       {isReportModalOpen && processoTrabalhista && (
         <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
           <div className="flex shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/90 px-4 py-3">
@@ -713,6 +1064,74 @@ export const Laboratory: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Barra sticky */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              Arquivos selecionados no Laboratório
+            </p>
+            <p className="text-xs text-slate-500">
+              Os arquivos são mantidos apenas no navegador até você disparar a
+              análise. Isso preserva o controle do perito sobre o envio.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="w-11 h-11 rounded-full border-2 border-slate-700 bg-slate-900 flex items-center justify-center text-sm font-extrabold text-slate-100 shrink-0">
+              {totalFilesSelected}
+            </div>
+            <button
+              type="button"
+              onClick={handleGlobalAnalysis}
+              disabled={isLoading}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-all ${
+                isLoading
+                  ? "bg-blue-600 animate-pulse cursor-wait"
+                  : "bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/20"
+              }`}
+            >
+              {isLoading ? (
+                <>
+                  <BrainCircuit className="w-4 h-4 animate-spin shrink-0" />
+                  <span className="font-mono text-xs truncate max-w-[140px]">
+                    &gt; {currentLog || "..."}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 shrink-0" />
+                  Analisar e Gerar Relatório
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleGeneratePjc}
+              disabled={!processoTrabalhista}
+              className="rounded-lg bg-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Gerar PJC
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateExcel}
+              disabled={!processoTrabalhista}
+              className="rounded-lg bg-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Gerar Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateDocx}
+              disabled={!data}
+              className="rounded-lg bg-emerald-700 px-3 py-2.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Gerar Parecer (Word)
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

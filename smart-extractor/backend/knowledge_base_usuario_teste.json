@@ -13,15 +13,15 @@
         "mensagem": "Incluir a verba 'Enquadramento Sindical' no cálculo da liquidação, conforme determinado na sentença."
       },
       "base_legal": "artigo 195 da CLT; art. 193 da CLT",
-      "confidence_score": 0,
+      "confidence_score": 1,
       "status": "shadow",
       "casos_vistos": [
         "0010850-56.2022.5.03.0092"
       ],
-      "acertos": 0,
-      "punicoes": 1,
+      "acertos": 2,
+      "punicoes": 2,
       "created_at": "2026-03-17T15:32:12.442944",
-      "updated_at": "2026-03-17T22:23:01.624756"
+      "updated_at": "2026-03-18T14:28:47.836798"
     },
     {
       "rule_id": "DYN_20260317_222301_5405",
@@ -37,13 +37,13 @@
         "mensagem": "Sugerir fundamento: Princípio do ônus da prova (implícito) — Rebate: A ausência de documentação que evidencie a jornada de trabalho torna os cálculos inválidos e sem credibilidade, pois sua"
       },
       "base_legal": "Princípio do ônus da prova (implícito)",
-      "confidence_score": 22,
+      "confidence_score": 28,
       "status": "active",
       "casos_vistos": [],
-      "acertos": 21,
+      "acertos": 27,
       "punicoes": 0,
       "created_at": "2026-03-17T22:23:01.540575",
-      "updated_at": "2026-03-17T23:02:25.264844"
+      "updated_at": "2026-03-18T14:28:31.631513"
     },
     {
       "rule_id": "DYN_20260317_222959_3109",
@@ -60,15 +60,15 @@
         "mensagem": "O cálculo da empresa não apurou a verba 'Adicional de Insalubridade', que foi expressamente deferida na sentença."
       },
       "base_legal": "Conforme decisão judicial (sentença)",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "1002192-49.2025.5.02.0221"
       ],
       "acertos": 0,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-17T22:29:59.310996",
-      "updated_at": "2026-03-17T22:29:59.310999"
+      "updated_at": "2026-03-18T14:28:47.836798"
     },
     {
       "rule_id": "DYN_20260317_222959_3205",
@@ -85,15 +85,15 @@
         "mensagem": "A liquidação não contempla a obrigação de fazer 'Retificação do PPP - Perfil Profissiográfico Previdenciário' determinada em sentença."
       },
       "base_legal": "Conforme decisão judicial (sentença)",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "1002192-49.2025.5.02.0221"
       ],
       "acertos": 0,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-17T22:29:59.320622",
-      "updated_at": "2026-03-17T22:29:59.320625"
+      "updated_at": "2026-03-18T14:28:47.836798"
     },
     {
       "rule_id": "DYN_20260317_222959_3282",
@@ -110,15 +110,15 @@
         "mensagem": "O cálculo da empresa não apurou a verba 'Dano Moral', que foi expressamente deferida na sentença."
       },
       "base_legal": "Conforme decisão judicial (sentença)",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "1002192-49.2025.5.02.0221"
       ],
       "acertos": 0,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-17T22:29:59.328296",
-      "updated_at": "2026-03-17T22:29:59.328300"
+      "updated_at": "2026-03-18T14:28:47.853356"
     },
     {
       "rule_id": "DYN_20260317_224657_8270",
@@ -135,15 +135,15 @@
         "mensagem": "A verba 'Aviso Prévio Trabalhado' foi deferida em sentença, mas não consta na liquidação. É necessário incluir a verba no cálculo."
       },
       "base_legal": "Conforme dispositivo da sentença.",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "1003964-47.2025.5.02.0221"
       ],
       "acertos": 0,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-17T22:46:57.827098",
-      "updated_at": "2026-03-17T22:46:57.827102"
+      "updated_at": "2026-03-18T14:28:47.856331"
     },
     {
       "rule_id": "DYN_20260317_224657_8369",
@@ -160,21 +160,94 @@
         "mensagem": "A verba 'honorarios_advocaticios' foi deferida em sentença, mas não consta na liquidação. É necessário incluir a verba no cálculo."
       },
       "base_legal": "Art. 791-A da CLT",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "1003964-47.2025.5.02.0221"
       ],
       "acertos": 0,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-17T22:46:57.836970",
-      "updated_at": "2026-03-17T22:46:57.836973"
+      "updated_at": "2026-03-18T14:28:47.857993"
+    },
+    {
+      "rule_id": "DYN_20260318_110648_6944",
+      "descricao": "Desrespeito à coisa julgada: ausência de Reajustes Salariais",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Reajustes Salariais"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Reajustes Salariais', deferida em sentença, está ausente nos cálculos da empresa, em afronta à coisa julgada."
+      },
+      "base_legal": "Art. 879, §1º, CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010850-56.2022.5.03.0092"
+      ],
+      "acertos": 1,
+      "punicoes": 1,
+      "created_at": "2026-03-18T11:06:48.694411",
+      "updated_at": "2026-03-18T14:28:47.857993"
+    },
+    {
+      "rule_id": "DYN_20260318_142847_8367",
+      "descricao": "Ausência de Horas in Itinere (descumprimento da coisa julgada)",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Horas In Itinere",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Horas In Itinere', expressamente deferida em sentença, não foi incluída nos cálculos da empresa, configurando descumprimento da coisa julgada."
+      },
+      "base_legal": "Coisa Julgada (Art. 502 CPC)",
+      "confidence_score": 3,
+      "status": "active",
+      "casos_vistos": [
+        "0000648-34.2019.5.12.0008"
+      ],
+      "acertos": 2,
+      "punicoes": 0,
+      "created_at": "2026-03-18T14:28:47.836798",
+      "updated_at": "2026-03-18T14:28:47.857993"
+    },
+    {
+      "rule_id": "DYN_20260318_142847_8367",
+      "descricao": "Ausência do Intervalo do Artigo 384 da CLT",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Intervalo do Artigo 384 da CLT",
+        "campo": null,
+        "valor_esperado": null
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Intervalo do Artigo 384 da CLT', deferida em sentença, não foi incluída nos cálculos da empresa."
+      },
+      "base_legal": "Coisa Julgada (Art. 502 CPC)",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0000648-34.2019.5.12.0008"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-18T14:28:47.836798",
+      "updated_at": "2026-03-18T14:28:47.836798"
     }
   ],
   "_meta": {
     "version": "1.0",
     "tenant_id": "usuario_teste",
     "last_updated": "2026-03-17T15:32:12.442944",
-    "updated_at": "2026-03-17T23:02:25.264973"
+    "updated_at": "2026-03-18T14:28:47.857993"
   }
 }
