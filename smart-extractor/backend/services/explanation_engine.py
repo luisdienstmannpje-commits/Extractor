@@ -225,7 +225,10 @@ _TEMPLATES: Dict[str, Any] = {
 class ExplanationEngine:
     @staticmethod
     def gerar(resultado_engine: dict, dados: dict) -> List[Dict[str, Any]]:
-        memorial: List[dict] = resultado_engine.get("memorial_juridico") or []
+        raw = resultado_engine.get("memorial_juridico") or []
+        memorial: List[dict] = [
+            e for e in (raw if isinstance(raw, list) else []) if isinstance(e, dict)
+        ]
         explicacoes: List[Dict[str, Any]] = []
         for entrada in memorial:
             regra_id   = entrada.get("id", "")

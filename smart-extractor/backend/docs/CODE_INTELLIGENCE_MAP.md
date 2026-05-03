@@ -33,7 +33,7 @@ Use este arquivo junto com:
 | Domínio | Arquivos de entrada principais |
 |--------|---------------------------------|
 | API (HTTP/WebSocket) | `api/routers/extractor.py`, `api/routers/admin.py`, `api/routers/lab.py`, `api/routers/exports.py` |
-| Pipeline de extração | `workers/processor.py` |
+| Pipeline de extração | `workers/processor.py` (incl. `peticao_inicial` e `contestacao` por `cache_context`) |
 | Motor jurídico | `services/legal_engine/engine.py`, `services/legal_engine/rule_registry.py` |
 | Regras jurídicas | `services/legal_engine/rules/*.py`, `services/jurisprudencia/**/*.py` |
 | Explanation Engine | `services/explanation_engine.py` |
@@ -56,7 +56,7 @@ Use este arquivo junto com:
   - Implementa os 10 passos descritos em `PIPELINE.md`.
 - `api/routers/extractor.py`
   - Endpoints que chamam o worker:
-    - `/upload` → inicia job e chama `process_lawsuit_pdf`/`process_lawsuit_dossie` em background.
+    - `/upload` → Form `cache_context` (default `auto`); inicia job e chama `process_lawsuit_pdf`/`process_lawsuit_dossie` com contexto e nome de ficheiro quando elegível (`_should_run_process_lawsuit_pdf_upload`).
     - `/status/{job_id}` → consulta estado do job.
     - `/export-excel/{job_id}` → consome o resultado do pipeline para gerar Excel.
     - `/upload-pjc/{job_id}` → auditoria cruzada com arquivo `.pjc`.
@@ -81,6 +81,7 @@ Use este arquivo junto com:
    - `services/pre_extractor.py` — campos HIGH/MEDIUM e `anchor` para IA.
 4. **IA**
    - `services/ai_client.py` — chamada a Gemini (Flash → Pro), truncagem, playbook de skills.
+   - `services/pipeline_debug.py` — com `DEBUG_PIPELINE=1`, raio-X do texto e geometria da truncagem (`[DEBUG-PIPELINE][truncate]`); ver `PIPELINE.md`.
 5. **Pós-IA / Derivações**
    - Dentro de `workers/processor.py` + `services/calculation_parameters.py`.
 6. **Pydantic**
@@ -199,13 +200,14 @@ O parecer técnico final é montado em camadas:
 - `services/excel_exporter.py`:
   - recebe `dados_limpos`/`dados_finais` e `job_id`;
   - gera um `.xlsx` estruturado com os principais campos em uma ou mais abas;
-  - é chamado pelos endpoints `/export-excel/{job_id}` em `main.py`.
+  - é chamado por `GET /export-excel/{job_id}` em `api/routers/extractor.py` e por `POST /api/export/excel` em `api/routers/exports.py`.
 
 ### 5.3 Memória de cálculo
 
 - `memoria_calculo/generator.py`:
   - gera `memoria_{job_id}.json`;
   - registra, por job, quais campos e regras levaram ao resultado final;
+  - inclui `shadow_logs` (hits de regras KB em modo shadow, quando houver);
   - é o ponto de auditoria técnica do sistema.
 
 ### 5.4 Contratos de saída (não quebrar)
@@ -260,16 +262,18 @@ O parecer técnico final é montado em camadas:
   - **Layout:** `frontend/src/components/layout/MainLayout.tsx` (sidebar, header, navegação).
   - **Hooks:** `frontend/src/hooks/useAnalyze.ts` — POST `/lab/analisar`, estado do relatório.
   - **API:** `frontend/src/services/api.ts` — upload, status, export, créditos, `/api/stats`, `/api/knowledge-base`, endpoints lab.
-  - **Componentes:** `AnalysisReport.tsx`, `LearningPreview.tsx`, etc.; tipos em `frontend/src/types/`.
+  - **Componentes:** `AnalysisReport.tsx` (petição: esconde PJC, rotula Excel de pedidos), `LearningPreview.tsx`, etc.; tipos em `frontend/src/types/` (`_meta_doc_type` opcional).
 
 ### 7.2 Integração com backend
 
 Principais endpoints consumidos:
 
-- `POST /upload` — inicia o job com o PDF.
-- `GET /status/{job_id}` — retorna progresso e dados extraídos.
-- `GET /export-pjc/{job_id}` — baixa o arquivo `.pjc`.
-- `GET /export-excel/{job_id}` — baixa o `.xlsx`.
+- `POST /upload` — inicia job assíncrono com PDF/dossiê (`files`, `cache_context`).
+- `GET /status/{job_id}` — fallback HTTP de polling; retorna progresso e dados extraídos.
+- `WebSocket /ws/{job_id}` — envia `partial_update` e a mensagem terminal do job.
+- `GET /export-excel/{job_id}` — baixa o `.xlsx` de um job finalizado.
+- `POST /api/export/excel` — gera Excel a partir de um JSON de dados finais.
+- `POST /api/export/pjc` — gera `.pjc` a partir de um JSON de dados finais.
 - `GET /credits/{user_id}` — exibe créditos disponíveis.
 - Laboratório: `POST /lab/analisar`, `POST /lab/preview`, `POST /lab/salvar`, `GET /lab/historico`.
 - **Dashboard de Estatísticas**: `GET /api/stats` — retorna `processos_analisados`, `regras_oficiais_ativas`, etc.; frontend React consome via `api.ts`.

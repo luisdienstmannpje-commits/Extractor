@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ── Ambiente virtual Python ──────────────────────────────────────────────────
 venv/
 .venv/
@@ -11,38 +10,21 @@ __pycache__/
 .Python
 
 # ── Variáveis de ambiente / segredos ─────────────────────────────────────────
-=======
-# Ambiente virtual Python
-venv/
-.venv/
-env/
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-
-# Segredos
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
 .env
 .env.*
 !.env.example
 
-<<<<<<< HEAD
-# ── Banco de dados local ──────────────────────────────────────────────────────
-=======
-# Banco de dados local
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
+# ── Banco de dados local ─────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
 
-<<<<<<< HEAD
-# ── Arquivos gerados em runtime ───────────────────────────────────────────────
-backend/learning_log.jsonl
-backend/services/legal_engine/rules/lab_*.py
-backend/memoria_calculo/memoria_*.json
+# ── Arquivos gerados em runtime (qualquer backend/ no repo) ─────────────────
+**/learning_log.jsonl
+**/memoria_calculo/memoria_*.json
+**/services/legal_engine/rules/lab_*.py
 
-# ── Arquivos legados da raiz (não devem existir fora de backend/) ─────────────
+# ── Arquivos legados na raiz (não devem existir fora de backend/) ─────────────
 /services/
 /workers/
 /models.py
@@ -67,13 +49,13 @@ backend/memoria_calculo/memoria_*.json
 *.pjc
 *.xml
 
-# ── Cache e logs ──────────────────────────────────────────────────────────────
+# ── Cache e logs ─────────────────────────────────────────────────────────────
 *.log
 *.tmp
 *.cache
 .cache/
 
-# ── IDEs e editores ───────────────────────────────────────────────────────────
+# ── IDEs e editores ─────────────────────────────────────────────────────────
 .cursor/
 .vscode/
 .idea/
@@ -82,38 +64,21 @@ backend/memoria_calculo/memoria_*.json
 *.njsproj
 *.sln
 
-# ── Sistema operacional ───────────────────────────────────────────────────────
+# ── Sistema operacional ────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ── Node (caso frontend tenha dependências) ───────────────────────────────────
-=======
-# Node
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))
+# Windows: nome reservado
+nul
+
+# ── Node (dependências e build) ─────────────────────────────────────────────
 node_modules/
 dist/
 build/
 
-<<<<<<< HEAD
-# ── pytest / coverage ─────────────────────────────────────────────────────────
+# ── pytest / coverage ───────────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
 .coverage
 coverage.xml
-=======
-# IDE / OS
-.cursor/
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Logs e cache
-*.log
-*.tmp
-.cache/
-
-# Windows: nome reservado
-nul
->>>>>>> 97f1242 (Initial commit: Extractor + Smart Extractor (PJe-Calc))

@@ -299,3 +299,8 @@ class TestEngineIntegracao:
         assert "regras_aplicadas"  in resultado
         assert "memorial_juridico" in resultado
         assert len(resultado["regras_aplicadas"]) > 0, "Nenhuma regra foi aplicada"
+        memorial = resultado["memorial_juridico"]
+        assert isinstance(memorial, list), "memorial_juridico deve ser lista (engine estruturado)"
+        for item in memorial:
+            assert isinstance(item, dict)
+            assert "id" in item

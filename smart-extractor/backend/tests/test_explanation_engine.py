@@ -385,6 +385,14 @@ class TestFuncaoPublica:
         resultado = gerar_explicacoes(verbas=[], memorial_juridico=[])
         assert resultado == []
 
+    def test_memorial_string_nao_itera_caracteres(self):
+        """Evita regressão: str antes causava 'str' object has no attribute 'get'."""
+        from services.explanation_engine import ExplanationEngine, gerar_explicacoes
+
+        assert ExplanationEngine.gerar({"memorial_juridico": "texto legado"}, {}) == []
+        # Tipagem diz List[dict]; runtime aceita str e trata como sem entradas.
+        assert gerar_explicacoes(verbas=[], memorial_juridico="não é lista") == []  # type: ignore[arg-type]
+
     def test_verbas_como_dicts_sao_processadas(self, memorial_todas_regras):
         from services.explanation_engine import gerar_explicacoes
         verbas = [

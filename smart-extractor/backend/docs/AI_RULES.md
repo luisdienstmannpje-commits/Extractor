@@ -15,7 +15,9 @@ Documento obrigatório para agentes que alteram código. Reduz risco de regress�
 - **Manter todos os testes passando** após cada alteração.
 - **Justificar mudanças arquiteturais** (por que o passo X foi movido, por que uma regra saiu do `jurisprudencia` para `legal_engine/rules`, etc.).
 - **Explicar impacto** antes de gerar código (quais arquivos e testes são afetados).
-- **[OBRIGATÓRIO] Atualizar Backlog de Refatoração**: Sempre que você realizar uma alteração que impacte o backend, frontend ou contratos de API, você é OBRIGADO a atualizar o arquivo `refatoracao_necessaria.mdc` seguindo o checklist do item 8, antes de considerar a tarefa finalizada. O objetivo é garantir que o sistema evolua para um padrão SaaS (multi-tenant, escalável e observável).
+- **Ciclos incrementais TDD**: quando a tarefa vier do ciclo Codex/Cursor, leia `AI_AGENT_EXTRACTION_CYCLE.md`, trabalhe em um alvo por vez, crie/ajuste primeiro o teste focado em `tests/test_extraction_cycle_*.py`, rode o teste focado e uma regressão curta, e encerre registrando `APROVADO`, `BLOQUEADO` ou `DISCORDO`.
+- **Documentação do ciclo**: para qualquer ciclo aprovado, atualizar `AI_AGENT_EXTRACTION_CYCLE.md` e `ALTERACOES_VS_DOCUMENTACAO.md`. Atualizar README/CODE_MAP/PIPELINE/SYSTEM_OVERVIEW quando o ciclo mudar contrato público, fluxo do pipeline, endpoint, exportação ou regra que um agente precisará encontrar no futuro.
+- **[OBRIGATÓRIO] Atualizar Backlog de Refatoração quando houver impacto arquitetural/SaaS**: mudanças que afetem multi-tenancy, persistência, observabilidade, escalabilidade, contratos de API de produção ou dívida técnica estrutural devem atualizar `refatoracao_necessaria.mdc` seguindo o checklist do item 8. Ciclos pequenos que apenas travam comportamento existente podem registrar-se só nos docs de ciclo, salvo quando criarem nova dívida ou alterarem contrato público.
 
 ## Contexto Unificado — Laboratório (`/lab/analisar`)
 
@@ -31,6 +33,7 @@ O endpoint **`POST /lab/analisar`** (ou rota equivalente da API) espera **múlti
 |----------------|--------------|
 | Saber o que precisa ser refatorado (Backlog SaaS) | `refatoracao_necessaria.mdc` |
 | Alterar passos do pipeline ou ordem | `docs/PIPELINE.md` e `workers/processor.py` |
+| Continuar ciclo incremental de extração/upload/export | `docs/AI_AGENT_EXTRACTION_CYCLE.md`, teste focado em `tests/test_extraction_cycle_*.py`, depois `docs/CODE_MAP.md` / `docs/PIPELINE.md` conforme o alvo |
 | Alterar rotas ou API | `backend/api/routers/` (extrator, lab, admin, exports) e `docs/CODE_MAP.md` |
 | Adicionar ou modificar regra jurídica | `README.md` (seção Motor de regras), `legal_engine/rule_base.py`, um arquivo existente em `legal_engine/rules/` como exemplo |
 | Alterar validação (alertas, níveis) | `legal_engine/engine.py`, `legal_validator.py`, `legal_engine/rule_base.py` |
@@ -53,6 +56,7 @@ O endpoint **`POST /lab/analisar`** (ou rota equivalente da API) espera **múlti
 ## Redução de custo de tokens
 
 - **Tarefa pontual** (ex.: “alterar regra X”), abrir apenas: `docs/AI_RULES.md`, `docs/CODE_MAP.md` (ou trecho relevante) e o arquivo da regra.
+- **Ciclo de extração/upload/export**: abrir `AI_AGENT_EXTRACTION_CYCLE.md`, o teste do ciclo atual e os 1-3 arquivos diretamente envolvidos. Evitar leitura ampla se o alvo já estiver definido.
 - **Lab:** ler `docs/guia_eficiencia.md` (níveis, pesos, marcha); não duplicar tabelas do Lab noutros docs.
 - Evitar README inteiro se `SYSTEM_OVERVIEW.md` + `PIPELINE.md` bastarem.
 - **Nova regra:** template em `legal_engine/rules/` + teste em `tests/jurisprudencia/`.

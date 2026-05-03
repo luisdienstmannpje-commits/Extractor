@@ -20,6 +20,47 @@ _DOCS_EXTS = [".pdf", ".doc", ".docx"]
 _PJC_EXTS = [".pdf", ".doc", ".docx", ".pjc", ".xml"]
 
 
+def _load_manifestacao_style() -> str:
+    """
+    Carrega skills/manifestacao_style.md em caminho absoluto do backend.
+    Falha segura: retorna string vazia.
+    """
+    backend_root = Path(__file__).resolve().parents[2]
+    style_path = backend_root / "skills" / "manifestacao_style.md"
+    if not style_path.exists():
+        return ""
+    try:
+        return style_path.read_text(encoding="utf-8")
+    except Exception as e:
+        _logger.warning("lab_style_read_failed", extra={"path": str(style_path), "error": str(e)})
+        return ""
+
+
+def _dados_processo_para_ghostwriter(relatorio: dict) -> dict:
+    """
+    Mapeia relatório do Lab para o contexto esperado pelo ai_writer.
+    """
+    rel = relatorio or {}
+    sentenca = rel.get("sentenca") or {}
+    campos = sentenca.get("campos_chave") or {}
+    verbas = sentenca.get("verbas") or []
+    if not verbas and isinstance(sentenca.get("dados"), dict):
+        raw = (sentenca.get("dados") or {}).get("verbas_deferidas") or []
+        verbas = [v.get("nome") if isinstance(v, dict) else str(v) for v in raw if v]
+
+    return {
+        "numero_processo": rel.get("numero_processo") or "",
+        "reclamante": campos.get("reclamante") or "",
+        "reclamada": campos.get("reclamada") or "",
+        "vara_trabalho": campos.get("vara_trabalho") or "",
+        "indice_correcao": campos.get("indice_correcao") or "",
+        "juros_mora": campos.get("juros_mora") or "",
+        "verbas_deferidas": [v if isinstance(v, dict) else {"nome": str(v)} for v in verbas],
+        "alertas_juridicos": rel.get("alertas_juridicos") or [],
+        "quadro_comparativo": rel.get("quadro_comparativo") or [],
+    }
+
+
 @router.post("/analisar")
 async def lab_analisar(
     processo:         List[UploadFile] = File(default=[]),
@@ -301,14 +342,7 @@ async def lab_gerar_docx(body: dict):
     """
     if not body or not isinstance(body, dict):
         raise HTTPException(400, "Corpo inválido: envie o relatório JSON do Laboratório (ex.: resultado de /lab/analisar).")
-    skills_dir = Path(__file__).resolve().parent / "skills"
-    style_path = skills_dir / "manifestacao_style.md"
-    estilo_mapeado = ""
-    if style_path.exists():
-        try:
-            estilo_mapeado = style_path.read_text(encoding="utf-8")
-        except Exception as e:
-            print(f"[LAB] Aviso: não foi possível ler {style_path}: {e}", flush=True)
+    estilo_mapeado = _load_manifestacao_style()
 
     from services.document_generator import gerar_minuta
     try:
@@ -324,6 +358,36 @@ async def lab_gerar_docx(body: dict):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/gerar-manifestacao")
+async def lab_gerar_manifestacao(body: dict):
+    """
+    Preview textual (Markdown) da minuta pericial.
+    Não substitui /lab/gerar-docx; serve para revisão no frontend.
+    """
+    if not body or not isinstance(body, dict):
+        raise HTTPException(
+            400,
+            "Corpo inválido: envie o relatório JSON do Laboratório (ex.: resultado de /lab/analisar).",
+        )
+
+    from services.ai_writer import gerar_texto_manifestacao, render_markdown_manifestacao
+
+    estilo_mapeado = _load_manifestacao_style()
+    discrepancias = body.get("discrepancias") or []
+    dados_processo = _dados_processo_para_ghostwriter(body)
+
+    try:
+        resultado = gerar_texto_manifestacao(discrepancias, estilo_mapeado, dados_processo)
+        markdown = render_markdown_manifestacao(resultado)
+        return {
+            "markdown": markdown,
+            "estrutura": resultado,
+        }
+    except Exception as e:
+        _logger.exception("lab_gerar_manifestacao_failed", extra={"error": str(e)})
+        raise HTTPException(500, f"Erro ao gerar manifestação: {str(e)}")
 
 
 @router.get("/historico")

@@ -9,14 +9,14 @@ Para regras do motor, ver também a tabela de regras no README.
 
 | Arquivo | Responsabilidade |
 |---------|-------------------|
-| `main.py` | API Gateway FastAPI; inicializa a app, aplica middleware (CORS, logs) e inclui os roteadores em `api/routers/`; não contém mais lógica de upload, WebSocket, laboratório ou estatísticas. |
-| `api/routers/extractor.py` | Motor principal de extração: rotas `/upload`, `/upload-pjc/{job_id}`, `/status/{job_id}`, `/jobs/{job_id}`, `/export-excel/{job_id}`, `/health` e WebSocket `/ws/{job_id}`; gerencia jobs, timeout e notificação em background. |
-| `api/routers/lab.py` | Rotas do Laboratório: `/lab/analisar`, `/lab/preview`, `/lab/salvar`, `/lab/gerar-docx`, `/lab/historico` e `/lab/knowledge-base`; delega para `services/learning_engine.py` e `services/document_generator.py`. |
+| `main.py` | API Gateway FastAPI; inicializa a app, aplica middleware (CORS, logs) e inclui os roteadores em `api/routers/`; **lifespan** regista `asyncio.get_running_loop()` em `extractor.register_worker_event_loop` para enfileirar mensagens WS a partir do worker (thread-safe). |
+| `api/routers/extractor.py` | Motor principal: `/upload` (Form `cache_context` + `files`; `_should_run_process_lawsuit_pdf_upload`), `/upload-pjc/{job_id}`, `/extract` e `/api/extract`, `/status/{job_id}`, `/jobs/{job_id}`, `/export-excel/{job_id}`, `/health`, WebSocket `/ws/{job_id}` (múltiplas mensagens: `partial_update` + resultado final), `/ws/lab-pipeline` (heartbeat Lab), `push_ws_partial`. |
+| `api/routers/lab.py` | Rotas do Laboratório: `/lab/analisar`, `/lab/preview`, `/lab/salvar`, `/lab/gerar-docx`, `/lab/gerar-manifestacao`, `/lab/historico` e `/lab/knowledge-base`; delega para `services/learning_engine.py`, `services/document_generator.py` e `services/ai_writer.py`. |
 | `api/routers/admin.py` | Administração e Dashboard: `/api/status`, `/credits/{user_id}`, `/historico/{user_id}`, `/api/knowledge-base`, `/api/stats` e `/api/admin/reset-contagem`; usa `KnowledgeBase(tenant_id=user_id)` para Multi-tenancy e `database.get_total_extractions`. |
-| `api/routers/exports.py` | Exportação dedicada de resultados finais (`.xlsx`, `.pjc`), mantendo compatibilidade com rotas de download/geração do extrator. |
+| `api/routers/exports.py` | `POST /api/export/excel` e `/api/export/pjc`; petição (`_meta_doc_type=peticao_inicial`) e contestação (`contestacao`): mantém `memorial_juridico` no body; nomes `Pedidos_Inicial_*.xlsx` / `Contestacao_*.xlsx`. Sentença: omite `memorial_juridico` como antes. |
 | `config.py` | Env: GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION, RAPIDFUZZ_THRESHOLD, etc. |
-| `models.py` | ProcessoTrabalhista, VerbaDeferida (Pydantic); validadores; SCHEMA_VERSION. justica_gratuita: field_validator normaliza "concedida"/"deferida"/"sim" → true. |
-| `workers/processor.py` | Pipeline 10 passos: `process_lawsuit_pdf` e `process_lawsuit_dossie`. **Regex híbrida:** cabeçalho + final do doc para `data_ajuizamento`, `valor_causa`, **data_sentenca** (Assinado eletronicamente / Data do Julgamento / Publicado em); merge pós-Gemini. Dossiê: `_extrair_texto_arquivo_dossie`, `_hash_dossie`; super-contexto + cache. |
+| `models.py` | ProcessoTrabalhista, VerbaDeferida (Pydantic); validadores; SCHEMA_VERSION. `shadow_logs` (regras KB shadow) e `fontes_extracao` (`FonteExtracao`) para trilha de origem por campo. justica_gratuita: field_validator normaliza "concedida"/"deferida"/"sim" → true. |
+| `workers/processor.py` | Pipeline 10 passos: `process_lawsuit_pdf` e `process_lawsuit_dossie`. **`cache_context`:** padrão `auto` (chave cache = hash); `peticao_inicial` → `_pipeline_peticao_inicial`; `contestacao` → `_pipeline_contestacao` (teses, memorial defesa, sem motor). **Regex híbrida:** cabeçalho + final do doc para `data_ajuizamento`, `valor_causa`, **data_sentenca** (Assinado eletronicamente / Data do Julgamento / Publicado em); merge pós-Gemini. **Qualidade/cache:** `_qualidade_ok` inclui `peticao_inicial`, `contestacao` e `liquidacao`. **Validação estática:** via `validar_dados_completo` (sem dupla execução do engine no processor). **Fonte:** após merge regex, `anchor_verbas_to_pages` em verbas/teses + `_coletar_fontes_extracao` para cabeçalho, verbas, teses, quadro comparativo e **alertas_juridicos** (heurística por verba/campo relacionado + `confianca` da inferência). Dossiê: `_extrair_texto_arquivo_dossie`, `_hash_dossie`; super-contexto + cache; com **≥3 ficheiros**, `ai_client.extrair_quadro_comparativo_dossie` → `quadro_comparativo`. **WS (job):** `_emit_ws_partial` / `_partial_payload_*` enviam fatias via `extractor.push_ws_partial` quando `job_id` está definido (`POST /upload`). |
 
 ---
 
@@ -24,10 +24,15 @@ Para regras do motor, ver também a tabela de regras no README.
 
 | Arquivo | Responsabilidade |
 |---------|-------------------|
-| `sentence_finder.py` | `extract_sentence_from_pdf(bytes) → (texto, doc_type)`; OCR híbrido; bloco decisório. **Capa PJe preservada:** CAPA_PAGES quando bloco não começa na pág 1; nunca remove Data da Autuação nem primeiros chars. |
+| `sentence_finder.py` | `extract_sentence_from_pdf(bytes) → (texto, doc_type)`; OCR híbrido; bloco decisório por data PJe. **Capa PJe:** `get_adaptive_capa_pages`. **Multi-âncora:** após o recorte, até 5 pág. extras “modificadora/liquidação/recurso” + até 3 “parâmetros/acordo/ata” fora do intervalo já extraído (`_select_annex_pages`, tetos `MAX_ANNEX_*`). |
+| `verba_page_anchor.py` | `anchor_verbas_to_pages(texto, verbas)` — preenche `pagina_origem` via marcadores `--- PÁGINA N ---`; cascata: substring normalizada, prefixos, prefixo+sufixo (OCR no meio), texto só alfanum., `rapidfuzz.partial_ratio` (limiar + folga vs. 2º lugar). |
+| `cache_key.py` | `pdf_cache_storage_key(file_hash, cache_context)` — `auto` → chave legada só hash; outros valores → `{hash}:{contexto}` (ex.: petição inicial isolada do cache de sentença). |
+| `memorial_pedidos.py` | `gerar_memorial_pedidos` (petição); `gerar_memorial_defesa` (contestação / `teses_defesa`). |
 | `text_processor.py` | `normalize_text`; `find_section_hybrid` (dispositivo etc.). |
 | `pre_extractor.py` | `pre_extract` (regex/campos HIGH/MEDIUM); `build_anchor_section`. |
-| `ai_client.py` | `extract_data_with_gemini` — cascata Flash→Pro; truncagem 40%+60%; prompt com instrução para cruzar múltiplos documentos/tabelas/imagens no Raio-X. **Dossiê multimodal:** `extrair_texto_ou_descricao_imagem(image_bytes, mime_type)` — Gemini OCR/descrição para JPG/PNG. `gerar_parcelas_parecer` — `skills/parecer_pericial.md`. |
+| `ai_client.py` | `extract_data_with_gemini` — cascata Flash→Pro; truncagem 40%+60%; prompt com instrução para cruzar múltiplos documentos/tabelas/imagens no Raio-X. **`extrair_quadro_comparativo_dossie`** — 2ª passagem JSON só com `quadro_comparativo` (dossiê ≥3 ficheiros). **Dossiê multimodal:** `extrair_texto_ou_descricao_imagem`. `gerar_parcelas_parecer` — `skills/parecer_pericial.md`. Com `DEBUG_PIPELINE=1`, `_call_model` loga etapas antes/depois de dedup e truncagem; `_smart_truncate_after_dedup(..., pipeline_debug_meta=...)` repassa meta ao `pipeline_debug` para linhas `[truncate]`. |
+| `pipeline_debug.py` | Observabilidade opcional: `log_etapa`, `alert_large_delta`, `maybe_write_dump`, **`log_truncate_cabe_inteiro` / `log_truncate_inicio_cirurgico` / `log_truncate_com_dispositivo` / `log_truncate_sem_dispositivo_fallback`** — raio-X do texto entre `sentence_finder` e envio ao modelo; geometria da janela quando `len(texto) > max_chars` (ver `ALTERACOES` § 0.7). |
+| `ai_writer.py` | `gerar_texto_manifestacao` (estrutura para DOCX), normalização de alertas/quadro comparativo e `render_markdown_manifestacao` (preview). |
 | `ai_writer.py` | **Ghostwriter:** `gerar_texto_manifestacao(...)` — Gemini com **Instrução de Tom e Voz** (`manifestacao_style.md`); imita expressões ("esperando haver se desincumbido do múnus", "vem, respeitosamente"); retorna `introducao`, `secoes[]`, `tabela_comparativa[]` (texto limpo). |
 | `document_generator.py` | **Ghostwriter:** `gerar_minuta(...)` — python-docx: cabeçalho (Processo, Reclamante, Reclamada), MANIFESTAÇÃO AOS CÁLCULOS, seções, tabela **Table Grid** (prejuízo financeiro), encerramento "Pede Deferimento. [Cidade], [Data]." + espaço assinatura Perito Assistente; retorna bytes .docx. |
 | `extraction_engine.py` | **Raio-X:** `enriquecer_para_raiox(dados)` — ESTRUTURAL_KEYS (Bloco 1) inclui prescricao_quinquenal; CONTRATUAL_KEYS (Bloco 2) sem prescricao. Categorias: Estrutural, Contratual, Condenação; Dicas Lab. Frontend React consome o envelope e exibe o Raio-X (componentes em `frontend/src/`). |
@@ -40,11 +45,11 @@ Para regras do motor, ver também a tabela de regras no README.
 
 | Arquivo | Responsabilidade |
 |---------|-------------------|
-| `legal_validator.py` | `validar_dados`; `validar_dados_completo`; delega ao Legal Rule Engine. |
+| `legal_validator.py` | `validar_dados`; `validar_dados_completo` — repassa `memorial_juridico` como **lista de dicts** (mesmo contrato de `LegalRuleEngine.executar`), para `gerar_explicacoes` no processor. |
 | `legal_engine/rule_base.py` | `ContextoJuridico`; `VerbaContexto`; `LegalRule` (base); `LegalRule._canonizar_verba(nome) → str` (normalização canônica de verbas — usado pelos guardrails do lab). |
 | `legal_engine/engine.py` | `LegalRuleEngine`; `executar(dados)`. |
 | `legal_engine/rule_registry.py` | `carregar_todas_as_regras`; descoberta em `rules/` e `jurisprudencia/`. |
-| `legal_engine/dynamic_rule_loader.py` | `DynamicLegalRule`; `carregar_regras_ativas`; `executar_shadow_pipeline`. |
+| `legal_engine/dynamic_rule_loader.py` | `DynamicLegalRule` (shadow → `contexto.shadow_hits` + `_shadow_log`); `carregar_regras_ativas`; `executar_shadow_pipeline` → lista de hits por execução. |
 | `legal_engine/rules/*.py` | Uma regra por arquivo (ReflexosProibidosRule, BisInIdemRule, etc.). |
 | `jurisprudencia/**/*.py` | Regras legadas (STF, TST, CLT, consistência). |
 
@@ -59,7 +64,7 @@ Para regras do motor, ver também a tabela de regras no README.
 | `pjc_template_patcher.py` | `aplicar_patch(template_xml, dados)`; `validar_patch`; `gerar_nome_arquivo`. |
 | `pjc_parser.py` | Ler `.pjc` (XML) → `PjcDadosBasicos` (índice, juros, divisor, verbas). |
 | `pjc_auditor.py` | Sentença (IA) vs. parâmetros `.pjc` → lista de divergências. |
-| `excel_exporter.py` | Export Excel (abas estruturadas). |
+| `excel_exporter.py` | `exportar_excel(dados, job_id)` — abas Resumo / Verbas ou Teses / Parâmetros; opcional **Quadro comparativo** se `quadro_comparativo` não vazio; petição/contestação como antes. |
 
 ---
 
@@ -107,6 +112,8 @@ Funções privadas notáveis:
 | `_merge_dados_manifestacao(base, novo)` | **Facade** → `lab/style_transfer.merge_dados_manifestacao`. Junta resultados Card 6 + Card 8 (Duplo Style Transfer). |
 | `_extrair_manifestacao_pericial(bytes, filename)` | **Facade** → `lab/style_transfer.extrair_manifestacao_pericial` com callbacks `_extrair_texto_arquivo`, `_chamar_gemini_para_codify` e `skills_dir=_SKILLS_DIR`. Gemini: frases, padrões Ataque/Defesa, argumento vencedor → KB + `manifestacao_style.md`. |
 | `_canon_empresa_e_verba_esta(relatorio)` | **Facade** → `lab/discrepancy.canon_empresa_e_verba_esta`. Retorna (set verbas canonizadas empresa, verba_esta(verba)); usado pelos 3 guardrails. |
+| `_extrair_contestacao(bytes, filename)` | Gemini JSON: `teses_defesa` + metadados; deriva campos legados do Lab se vazios (`_derivar_campos_legados_contestacao`). |
+| `_extrair_texto_arquivo_com_marcadores_pagina(bytes, filename, max_pages?)` | PDF por página `--- PÁGINA N ---`; DOC/DOCX → página 1; usado no pipeline contestação para ancoragem. |
 | Regex/limpeza (facade) | `_regex_verbas`, `_liquidacao_from_text`, `_extrair_fundamentos_juridicos`, `_extrair_discrepancias_perita`, `_remover_linha_autuacao`, `_contexto_eh_autuacao` → **`lab/extractors.py`** |
 | `_filtrar_falsos_positivos_verba_ausente(relatorio)` | **Facade** → `lab/discrepancy.filtrar_falsos_positivos_verba_ausente`. Guardrail: remove discrepâncias verba_ausente quando verba existe na liquidação/PJC. |
 | `_filtrar_logicas_verba_ausente_falsas(logicas, relatorio)` | **Facade** → `lab/discrepancy.filtrar_logicas_verba_ausente_falsas`. Guardrail hipóteses KB. |
@@ -145,6 +152,7 @@ Funções privadas notáveis:
 | `docs/PIPELINE.md` | Os 10 passos e contratos. |
 | `docs/CODE_MAP.md` | Este arquivo. |
 | `docs/CODE_INTELLIGENCE_MAP.md` | Mapa por domínio (pipeline, motor, exportadores, frontend, testes). |
+| `docs/AI_AGENT_EXTRACTION_CYCLE.md` | Coordenação Codex/Cursor para ciclos TDD incrementais; histórico de alvos aprovados, teste focado e próximo passo recomendado. |
 | `docs/guia_eficiencia.md` | Diretrizes de prompt: hierarquia processual, guardrails, nomenclatura de arquivos, duplo Style Transfer, boas práticas de upload. |
 
 ---
@@ -157,10 +165,10 @@ Funções privadas notáveis:
 | `src/main.tsx` | Bootstrap React; React Query provider; roteamento. |
 | `src/App.tsx` | Rotas: `/` (Dashboard), `/extractor` (Extrator), `/lab` (Laboratório). |
 | `src/pages/Dashboard.tsx` | Página inicial / resumo. |
-| `src/pages/Extractor.tsx` | Upload, processar, exibir resultado e Raio-X; export PJC/Excel. |
-| `src/pages/Laboratory.tsx` | **Cérebro Analítico:** termômetro de eficiência (pesos por tipo de arquivo), 5 cards de upload (Sentença, Liquidação, PJC, Manifestação, Parecer), botão global "Analisar Processo Completo" com log animado no botão, painel HITL (aprendizados extraídos), relatório de discrepância, Gerar Minuta Word/PJC/Excel. |
-| `src/hooks/useAnalyze.ts` | Mutation `POST /lab/analisar` (FormData); WebSocket opcional para pipeline; retorna `data`, `isLoading`, `isSuccess`. |
-| `src/components/features/AnalysisReport.tsx` | Renderiza relatório de discrepância (processo, raw). |
+| `src/pages/Extractor.tsx` | Extrator Rápido: `POST /upload` (Form `user_id`, `files`, `cache_context=auto`) + WebSocket `/ws/{job_id}` com merge de `partial_update` e fallback `GET /status/{job_id}`; `AnalysisReport` + `Terminal Live Log` em loading; envelope final `data` = `ProcessoTrabalhista`. |
+| `src/pages/Laboratory.tsx` | **Cérebro Analítico:** termômetro de eficiência (pesos por tipo de arquivo), 5 cards de upload (Sentença, Liquidação, PJC, Manifestação, Parecer), botão global "Analisar Processo Completo", painel HITL (aprendizados extraídos), relatório de discrepância, preview Markdown **rico** (`react-markdown` + `/lab/gerar-manifestacao`) e geração Word/PJC/Excel. Em loading, mostra `Terminal Live Log` e mantém relatório renderizado com `partialData`. |
+| `src/hooks/useAnalyze.ts` | Mutation `POST /lab/analisar` (FormData); WebSocket opcional para pipeline; suporta `partial_update` no WS (merge em `partialData`), limpa estado parcial em nova mutation; retorna `data`, `isLoading`, `isSuccess`, `progressMessages`, `partialData`. |
+| `src/components/features/AnalysisReport.tsx` | Relatório (processo, raw) com suporte a `Partial<ProcessoTrabalhista>` e prop `isLoading` para renderização defensiva/skeleton; petição: oculta PJC, botão Excel “Exportar pedidos”; `doc_type` / `_meta_doc_type` para deteção. |
 | `src/components/features/LearningPreview.tsx` | Pré-visualização de aprendizados. |
 | `src/components/layout/MainLayout.tsx` | Sidebar/navegação e layout global. |
 | `src/services/api.ts` | Cliente Axios (baseURL); usado por páginas e hooks. |
@@ -180,7 +188,7 @@ Funções privadas notáveis:
 | Multas 467/477 | `legal_engine/rules/multa_467.py`, `multa_477.py`, `multa_477_valor.py` |
 | Reflexos e DSR | `legal_engine/rules/reflexos_proibidos.py`, `he_reflexo_dsr.py`, `dsr_bis_in_idem.py`; `jurisprudencia/orientacoes/oj_394.py` |
 | Explicações jurídicas | `services/explanation_engine.py` |
-| Laboratório / Aprendizado | `services/learning_engine.py` (facade orquestrador); **`lab/discrepancy.py`** (Sentença vs. Cálculo); **`lab/style_transfer.py`** (Duplo Style Transfer); **`lab/self_healing.py`** (codify_insight + Shadow Rules, Multi-tenant); `lab/titulo_executivo.py`, `lab/extractors.py`, `lab/learning_io.py`; `main.py` (lab); **frontend:** `frontend/src/pages/Laboratory.tsx` + `hooks/useAnalyze.ts`. **Ghostwriter:** `POST /lab/gerar-docx` → `document_generator.gerar_minuta` + `ai_writer.gerar_texto_manifestacao` → .docx (estilo `manifestacao_style.md`). |
+| Laboratório / Aprendizado | `services/learning_engine.py` (facade orquestrador); **`lab/discrepancy.py`** (Sentença vs. Cálculo); **`lab/style_transfer.py`** (Duplo Style Transfer); **`lab/self_healing.py`** (codify_insight + Shadow Rules, Multi-tenant); `lab/titulo_executivo.py`, `lab/extractors.py`, `lab/learning_io.py`; `main.py` (lab); **frontend:** `frontend/src/pages/Laboratory.tsx` + `hooks/useAnalyze.ts`. **Ghostwriter:** `POST /lab/gerar-manifestacao` (preview Markdown) e `POST /lab/gerar-docx` (download .docx) via `ai_writer` + `document_generator` (estilo `manifestacao_style.md`). |
 | **Discrepância Sentença vs. Cálculo** | **`lab/discrepancy.py`** — `gerar_relatorio_discrepancia` (verbas deferidas vs. liquidação, índice, juros; aprendizados); `verba_corresponde_na_liquidacao` (canonização + fuzzy). `learning_engine.py` expõe facades. Depende de `LegalRule._canonizar_verba` (legal_engine/rule_base). |
 | Guardrails anti-alucinação | **`lab/discrepancy.py`** — `filtrar_falsos_positivos_verba_ausente`, `filtrar_logicas_verba_ausente_falsas`, `filtrar_aprendizados_verba_ausente_falsas`; `learning_engine.py` expõe facades. Canonização via `canon_empresa_e_verba_esta`. |
 | Título Executivo Complexo | `lab/titulo_executivo.py` → `classificar_tier_decisao`, `extrair_data_documento`, `extrair_titulo_executivo_multiplos`; `learning_engine.py` expõe facades; `main.py`. **Não confundir com extração:** na extração (processor + ai_client) o cabeçalho PJe é preservado e Data da Autuação vira data_ajuizamento. |

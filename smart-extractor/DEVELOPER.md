@@ -57,4 +57,5 @@ Servir estatico a partir de `frontend/dist/` ou via mesmo host do backend. Nao h
 
 - **Inicio rapido backend:** `backend/README.md`, `backend/docs/AI_NAVIGATION_LAYER.md`.
 - **Mapa de codigo e rotas:** `backend/docs/CODE_MAP.md`, `backend/README_BACKEND.md` (se existir).
-- **Regras para IA:** `backend/docs/AI_RULES.md`, `.cursor/rules/` (learning-engine-refactor, etc.).
+- **Regras para IA:** `.cursorrules`, `backend/docs/AI_RULES.md`, `.cursor/rules/` (learning-engine-refactor, etc.).
+- **Ciclos Codex/Cursor:** `backend/docs/AI_AGENT_EXTRACTION_CYCLE.md` + `backend/tests/test_extraction_cycle_*.py`; sempre um alvo por vez, TDD e resposta final `APROVADO`/`BLOQUEADO`/`DISCORDO`.

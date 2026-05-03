@@ -1,11 +1,119 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 # ── Versão do schema — incrementar sempre que campos forem adicionados/removidos ──
 # database.py usa esta constante para invalidar entradas de cache com schema antigo.
 # Histórico: 2.3 (base), 2.4 (fgts_observacoes no ContextoJuridico + schema_version),
 #            2.5 (campos de dedução/autorização financeira)
-SCHEMA_VERSION = "2.5"
+#            2.11 (VerbaDeferida.pagina_origem — auditoria / fonte por página)
+#            2.13 (ProcessoTrabalhista.shadow_logs — regras KB em modo shadow por execução)
+#            2.14 (TeseDefesa / teses_defesa — fluxo contestação dedicado)
+#            2.15 (ItemComparativo / quadro_comparativo — dossiê multi-arquivo)
+#            2.16 (FonteExtracao / fontes_extracao — rastreabilidade de campo para UI)
+SCHEMA_VERSION = "2.16"
+
+
+class ObrigacaoFazer(BaseModel):
+    """Obrigação de fazer determinada pelo juiz (PPP, CTPS, seguro-desemprego, etc.)."""
+    tipo: str = Field(
+        ...,
+        description="Tipo da obrigação: 'PPP', 'CTPS', 'seguro_desemprego', 'outro'"
+    )
+    descricao: str = Field(
+        ...,
+        description="Descrição do que deve ser feito (ex: 'Retificar PPP com agente nocivo')"
+    )
+    prazo_dias: Optional[str] = Field(
+        None,
+        description="Prazo para cumprimento (ex: '10 dias após trânsito em julgado')"
+    )
+    multa_diaria: Optional[str] = Field(
+        None,
+        description="Valor da multa diária por descumprimento (ex: 'R$ 300,00')"
+    )
+    multa_limite: Optional[str] = Field(
+        None,
+        description="Teto da multa diária (ex: 'R$ 30.000,00')"
+    )
+
+
+class ItemComparativo(BaseModel):
+    """Uma linha do quadro Pedido → Defesa → Decisão (dossiê com múltiplas peças)."""
+
+    verba_alvo: str = Field(
+        default="",
+        description="Pedido ou verba em análise (ex.: Horas Extras).",
+    )
+    resumo_pedido: str = Field(
+        default="",
+        description="Síntese do pedido na petição inicial.",
+    )
+    resumo_defesa: str = Field(
+        default="",
+        description="Síntese da tese de defesa na contestação ou 'Não impugnado' / incontroverso.",
+    )
+    resumo_decisao: str = Field(
+        default="",
+        description="Síntese do que o juiz decidiu (sentença/dispositivo).",
+    )
+    status_final: str = Field(
+        default="",
+        description="Ex.: Deferida, Indeferida, Parcialmente deferida, conforme o dispositivo.",
+    )
+
+
+class FonteExtracao(BaseModel):
+    """Registro de proveniência de campo extraído para auditoria no frontend."""
+
+    campo: str = Field(
+        default="",
+        description="Nome lógico do campo (ex.: data_sentenca, verbas_deferidas[0].nome).",
+    )
+    valor_resumo: str = Field(
+        default="",
+        description="Resumo curto do valor apresentado ao usuário.",
+    )
+    pagina_origem: Optional[int] = Field(
+        None,
+        description="Página 1-based de origem quando ancorada no PDF.",
+    )
+    trecho: Optional[str] = Field(
+        None,
+        description="Trecho de suporte usado na ancoragem ou extração.",
+    )
+    origem: str = Field(
+        default="ia",
+        description="Origem do dado: ia | regex | regra | derivado.",
+    )
+    confianca: Optional[float] = Field(
+        None,
+        description="Confiança opcional (0.0–1.0) quando aplicável.",
+    )
+
+
+class TeseDefesa(BaseModel):
+    """Cenário 2 (contestação): tese da reclamada contra um pedido da inicial."""
+
+    verba_alvo: str = Field(
+        ...,
+        description="Pedido ou verba alvo da impugnação (ex.: Horas Extras, FGTS).",
+    )
+    tese_principal: str = Field(
+        ...,
+        description="Argumento central da defesa (ex.: cargo de confiança, atividade externa).",
+    )
+    trecho_fundamentacao: Optional[str] = Field(
+        None,
+        description="Trecho curto (ideal ≤150 caracteres), literal da contestação, quando possível.",
+    )
+    pagina_origem: Optional[int] = Field(
+        None,
+        description="Página 1-based no PDF onde o trecho foi localizado (pós-processamento).",
+    )
+    incontroversa: bool = Field(
+        False,
+        description="True quando a defesa não impugna esse pedido ou admite/confessa o dever.",
+    )
 
 
 class VerbaDeferida(BaseModel):
@@ -19,6 +127,16 @@ class VerbaDeferida(BaseModel):
     integracao_salarial: Optional[bool] = Field(None, description="Se a verba integra o salário para fins de reflexos")
     reflexos: List[str] = Field(default_factory=list, description="Lista de reflexos deferidos (ex: ['13º', 'Férias', 'FGTS', 'DSR'])")
     observacoes: Optional[str] = Field(None, description="Detalhes específicos ou limitações da condenação")
+    trecho_fundamentacao: Optional[str] = Field(
+        None,
+        description="Trecho curto (ideal ≤150 caracteres) do DISPOSITIVO ou fundamento que defere esta verba. "
+                    "Copiar literalmente da sentença/liquidação, sem parafrasear."
+    )
+    pagina_origem: Optional[int] = Field(
+        None,
+        description="Número da página (1-based) no PDF de origem onde o trecho_fundamentacao "
+                    "foi localizado; preenchido pelo pós-processamento (fuzzy), não pela IA.",
+    )
 
 
 class ProcessoTrabalhista(BaseModel):
@@ -40,6 +158,33 @@ class ProcessoTrabalhista(BaseModel):
     data_admissao: Optional[str] = Field(None, description="Data de admissão")
     data_demissao: Optional[str] = Field(None, description="Data de demissão")
     motivo_rescisao: Optional[str] = Field(None, description="Tipo de rescisão (ex: Sem justa causa, Pedido de demissão, Rescisão indireta)")
+    natureza_reclamada: Optional[str] = Field(
+        None,
+        description="'privada' ou 'fazenda_publica'. "
+        "Buscar: Município, Estado, União, autarquia, Prefeitura, INSS, ente público → 'fazenda_publica'. "
+        "Padrão → 'privada'.",
+    )
+    cargo_confianca: Optional[bool] = Field(
+        None,
+        description="Juiz reconheceu cargo de confiança (Art. 62, II CLT)? "
+        "true/false/null se não mencionado.",
+    )
+    gratificacao_funcao_percentual: Optional[str] = Field(
+        None,
+        description="Percentual da gratificação de função como string. Ex: '40.0'. "
+        "Null se não mencionado.",
+    )
+    banco_horas_valido: Optional[bool] = Field(
+        None,
+        description="Juiz declarou válido (true) ou inválido (false) o banco de horas? "
+        "Null se não mencionado.",
+    )
+    categoria_profissional_normalizada: Optional[str] = Field(
+        None,
+        description="Enum fechado: 'bancario', 'eletricitario', 'petroleiro', 'aeronauta', "
+        "'agente_comunitario_saude', 'agente_combate_endemias'. "
+        "Inferir de funcao_reclamante quando não explícito. None para categoria geral.",
+    )
     tipo_contrato: Optional[str] = Field(None, description="Natureza jurídica reconhecida (ex: CLT, Pejotização reconhecida, Autônomo)")
 
     # ── Parâmetros Financeiros ─────────────────────────────────────────────────
@@ -50,6 +195,11 @@ class ProcessoTrabalhista(BaseModel):
     data_saida_ctps: Optional[str] = Field(None, description="Data de saída a anotar na CTPS com projeção do aviso prévio (OJ 82 SDI-I TST)")
     anotacao_ctps: Optional[str] = Field(None, description="Determinação de anotação da CTPS — prazo e penalidade se mencionados")
     seguro_desemprego: Optional[str] = Field(None, description="Resultado do pedido de seguro-desemprego (guias, indenização substitutiva ou indeferido)")
+    obrigacoes_fazer: Optional[List["ObrigacaoFazer"]] = Field(
+        None,
+        description="Obrigações de fazer determinadas pelo juiz (PPP, CTPS, seguro-desemprego "
+                    "estruturado, anotações, entrega de documentos) com prazo e multa se mencionados."
+    )
 
     # ── Parâmetros de Cálculo ──────────────────────────────────────────────────
     indice_correcao: Optional[str] = Field(None, description="Índice de correção monetária (ex: IPCA-E, SELIC, TR)")
@@ -94,7 +244,23 @@ class ProcessoTrabalhista(BaseModel):
     fgts_observacoes: Optional[str] = Field(None, description="Observações adicionais sobre o FGTS (depósitos não realizados, guias pendentes etc.)")
 
     # ── A Lista de Verbas (o coração do cálculo) ───────────────────────────────
-    verbas_deferidas: List[VerbaDeferida] = Field(default_factory=list)
+    verbas_deferidas: List[VerbaDeferida] = Field(
+        default_factory=list,
+        description="Lista de verbas e parâmetros deferidos/julgados."
+    )
+    # NOVO CAMPO: Cenário 1 (Petição Inicial)
+    verbas_pedidas: Optional[List[VerbaDeferida]] = Field(
+        default=None,
+        description="Lista de verbas requeridas pelo autor (preenchido apenas quando doc_type='peticao_inicial')."
+    )
+    teses_defesa: List[TeseDefesa] = Field(
+        default_factory=list,
+        description="Teses de defesa na contestação (doc_type='contestacao'); vazio nos demais fluxos.",
+    )
+    quadro_comparativo: List[ItemComparativo] = Field(
+        default_factory=list,
+        description="Cruzamento pedido × defesa × decisão (dossiê com ≥3 arquivos); preenchido por 2ª passagem IA.",
+    )
 
     # ── Campos calculados / derivados (preenchidos pelo pós-processamento) ─────
     prescricao_quinquenal: Optional[str] = Field(
@@ -120,6 +286,14 @@ class ProcessoTrabalhista(BaseModel):
         description="Lista de alertas gerados pelo validador automático de regras trabalhistas. "
                     "Ex: ['OJ 394: DSR não reflete em férias', 'Bis in idem: Horas Extras → Horas Extras']"
     )
+    shadow_logs: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Hits de regras dinâmicas com status 'shadow' no KB (modo observação); não são alertas de UI.",
+    )
+    fontes_extracao: List[FonteExtracao] = Field(
+        default_factory=list,
+        description="Rastreabilidade de origem por campo/valor para auditoria com navegação por página.",
+    )
 
     # ── Validadores de normalização ────────────────────────────────────────────
 
@@ -143,7 +317,7 @@ class ProcessoTrabalhista(BaseModel):
         "tipo_rito", "funcao_reclamante", "advogado_reclamante", "juiz_responsavel",
         # Datas e contrato
         "data_sentenca", "data_ajuizamento", "data_admissao", "data_demissao",
-        "motivo_rescisao", "tipo_contrato",
+        "motivo_rescisao", "natureza_reclamada", "gratificacao_funcao_percentual", "categoria_profissional_normalizada", "tipo_contrato",
         # Parâmetros financeiros
         "salario_base", "jornada_contratual", "horario_trabalho",
         "aviso_previo_dias", "data_saida_ctps", "anotacao_ctps", "seguro_desemprego",

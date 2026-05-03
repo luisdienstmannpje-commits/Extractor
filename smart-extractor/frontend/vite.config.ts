@@ -8,6 +8,8 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8000",
       "/lab": "http://localhost:8000",
+      "/upload": "http://localhost:8000",
+      "/status": "http://localhost:8000",
       "/ws": { target: "ws://localhost:8000", ws: true },
     },
   },

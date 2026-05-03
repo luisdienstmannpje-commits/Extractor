@@ -45,7 +45,7 @@ async def export_excel(body: dict):
     Gera um arquivo .xlsx de auditoria a partir do objeto ProcessoTrabalhista.
 
     O body é o mesmo JSON de ProcessoTrabalhista. O nome do arquivo segue o
-    padrão Auditoria_Cálculo_[CNJ].xlsx.
+    padrão Auditoria_Calculo_[CNJ].xlsx (ASCII para header HTTP estável).
     """
     if not body or not isinstance(body, dict):
         raise HTTPException(400, "Corpo inválido: envie o objeto ProcessoTrabalhista em JSON.")
@@ -69,10 +69,17 @@ async def export_excel(body: dict):
             "raw",
             "_raw",
             "memorial_bruto",
-            "memorial_juridico",
             "explicacoes",
             "logs_pipeline",
+            "shadow_logs",
         }
+        # memorial_juridico: manter em petição inicial / contestação (aba Resumo); omitir no resto
+        meta_dt = (body.get("_meta_doc_type") or "").strip().lower()
+        is_peticao = meta_dt == "peticao_inicial"
+        is_contestacao = meta_dt == "contestacao"
+        if not is_peticao and not is_contestacao:
+            campos_ignorados = {*campos_ignorados, "memorial_juridico"}
+
         dados_limpos = {
             k: v for k, v in body.items()
             if k not in campos_ignorados
@@ -86,7 +93,12 @@ async def export_excel(body: dict):
 
         numero = numero_proc or f"{int(time.time())}"
         numero_sanitizado = numero.replace("/", "-").replace(".", "") or "processo"
-        nome_download = f"Auditoria_Cálculo_{numero_sanitizado}.xlsx"
+        if is_peticao:
+            nome_download = f"Pedidos_Inicial_{numero_sanitizado}.xlsx"
+        elif is_contestacao:
+            nome_download = f"Contestacao_{numero_sanitizado}.xlsx"
+        else:
+            nome_download = f"Auditoria_Calculo_{numero_sanitizado}.xlsx"
     except Exception as exc:
         print(f"[EXPORT] Erro ao gerar Excel: {exc}", flush=True)
         traceback.print_exc()

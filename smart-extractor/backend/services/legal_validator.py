@@ -27,6 +27,11 @@ def validar_dados(dados: dict) -> list[str]:
 def validar_dados_completo(dados: dict) -> dict:
     """
     Retorna dict: alertas, regras_aplicadas, memorial_juridico.
+
+    memorial_juridico é lista de dicts (id, titulo, base_legal, descricao,
+    prioridade), alinhada a LegalRuleEngine.executar — necessária para
+    gerar_explicacoes / ExplanationEngine.gerar no processor.
+
     Delega ao singleton _RULE_ENGINE (Legal Rule Engine).
 
     Erros de execução de regra individual são capturados internamente pelo
@@ -36,25 +41,14 @@ def validar_dados_completo(dados: dict) -> dict:
     """
     resultado = _RULE_ENGINE.executar(dados)
 
-    alertas          = resultado["alertas"]
+    alertas = resultado["alertas"]
     regras_aplicadas = resultado["regras_aplicadas"]
-    erros  = sum(1 for a in alertas if "[ERRO]"  in a)
-    avisos = sum(1 for a in alertas if "[AVISO]" in a)
-
-    if alertas:
-        linhas_memorial = [
-            f"Validação jurídica — {len(regras_aplicadas)} regras aplicadas.",
-            f"Resultado: {erros} erro(s), {avisos} aviso(s).",
-            "",
-        ] + alertas
-    else:
-        linhas_memorial = [
-            f"Validação jurídica — {len(regras_aplicadas)} regras aplicadas.",
-            "Resultado: dados consistentes, nenhum alerta gerado.",
-        ]
+    memorial = resultado.get("memorial_juridico") or []
+    if not isinstance(memorial, list):
+        memorial = []
 
     return {
-        "alertas":           alertas,
-        "regras_aplicadas":  regras_aplicadas,
-        "memorial_juridico": "\n".join(linhas_memorial),
+        "alertas": alertas,
+        "regras_aplicadas": regras_aplicadas,
+        "memorial_juridico": memorial,
     }

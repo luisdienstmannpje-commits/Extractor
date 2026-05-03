@@ -5,11 +5,13 @@ Roda ANTES da chamada à IA e extrai campos usando só Python puro.
 Zero tokens. Zero latência de rede.
 
 Dois níveis de confiança:
-  HIGH (≥95%): número CNJ, data sentença, justiça gratuita, rito.
+  HIGH (≥95%): número CNJ, reclamante/reclamada, vara do trabalho (capa), data sentença, justiça gratuita, rito.
                → Sobrescreve o resultado da IA diretamente.
-  MEDIUM (~80%): datas contratuais, salário, índices, motivo rescisão,
-                 tipo contrato, divisor, aviso prévio.
-               → Injetados como âncoras no prompt para reduzir alucinação.
+  MEDIUM (~80%): datas contratuais, salário, nomes de verbas (lista fechada no dispositivo),
+                 período (intervalo na mesma linha) e reflexos só com gatilho explícito
+                 (reflexo/incidência) no fragmento ligado à verba,
+                 índices, motivo rescisão, tipo contrato, divisor, aviso prévio.
+                 → Injetados como âncoras no prompt para reduzir alucinação.
 
 Estimativa de impacto:
   - ~10–20% menos tokens de output da IA (campos HIGH não são gerados pela IA)
@@ -24,7 +26,7 @@ Como expandir:
 
 import re
 from datetime import datetime, date
-from typing import Optional
+from typing import Any, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +54,11 @@ _RE_ASSINADO = re.compile(
     re.DOTALL,
 )
 
+# Data do julgamento (acórdão / sessão) — após assinatura, antes de publicação
+_RE_DATA_JULGAMENTO = re.compile(
+    r"(?i)Data\s+do\s+Julgamento:\s*(\d{2}/\d{2}/\d{4})"
+)
+
 # Justiça gratuita
 _RE_JG_TRUE = re.compile(
     r"(?i)(\bdefiro\b.*?\bjusti[çc]a\s+gratuita\b"
@@ -77,21 +84,40 @@ _RE_RITO_ORDINARIO = re.compile(
 
 # Datas contratuais (admissão/demissão)
 _RE_ADMISSAO = re.compile(
-    r"(?i)(?:admitid[oa]\s+em|admissão\s+em|a\s+partir\s+de|desde|"
-    r"ingressou\s+em|contratad[oa]\s+em|início\s+do\s+contrato\s+em|"
-    r"data\s+de\s+admissão[:\s]+)"
+    r"(?i)(?:"
+    r"admitid[oa]\s+em|"
+    r"admiss[aã]o\s*:\s*|"
+    r"admiss[aã]o\s+em|"
+    r"data\s+da\s+admiss[aã]o[:\s]+|"
+    r"data\s+de\s+admiss[aã]o[:\s]+|"
+    r"a\s+partir\s+de|desde|"
+    r"ingressou\s+em|contratad[oa]\s+em|início\s+do\s+contrato\s+em"
+    r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 _RE_DEMISSAO = re.compile(
-    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|rescisão\s+em|"
-    r"saiu\s+em|desligad[oa]\s+em|término\s+do\s+contrato\s+em|"
-    r"data\s+de\s+demissão[:\s]+|data\s+da\s+rescisão[:\s]+)"
+    r"(?i)(?:"
+    r"dispensad[oa]\s+em|"
+    r"demitid[oa]\s+em|"
+    r"demiss[aã]o\s*:\s*|"
+    r"demiss[aã]o\s+em|"
+    r"data\s+da\s+demiss[aã]o[:\s]+|"
+    r"data\s+de\s+demiss[aã]o[:\s]+|"
+    r"rescis[aã]o\s*:\s*|"
+    r"rescis[aã]o\s+em|"
+    r"data\s+da\s+rescis[aã]o[:\s]+|"
+    r"data\s+de\s+rescis[aã]o[:\s]+|"
+    r"saiu\s+em|desligad[oa]\s+em|término\s+do\s+contrato\s+em"
+    r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 
-# Salário base — diversas formas de menção
+# Salário base — diversas formas de menção (inclui rótulos de capa com dois-pontos)
 _RE_SALARIO = re.compile(
-    r"(?i)(?:sal[aá]rio\s+(?:base\s+)?de|remunera[çc][aã]o\s+de|"
+    r"(?i)(?:"
+    r"sal[aá]rio\s+base\s*:\s*|"
+    r"sal[aá]rio\s*:\s*|"
+    r"sal[aá]rio\s+(?:base\s+)?de|remunera[çc][aã]o\s+de|"
     r"percebia\s+a\s+importância\s+de|piso\s+(?:salarial\s+)?de|"
     r"sal[aá]rio\s+contratual\s+de|sal[aá]rio\s+normativo\s+de|"
     r"vencimento\s+de|sal[aá]rio\s+(?:mensal\s+)?(?:líquido\s+)?de\s+R\$)"
@@ -99,6 +125,53 @@ _RE_SALARIO = re.compile(
     r"([\d.,]+(?:\s*(?:reais|mil))?)(?:\s*(?:mensais?|brutos?|líquidos?))?",
     re.IGNORECASE,
 )
+
+# Nomes de verbas (lista fechada) — mesmo núcleo de padrões de ai_client._RE_VERBAS; só no dispositivo/decisão
+_RE_VERBA_NOME_DISPOSITIVO = re.compile(
+    r"(?i)\b("
+    r"horas extras|adicional noturno|adicional de insalubridade"
+    r"|adicional de periculosidade|f\.?g\.?t\.?s"
+    r"|aviso pr[eé]vio|f[eé]rias|d[eé]cimo|13.{0,8}sal[aá]rio"
+    r"|saldo de sal[aá]rio|dano moral|dano material"
+    r"|multa|art\.?\s*467|art\.?\s*477|intervalo(?:\s+intrajornada)?"
+    r")\b"
+)
+
+# Início do dispositivo / decisão (texto bruto; evita find_section_hybrid com texto normalizado)
+_RE_TRECHO_DISPOSITIVO_TITULO = re.compile(r"(?im)^\s*DISPOSITIVO\s*(?:\n|$)")
+_RE_TRECHO_ISTO_POSTO = re.compile(r"(?i)\bISTO\s+POSTO\b")
+_RE_TRECHO_JULGO = re.compile(
+    r"(?i)\bJULGO\s+(?:PROCEDENTE|PARCIALMENTE\s+PROCEDENTE|IMPROCEDENTE)\b"
+)
+_TRECHO_DECISAO_MAX_CHARS = 12_000
+
+# Intervalo de datas na mesma linha da verba (conservador: não cruza quebras de linha)
+_RE_PERIODO_DE_ATE = re.compile(
+    r"(?i)(?:de|desde)\s+(\d{2}/\d{2}/\d{4})\s+(?:a|at[eé])\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_ENTRE_E = re.compile(
+    r"(?i)entre\s+(\d{2}/\d{2}/\d{4})\s+e\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_NO_PERIODO = re.compile(
+    r"(?i)no\s+per[ií]odo\s+(?:de\s+)?(\d{2}/\d{2}/\d{4})\s+(?:a|at[eé])\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_TRACO = re.compile(
+    r"(?i)(\d{2}/\d{2}/\d{4})\s*[-–—]\s*(\d{2}/\d{2}/\d{4})"
+)
+
+# Reflexos (lista fechada) — só com gatilho explícito no fragmento ligado à verba
+_RE_GATILHO_REFLEXO = re.compile(
+    r"(?i)\breflexos?\b|\bincid[eê]ncia\s+(?:em|sobre|nas?|nos?)\b"
+)
+_RE_ALVO_REFLEXO = re.compile(
+    r"(?i)\b("
+    r"repouso\s+semanal\s+remunerado|rsr|dsr|d\.?s\.?r\.?"
+    r"|f[eé]rias(?:\s+acrescida?s?\s+de\s+1/3)?"
+    r"|d[eé]cimo\s+terceiro|13\s*[º°o]?\s*sal[aá]rio"
+    r"|aviso\s+pr[eé]vio"
+    r")\b"
+)
+_RE_CONTINUA_REFLEXO_LINHA = re.compile(r"(?i)^\s*(?:com|e)\s+reflexos?\b")
 
 # Índice de correção monetária
 _RE_IPCA = re.compile(r"(?i)\bIPCA-?E\b")
@@ -138,10 +211,10 @@ _RE_CONTRATO_AUTONOMO = re.compile(
 
 # Divisor de horas extras
 _RE_DIVISOR = re.compile(
-    r"(?i)(?:divisor\s+(?:de\s+)?)(\b150\b|\b180\b|\b200\b|\b220\b)"
+    r"(?i)(?:divisor\s+(?:de\s+)?(?:horas\s+)?)(\b150\b|\b180\b|\b200\b|\b220\b)"
 )
 _RE_HORAS_SEMANAIS = re.compile(
-    r"(?i)(\b30\b|\b35\b|\b36\b|\b40\b|\b44\b)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
+    r"(?i)\b(30|35|36|40|44)h?\b\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
 )
 
 # Aviso prévio — dias
@@ -149,10 +222,15 @@ _RE_AVISO_DIAS = re.compile(
     r"(?i)aviso\s+pr[eé]vio\s+(?:indenizado\s+)?(?:de\s+)?(\d+)\s*dias?"
 )
 
-# Data de ajuizamento
+# Data de ajuizamento (MEDIUM — âncora; processor também lê Data da Autuação no cabeçalho)
 _RE_AJUIZAMENTO = re.compile(
-    r"(?i)(?:data\s+de\s+ajuizamento[:\s]+|protocolo(?:u\s+a\s+presente)?\s+em\s+|"
-    r"proposta\s+em\s+|distribuída\s+em\s+)"
+    r"(?i)(?:"
+    r"data\s+da\s+autua[çc][aã]o[:\s]+|"
+    r"data\s+de\s+ajuizamento[:\s]+|"
+    r"protocolo(?:u(?:\s+a\s+presente)?)?\s+em\s+|"
+    r"proposta\s+em\s+|"
+    r"distribu[ií]da\s+em\s+"
+    r")"
     r"(\d{2}/\d{2}/\d{4})"
 )
 
@@ -162,6 +240,25 @@ _RE_PROCESSO_CABECALHO = re.compile(
     r"(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})",
     re.IGNORECASE,
 )
+
+# Reclamante na capa — não incluir "Reclamada" (evita troca de polo)
+_RE_RECLAMANTE_CAPA = re.compile(
+    r"(?im)^\s*(?:Reclamante|Autor(?:a)?|Parte\s+autora)\s*:\s*(.+)$"
+)
+
+# Reclamada na capa — não incluir rótulos de autor/reclamante
+_RE_RECLAMADA_CAPA = re.compile(
+    r"(?im)^\s*(?:Reclamada|Reclamado|Parte\s+reclamada)\s*:\s*(.+)$"
+)
+
+# Vara do trabalho — rótulo de capa ou linha ordinal no cabeçalho (sem rótulo, só início do texto)
+_RE_VARA_CAPA_LABEL = re.compile(
+    r"(?im)^\s*Vara(?:\s+do\s+Trabalho)?\s*:\s*(.+)$"
+)
+_RE_VARA_ORDINAL_LINE = re.compile(
+    r"(?im)^\s*((?:\d+[º°ª]\s+)?Vara\s+do\s+Trabalho\s+de\s+.+)$"
+)
+_VARA_HEAD_CHARS = 4000
 
 # ---------------------------------------------------------------------------
 # Mapa de meses (para converter data por extenso)
@@ -174,6 +271,99 @@ _MESES = {
 
 # Mínimo de salário (para filtrar ruído)
 _SALARIO_MINIMO_VIGENTE = 1_412.00
+
+
+def _par_datas_dd_mm_yyyy_validas(d1: str, d2: str) -> bool:
+    try:
+        datetime.strptime(d1, "%d/%m/%Y")
+        datetime.strptime(d2, "%d/%m/%Y")
+    except ValueError:
+        return False
+    return True
+
+
+def _periodo_intervalo_na_mesma_linha(linha: str) -> Optional[str]:
+    """Retorna 'DD/MM/AAAA a DD/MM/AAAA' se houver intervalo claro na linha; senão None."""
+    for rx in (
+        _RE_PERIODO_DE_ATE,
+        _RE_PERIODO_ENTRE_E,
+        _RE_PERIODO_NO_PERIODO,
+        _RE_PERIODO_TRACO,
+    ):
+        m = rx.search(linha)
+        if not m:
+            continue
+        d1, d2 = m.group(1), m.group(2)
+        if d1 and d2 and _par_datas_dd_mm_yyyy_validas(d1, d2):
+            return f"{d1} a {d2}"
+    return None
+
+
+def _linha_do_span(texto: str, start: int, end: int) -> str:
+    a = texto.rfind("\n", 0, start) + 1
+    b = texto.find("\n", end)
+    if b < 0:
+        b = len(texto)
+    return texto[a:b]
+
+
+def _fragmento_reflexo_ligado(trecho: str, m: re.Match) -> str:
+    """Linha da verba + linha seguinte só se continuação explícita (com/e reflexo...)."""
+    ls = trecho.rfind("\n", 0, m.start()) + 1
+    le = trecho.find("\n", m.end())
+    if le < 0:
+        le = len(trecho)
+    linha0 = trecho[ls:le]
+    frag = linha0
+    stripped0 = linha0.rstrip()
+    if le < len(trecho) and not stripped0.endswith((".", ";", ":")):
+        rest = trecho[le + 1 :]
+        ne = rest.find("\n")
+        if ne < 0:
+            ne = len(rest)
+        linha1 = rest[:ne]
+        if _RE_CONTINUA_REFLEXO_LINHA.match(linha1):
+            frag = linha0 + " " + linha1.strip()
+    return frag
+
+
+def _rotulo_reflexo_canonico(span: str) -> str:
+    low = span.strip().lower()
+    compact = low.replace(".", "")
+    if "repouso" in low or low == "rsr" or "dsr" in compact:
+        return "DSR"
+    if "férias" in low or "ferias" in low:
+        if "1/3" in low or "terço" in low or "terco" in low:
+            return "Férias acrescidas de 1/3"
+        return "Férias"
+    if (
+        "décimo" in low
+        or "decimo" in low
+        or re.search(r"13\s*[º°o]", low)
+        or re.search(r"\b13\s+sal", low)
+    ):
+        return "13º salário"
+    if "aviso" in low and ("prévio" in low or "previo" in low):
+        return "Aviso prévio"
+    return span.strip()
+
+
+def _reflexos_no_fragmento(fragmento: str) -> List[str]:
+    if not _RE_GATILHO_REFLEXO.search(fragmento):
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+    for mx in _RE_ALVO_REFLEXO.finditer(fragmento):
+        raw = (mx.group(1) or "").strip()
+        if not raw:
+            continue
+        lab = _rotulo_reflexo_canonico(mx.group(0))
+        key = lab.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(lab)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -267,13 +457,82 @@ class PreExtractor:
         if m:
             self._set_high("numero_processo", m.group(1))
 
+    def _extract_reclamante(self):
+        """Nome do reclamante — rótulos típicos de capa (Reclamante, Autor/Autora, Parte autora)."""
+        m = _RE_RECLAMANTE_CAPA.search(self.texto)
+        if not m:
+            return
+        nome = (m.group(1) or "").strip()
+        if not nome:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            nome,
+            re.IGNORECASE,
+        ):
+            return
+        self._set_high("reclamante", nome)
+
+    def _extract_reclamada(self):
+        """Nome da reclamada — rótulos típicos de capa (Reclamada, Reclamado, Parte reclamada)."""
+        m = _RE_RECLAMADA_CAPA.search(self.texto)
+        if not m:
+            return
+        nome = (m.group(1) or "").strip()
+        if not nome:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            nome,
+            re.IGNORECASE,
+        ):
+            return
+        self._set_high("reclamada", nome)
+
+    @staticmethod
+    def _valor_vara_plausivel(texto: str) -> bool:
+        """Exige menção explícita a vara + trabalho (evita TRT-only ou rótulos genéricos)."""
+        t = (texto or "").strip().lower()
+        if len(t) < 8:
+            return False
+        return "vara" in t and "trabalho" in t
+
+    def _extract_vara_trabalho(self):
+        """Identificação da vara — PJe: 'Vara:' / 'Vara do Trabalho:' ou linha 'Nª Vara do Trabalho de ...' no cabeçalho."""
+        m = _RE_VARA_CAPA_LABEL.search(self.texto)
+        raw: Optional[str] = None
+        if m:
+            raw = (m.group(1) or "").strip()
+        else:
+            head = self.texto[:_VARA_HEAD_CHARS]
+            m2 = _RE_VARA_ORDINAL_LINE.search(head)
+            if m2:
+                raw = (m2.group(1) or "").strip()
+        if not raw:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            raw,
+            re.IGNORECASE,
+        ):
+            return
+        if not self._valor_vara_plausivel(raw):
+            return
+        self._set_high("vara_trabalho", raw)
+
     def _extract_data_sentenca(self):
-        """Data da sentença — prioriza assinatura digital PJe."""
+        """Data da sentença — assinatura PJe (mais recente), Data do Julgamento, Publicado em, extenso."""
         # Prioridade máxima: assinatura digital (mais recente)
         data_ass = self._ultima_data_assinatura()
         if data_ass:
             self._set_high("data_sentenca", data_ass)
             return
+        m = _RE_DATA_JULGAMENTO.search(self.texto)
+        if m:
+            norm = self._normalizar_data(m.group(1))
+            if norm:
+                self._set_high("data_sentenca", norm)
+                return
         # Fallback: "Publicado em DD/MM/AAAA"
         m = re.search(
             r"(?i)publicad[oa]\s+em\s+(\d{2}/\d{2}/\d{4})", self.texto
@@ -312,6 +571,7 @@ class PreExtractor:
     # ── Extratores MEDIUM ────────────────────────────────────────────────────
 
     def _extract_data_ajuizamento(self):
+        """Data de ajuizamento / autuação PJe — primeira ocorrência; saída DD/MM/AAAA."""
         m = _RE_AJUIZAMENTO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
@@ -319,6 +579,7 @@ class PreExtractor:
                 self._set_medium("data_ajuizamento", norm)
 
     def _extract_data_admissao(self):
+        """Data de admissão — primeira ocorrência; saída DD/MM/AAAA (MEDIUM)."""
         m = _RE_ADMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
@@ -326,6 +587,7 @@ class PreExtractor:
                 self._set_medium("data_admissao", norm)
 
     def _extract_data_demissao(self):
+        """Data de demissão / rescisão — primeira ocorrência; saída DD/MM/AAAA (MEDIUM)."""
         m = _RE_DEMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
@@ -333,7 +595,7 @@ class PreExtractor:
                 self._set_medium("data_demissao", norm)
 
     def _extract_salario_base(self):
-        """Extrai salário — filtra valores implausíveis."""
+        """Extrai salário (MEDIUM) — moda entre menções plausíveis; inclui `Salário base:` / `Salário:`."""
         matches = list(_RE_SALARIO.finditer(self.texto))
         candidatos = []
         for m in matches:
@@ -359,6 +621,51 @@ class PreExtractor:
         # Formata como valor monetário BR
         salario_fmt = f"R$ {valor_mais_freq:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         self._set_medium("salario_base", salario_fmt)
+
+    def _trecho_dispositivo_ou_decisao(self) -> Optional[str]:
+        """Recorte aproximado do dispositivo ou linha de decisão (texto original)."""
+        t = self.texto
+        m = _RE_TRECHO_DISPOSITIVO_TITULO.search(t)
+        if m:
+            return t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS]
+        m = _RE_TRECHO_ISTO_POSTO.search(t)
+        if m:
+            return t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS]
+        m = _RE_TRECHO_JULGO.search(t)
+        if m:
+            return t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS]
+        return None
+
+    def _extract_verbas_deferidas_nomes(self):
+        """Nomes de verbas (lista fechada) só no dispositivo / trecho de decisão — MEDIUM."""
+        trecho = self._trecho_dispositivo_ou_decisao()
+        if not trecho:
+            return
+        nomes: list[str] = []
+        itens: list[dict[str, Any]] = []
+        visto: set[str] = set()
+        for m in _RE_VERBA_NOME_DISPOSITIVO.finditer(trecho):
+            n = (m.group(1) or "").strip()
+            if not n:
+                continue
+            chave = n.casefold()
+            if chave in visto:
+                continue
+            visto.add(chave)
+            nomes.append(n)
+            linha = _linha_do_span(trecho, m.start(), m.end())
+            periodo = _periodo_intervalo_na_mesma_linha(linha)
+            frag_ref = _fragmento_reflexo_ligado(trecho, m)
+            reflexos = _reflexos_no_fragmento(frag_ref)
+            item: dict[str, Any] = {"nome": n}
+            if periodo:
+                item["periodo"] = periodo
+            if reflexos:
+                item["reflexos"] = reflexos
+            itens.append(item)
+        if nomes:
+            self._set_medium("verbas_deferidas_nomes", nomes)
+            self._set_medium("verbas_deferidas_itens", itens)
 
     def _extract_indice_correcao(self):
         """Detecta IPCA-E, SELIC, TR — prioriza ADC 58."""
@@ -443,6 +750,9 @@ class PreExtractor:
         # HIGH
         high_extractors = [
             self._extract_numero_processo,
+            self._extract_reclamante,
+            self._extract_reclamada,
+            self._extract_vara_trabalho,
             self._extract_data_sentenca,
             self._extract_justica_gratuita,
             self._extract_tipo_rito,
@@ -459,6 +769,7 @@ class PreExtractor:
             self._extract_data_admissao,
             self._extract_data_demissao,
             self._extract_salario_base,
+            self._extract_verbas_deferidas_nomes,
             self._extract_indice_correcao,
             self._extract_juros_mora,
             self._extract_motivo_rescisao,
@@ -529,6 +840,37 @@ def build_anchor_section(medium_fields: dict) -> str:
         "VALORES PRÉ-EXTRAÍDOS (média confiança — confirme no texto antes de usar):",
     ]
     for campo, valor in medium_fields.items():
+        if campo == "verbas_deferidas_nomes":
+            if "verbas_deferidas_itens" in medium_fields:
+                continue
+            if not isinstance(valor, list) or not valor:
+                continue
+            linhas.append("  • Verbas (padrões detectados no dispositivo/decisão):")
+            for nome in valor:
+                linhas.append(f"      - {nome}")
+            continue
+        if campo == "verbas_deferidas_itens":
+            if not isinstance(valor, list) or not valor:
+                continue
+            linhas.append("  • Verbas (padrões detectados no dispositivo/decisão):")
+            for it in valor:
+                if not isinstance(it, dict):
+                    continue
+                nome = (it.get("nome") or "").strip()
+                if not nome:
+                    continue
+                per = (it.get("periodo") or "").strip()
+                refs = it.get("reflexos")
+                extras: list[str] = []
+                if per:
+                    extras.append(f"período: {per}")
+                if isinstance(refs, list) and refs:
+                    extras.append(f"reflexos: {', '.join(str(x) for x in refs)}")
+                if extras:
+                    linhas.append(f"      - {nome} — " + " — ".join(extras))
+                else:
+                    linhas.append(f"      - {nome}")
+            continue
         rotulo = ROTULOS.get(campo, campo)
         linhas.append(f"  • {rotulo}: {valor}")
 

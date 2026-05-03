@@ -1,3 +1,19 @@
+export interface ItemComparativo {
+  verba_alvo: string;
+  resumo_pedido: string;
+  resumo_defesa: string;
+  resumo_decisao: string;
+  status_final: string;
+}
+
+export interface TeseDefesa {
+  verba_alvo: string;
+  tese_principal: string;
+  trecho_fundamentacao?: string | null;
+  pagina_origem?: number | null;
+  incontroversa: boolean;
+}
+
 export interface Verba {
   nome: string;
   status_final: string;
@@ -9,6 +25,19 @@ export interface Verba {
   integracao_salarial?: boolean | null;
   reflexos: string[];
   observacoes?: string | null;
+  /** Trecho literal do dispositivo/fundamento (rastreabilidade). */
+  trecho_fundamentacao?: string | null;
+  /** Página 1-based no PDF de origem (quando disponível). */
+  pagina_origem?: number | null;
+}
+
+export interface FonteExtracao {
+  campo: string;
+  valor_resumo: string;
+  pagina_origem?: number | null;
+  trecho?: string | null;
+  origem: "ia" | "regex" | "regra" | "derivado" | string;
+  confianca?: number | null;
 }
 
 export interface ProcessoTrabalhista {
@@ -73,6 +102,15 @@ export interface ProcessoTrabalhista {
   // Verbas deferidas
   verbas_deferidas: Verba[];
 
+  /** Fluxo contestação (cache_context=contestacao). */
+  teses_defesa?: TeseDefesa[] | null;
+
+  /** Dossiê multi-peça: cruzamento pedido × defesa × decisão. */
+  quadro_comparativo?: ItemComparativo[] | null;
+
+  /** Definido pelo backend no fluxo de petição inicial (export Excel / UI). */
+  _meta_doc_type?: string | null;
+
   // Derivados
   prescricao_quinquenal?: string | null;
   divisor_horas?: string | null;
@@ -80,6 +118,10 @@ export interface ProcessoTrabalhista {
 
   // Alertas
   alertas_juridicos: string[];
+
+  /** Regras dinâmicas KB em modo shadow (observação; não são alertas de UI). */
+  shadow_logs?: Record<string, unknown>[] | null;
+  fontes_extracao?: FonteExtracao[] | null;
 }
 
 export type AlertaJuridico = string;

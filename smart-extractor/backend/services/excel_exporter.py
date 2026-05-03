@@ -124,6 +124,25 @@ def _montar_texto_parecer(dados: dict) -> str:
     return "\n\n".join(partes).strip()
 
 
+def _is_peticao_inicial(dados: dict) -> bool:
+    return (dados.get("_meta_doc_type") or "").strip().lower() == "peticao_inicial"
+
+
+def _is_contestacao(dados: dict) -> bool:
+    return (dados.get("_meta_doc_type") or "").strip().lower() == "contestacao"
+
+
+def _texto_bloco_resumo(
+    dados: dict, is_inicial: bool, is_contestacao: bool = False
+) -> str:
+    """Petição/contestação: prioriza memorial_juridico; sentença: parecer estruturado."""
+    if is_inicial or is_contestacao:
+        mem = (dados.get("memorial_juridico") or "").strip()
+        if mem:
+            return mem
+    return _montar_texto_parecer(dados)
+
+
 def exportar_excel(dados: dict, job_id: str) -> str:
     """
     Gera um .xlsx com três abas otimizadas para data entry:
@@ -135,13 +154,20 @@ def exportar_excel(dados: dict, job_id: str) -> str:
     Retorna o caminho do arquivo temporário para o FileResponse enviar o download.
     """
     dados = dados or {}
+    is_inicial = _is_peticao_inicial(dados)
+    is_contest = _is_contestacao(dados)
     wb = Workbook()
 
     # ----------------------------------------------------------------------
     # Aba 1 — Resumo e Parecer
     # ----------------------------------------------------------------------
     ws_resumo = wb.active
-    ws_resumo.title = "Resumo e Parecer"
+    if is_inicial:
+        ws_resumo.title = "Resumo (Petição inicial)"
+    elif is_contest:
+        ws_resumo.title = "Resumo (Contestação)"
+    else:
+        ws_resumo.title = "Resumo e Parecer"
 
     bold_font = Font(bold=True)
     wrap_center_top = Alignment(wrap_text=True, vertical="top", horizontal="left")
@@ -155,6 +181,8 @@ def exportar_excel(dados: dict, job_id: str) -> str:
         ("Reclamante", dados.get("reclamante") or ""),
         ("Reclamada", dados.get("reclamada") or ""),
     ]
+    if is_inicial or is_contest:
+        campos_proc.append(("Valor da causa", dados.get("valor_causa") or ""))
     row = 2
     for rotulo, valor in campos_proc:
         ws_resumo.cell(row=row, column=1, value=rotulo).font = bold_font
@@ -165,8 +193,15 @@ def exportar_excel(dados: dict, job_id: str) -> str:
     ws_resumo.cell(row=row, column=1, value="Dados do Contrato").font = bold_font
     row += 1
     salario_base_val = dados.get("salario_base")
+    salario_vazio_msg = (
+        "Não identificado na petição"
+        if is_inicial
+        else "Não identificado na contestação"
+        if is_contest
+        else "Não identificado na sentença"
+    )
     salario_base_display = (
-        "Não identificado na sentença"
+        salario_vazio_msg
         if (salario_base_val is None or salario_base_val == "")
         else _flatten_value(salario_base_val)
     )
@@ -183,10 +218,17 @@ def exportar_excel(dados: dict, job_id: str) -> str:
 
     # Espaço e bloco grande para memorial / parecer
     row += 1
-    ws_resumo.cell(row=row, column=1, value="Memorial Jurídico / Parecer Técnico").font = bold_font
+    rotulo_memorial = (
+        "Memorial / Análise de pedidos"
+        if is_inicial
+        else "Memorial / Teses de defesa"
+        if is_contest
+        else "Memorial Jurídico / Parecer Técnico"
+    )
+    ws_resumo.cell(row=row, column=1, value=rotulo_memorial).font = bold_font
     row += 1
 
-    texto_parecer = _montar_texto_parecer(dados)
+    texto_parecer = _texto_bloco_resumo(dados, is_inicial, is_contest)
     parecer_cell = ws_resumo.cell(row=row, column=1, value=texto_parecer or "")
     # Mesclar algumas colunas para um bloco grande de texto
     merge_end_col = 6
@@ -196,102 +238,166 @@ def exportar_excel(dados: dict, job_id: str) -> str:
     _auto_ajustar_colunas(ws_resumo, max_col_widths={1: 35, 2: 50})
 
     # ----------------------------------------------------------------------
-    # Aba 2 — Verbas Deferidas
+    # Aba 2 — Verbas deferidas ou pedidos da inicial
     # ----------------------------------------------------------------------
-    ws_verbas = wb.create_sheet(title="Verbas Deferidas")
+    ws_verbas = wb.create_sheet(
+        title="Teses de defesa"
+        if is_contest
+        else "Pedidos da inicial"
+        if is_inicial
+        else "Verbas Deferidas"
+    )
 
-    headers = [
-        "Nome da Verba",
-        "Status",
-        "Período",
-        "Base de Cálculo",
-        "Percentual",
-        "Qtd/Divisor",
-        "Integração Salarial",
-        "Reflexos",
-    ]
     header_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
 
-    ws_verbas.append(headers)
-    for col_idx, _ in enumerate(headers, start=1):
-        cell = ws_verbas.cell(row=1, column=col_idx)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+    if is_contest:
+        headers = [
+            "Pedido alvo",
+            "Tese principal",
+            "Trecho (fundamentação)",
+            "Incontroverso",
+            "Página",
+        ]
+        ws_verbas.append(headers)
+        for col_idx, _ in enumerate(headers, start=1):
+            cell = ws_verbas.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    verbas: List[dict] = dados.get("verbas_deferidas") or []
-    if not isinstance(verbas, list):
-        verbas = []
-    divisor_geral = dados.get("divisor_horas") or ""
+        teses: List[Any] = dados.get("teses_defesa") or []
+        if isinstance(teses, list):
+            for t in teses:
+                if not isinstance(t, dict):
+                    continue
+                inc = t.get("incontroversa")
+                inc_str = "Sim" if inc else "Não"
+                pg = t.get("pagina_origem")
+                pg_str = str(pg) if pg is not None else ""
+                ws_verbas.append(
+                    [
+                        t.get("verba_alvo") or "",
+                        t.get("tese_principal") or "",
+                        t.get("trecho_fundamentacao") or "",
+                        inc_str,
+                        pg_str,
+                    ]
+                )
+    else:
+        h_verba = "Pedido / Verba" if is_inicial else "Nome da Verba"
+        h_status = "Situação" if is_inicial else "Status"
+        h_base = "Fundamentação (trecho)" if is_inicial else "Base de Cálculo"
+        headers = [
+            h_verba,
+            h_status,
+            "Período",
+            h_base,
+            "Percentual",
+            "Qtd/Divisor",
+            "Integração Salarial",
+            "Reflexos",
+        ]
 
-    if verbas:
-        for verba in verbas:
-            if not isinstance(verba, dict):
-                continue
-            nome = verba.get("nome") or ""
-            status = verba.get("status_final") or ""
-            periodo = verba.get("periodo") or ""
-            base_calculo = verba.get("base_calculo") or ""
-            percentual = verba.get("percentual") or ""
-            quantidade = verba.get("quantidade_diaria") or ""
-            integracao = verba.get("integracao_salarial")
-            integracao_str = ""
-            if isinstance(integracao, bool):
-                integracao_str = "Sim" if integracao else "Não"
-            elif integracao is not None:
-                integracao_str = str(integracao)
+        ws_verbas.append(headers)
+        for col_idx, _ in enumerate(headers, start=1):
+            cell = ws_verbas.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
 
-            reflexos_raw = verba.get("reflexos") or []
-            if isinstance(reflexos_raw, (list, tuple)):
-                reflexos = ", ".join(str(r) for r in reflexos_raw if r is not None)
-            else:
-                reflexos = str(reflexos_raw) if reflexos_raw is not None else ""
+        verbas: List[dict] = dados.get("verbas_deferidas") or []
+        if not isinstance(verbas, list):
+            verbas = []
+        divisor_geral = dados.get("divisor_horas") or ""
 
-            qtd_divisor = ""
-            if quantidade:
-                qtd_divisor = str(quantidade)
-            elif divisor_geral:
-                qtd_divisor = str(divisor_geral)
+        if verbas:
+            for verba in verbas:
+                if not isinstance(verba, dict):
+                    continue
+                nome = verba.get("nome") or ""
+                status = verba.get("status_final") or ""
+                periodo = verba.get("periodo") or ""
+                if is_inicial:
+                    base_calculo = (
+                        verba.get("trecho_fundamentacao")
+                        or verba.get("base_calculo")
+                        or ""
+                    )
+                else:
+                    base_calculo = verba.get("base_calculo") or ""
+                percentual = verba.get("percentual") or ""
+                quantidade = verba.get("quantidade_diaria") or ""
+                integracao = verba.get("integracao_salarial")
+                integracao_str = ""
+                if isinstance(integracao, bool):
+                    integracao_str = "Sim" if integracao else "Não"
+                elif integracao is not None:
+                    integracao_str = str(integracao)
 
-            row_values = [
-                nome,
-                status,
-                periodo,
-                base_calculo,
-                str(percentual) if percentual is not None else "",
-                qtd_divisor,
-                integracao_str,
-                reflexos,
-            ]
-            ws_verbas.append(row_values)
+                reflexos_raw = verba.get("reflexos") or []
+                if isinstance(reflexos_raw, (list, tuple)):
+                    reflexos = ", ".join(
+                        str(r) for r in reflexos_raw if r is not None
+                    )
+                else:
+                    reflexos = (
+                        str(reflexos_raw) if reflexos_raw is not None else ""
+                    )
+
+                qtd_divisor = ""
+                if quantidade:
+                    qtd_divisor = str(quantidade)
+                elif divisor_geral:
+                    qtd_divisor = str(divisor_geral)
+
+                row_values = [
+                    nome,
+                    status,
+                    periodo,
+                    base_calculo,
+                    str(percentual) if percentual is not None else "",
+                    qtd_divisor,
+                    integracao_str,
+                    reflexos,
+                ]
+                ws_verbas.append(row_values)
 
     # Freeze panes após o cabeçalho
     ws_verbas.freeze_panes = "A2"
     # Auto-filtro no cabeçalho
-    ws_verbas.auto_filter.ref = f"A1:H{ws_verbas.max_row}"
+    last_col_letter = "E" if is_contest else "H"
+    ws_verbas.auto_filter.ref = f"A1:{last_col_letter}{ws_verbas.max_row}"
 
     # Wrap text para colunas de texto longo
-    for col_letter in ("C", "D", "H"):
+    wrap_cols = ("B", "C") if is_contest else ("C", "D", "H")
+    for col_letter in wrap_cols:
         for cell in ws_verbas[col_letter]:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
 
-    _auto_ajustar_colunas(
-        ws_verbas,
-        max_col_widths={
+    if is_contest:
+        max_cols = {1: 35, 2: 45, 3: 50}
+    else:
+        max_cols = {
             1: 35,  # Nome da verba
             3: 40,  # Período
             4: 45,  # Base de cálculo
             8: 50,  # Reflexos
-        },
-    )
+        }
+    _auto_ajustar_colunas(ws_verbas, max_col_widths=max_cols)
 
     # ----------------------------------------------------------------------
     # Aba 3 — Parâmetros e Alertas
     # ----------------------------------------------------------------------
     ws_params = wb.create_sheet(title="Parâmetros e Alertas")
 
-    ws_params["A1"] = "Parâmetros de Cálculo"
+    ws_params["A1"] = (
+        "Parâmetros e alertas (liquidação)"
+        if is_inicial
+        else "Parâmetros (contestação)"
+        if is_contest
+        else "Parâmetros de Cálculo"
+    )
     ws_params["A1"].font = bold_font
 
     parametros = [
@@ -333,6 +439,46 @@ def exportar_excel(dados: dict, job_id: str) -> str:
             row += 1
 
     _auto_ajustar_colunas(ws_params, max_col_widths={1: 80, 2: 80})
+
+    # ----------------------------------------------------------------------
+    # Aba opcional — Quadro comparativo (dossiê ≥3 arquivos)
+    # ----------------------------------------------------------------------
+    quadro_raw = dados.get("quadro_comparativo") or []
+    if isinstance(quadro_raw, list) and quadro_raw:
+        ws_quadro = wb.create_sheet(title="Quadro comparativo")
+        qh = [
+            "Verba / Pedido",
+            "Petição (pedido)",
+            "Contestação (defesa)",
+            "Decisão (sentença)",
+            "Status",
+        ]
+        ws_quadro.append(qh)
+        for c_idx in range(1, len(qh) + 1):
+            cell = ws_quadro.cell(row=1, column=c_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        for row_item in quadro_raw:
+            if not isinstance(row_item, dict):
+                continue
+            ws_quadro.append(
+                [
+                    str(row_item.get("verba_alvo") or ""),
+                    str(row_item.get("resumo_pedido") or ""),
+                    str(row_item.get("resumo_defesa") or ""),
+                    str(row_item.get("resumo_decisao") or ""),
+                    str(row_item.get("status_final") or ""),
+                ]
+            )
+        ws_quadro.freeze_panes = "A2"
+        for col_letter in ("B", "C", "D"):
+            for cell in ws_quadro[col_letter]:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+        _auto_ajustar_colunas(
+            ws_quadro,
+            max_col_widths={1: 28, 2: 40, 3: 40, 4: 40, 5: 22},
+        )
 
     # ----------------------------------------------------------------------
     # Persistência em arquivo temporário

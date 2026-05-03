@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -92,15 +92,15 @@ class ContextoJuridico(BaseModel):
     # ── Campos de saída (preenchidos pelas regras) ────────────────────────────
     alertas:            List[dict]     = Field(default_factory=list)
     regras_aplicadas:   List[str]      = Field(default_factory=list)
+    # Regras dinâmicas em modo shadow (por execução do motor — não usar buffer global)
+    shadow_hits:        List[Dict[str, Any]] = Field(default_factory=list)
 
     # ── Campos derivados pela ADC 58 ──────────────────────────────────────────
     correcao_pre_judicial:  Optional[str] = None
     correcao_judicial:      Optional[str] = None
     juros_judicial:         Optional[str] = None
 
-    
-        # Impede criação de campos fora do schema — protege contra typos nas regras
-       
+    # Impede criação de campos fora do schema — protege contra typos nas regras
     model_config = {"extra": "forbid"}
 
 

@@ -13,15 +13,15 @@
         "mensagem": "Incluir a verba 'Enquadramento Sindical' no cálculo da liquidação, conforme determinado na sentença."
       },
       "base_legal": "artigo 195 da CLT; art. 193 da CLT",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "0010850-56.2022.5.03.0092"
       ],
       "acertos": 2,
-      "punicoes": 2,
+      "punicoes": 4,
       "created_at": "2026-03-17T15:32:12.442944",
-      "updated_at": "2026-03-18T14:28:47.836798"
+      "updated_at": "2026-03-27T10:43:42.855085"
     },
     {
       "rule_id": "DYN_20260317_222301_5405",
@@ -183,15 +183,15 @@
         "mensagem": "A verba 'Reajustes Salariais', deferida em sentença, está ausente nos cálculos da empresa, em afronta à coisa julgada."
       },
       "base_legal": "Art. 879, §1º, CLT",
-      "confidence_score": 1,
-      "status": "shadow",
+      "confidence_score": -1,
+      "status": "deleted",
       "casos_vistos": [
         "0010850-56.2022.5.03.0092"
       ],
       "acertos": 1,
-      "punicoes": 1,
+      "punicoes": 3,
       "created_at": "2026-03-18T11:06:48.694411",
-      "updated_at": "2026-03-18T14:28:47.857993"
+      "updated_at": "2026-03-27T10:43:42.858086"
     },
     {
       "rule_id": "DYN_20260318_142847_8367",
@@ -208,15 +208,15 @@
         "mensagem": "A verba 'Horas In Itinere', expressamente deferida em sentença, não foi incluída nos cálculos da empresa, configurando descumprimento da coisa julgada."
       },
       "base_legal": "Coisa Julgada (Art. 502 CPC)",
-      "confidence_score": 3,
+      "confidence_score": 1,
       "status": "active",
       "casos_vistos": [
         "0000648-34.2019.5.12.0008"
       ],
       "acertos": 2,
-      "punicoes": 0,
+      "punicoes": 2,
       "created_at": "2026-03-18T14:28:47.836798",
-      "updated_at": "2026-03-18T14:28:47.857993"
+      "updated_at": "2026-03-27T10:43:42.860087"
     },
     {
       "rule_id": "DYN_20260318_142847_8367",
@@ -242,12 +242,220 @@
       "punicoes": 0,
       "created_at": "2026-03-18T14:28:47.836798",
       "updated_at": "2026-03-18T14:28:47.836798"
+    },
+    {
+      "rule_id": "DYN_20260327_030355_6247",
+      "descricao": "Ausência da verba Intervalo Intrajornada",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Intervalo Intrajornada"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Intervalo Intrajornada', deferida em sentença, não foi encontrada nos cálculos de liquidação."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 15,
+      "status": "active",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 14,
+      "punicoes": 0,
+      "created_at": "2026-03-27T03:03:55.624793",
+      "updated_at": "2026-03-27T10:43:42.869088"
+    },
+    {
+      "rule_id": "DYN_20260327_030355_6247",
+      "descricao": "Ausência da verba Horas Extras",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Horas Extras"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Horas Extras', deferida em sentença, não foi encontrada nos cálculos de liquidação."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-27T03:03:55.624793",
+      "updated_at": "2026-03-27T03:03:55.624793"
+    },
+    {
+      "rule_id": "DYN_20260327_030355_6247",
+      "descricao": "Ausência da verba Pernoite e Alimentação (Jantar)",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Pernoite e Alimentação (Jantar)"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Pernoite e Alimentação (Jantar)', deferida em sentença, não foi encontrada nos cálculos de liquidação."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-27T03:03:55.624793",
+      "updated_at": "2026-03-27T03:03:55.624793"
+    },
+    {
+      "rule_id": "DYN_20260327_030355_6247",
+      "descricao": "Ausência da verba PLR",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "PLR"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'PLR', deferida em sentença, não foi encontrada nos cálculos de liquidação."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-27T03:03:55.624793",
+      "updated_at": "2026-03-27T03:03:55.624793"
+    },
+    {
+      "rule_id": "DYN_20260327_030355_6247",
+      "descricao": "Ausência da verba Multa Normativa",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Multa Normativa"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Multa Normativa', deferida em sentença, não foi encontrada nos cálculos de liquidação."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-03-27T03:03:55.624793",
+      "updated_at": "2026-03-27T03:03:55.624793"
+    },
+    {
+      "rule_id": "DYN_20260327_104342_8500",
+      "descricao": "Inclusão da verba Indenização por Danos Morais",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Indenização por Danos Morais"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Indenização por Danos Morais' está ausente no cálculo de liquidação. Verificar determinação judicial e incluir no cálculo."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 2,
+      "status": "shadow",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097"
+      ],
+      "acertos": 1,
+      "punicoes": 0,
+      "created_at": "2026-03-27T10:43:42.850084",
+      "updated_at": "2026-03-27T10:43:42.872089"
+    },
+    {
+      "rule_id": "DYN_20260327_104342_8520",
+      "descricao": "Inclusão da verba Honorários Advocatícios Sucumbenciais",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Honorários Advocatícios Sucumbenciais"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Honorários Advocatícios Sucumbenciais' está ausente no cálculo de liquidação. Verificar determinação judicial e incluir no cálculo."
+      },
+      "base_legal": "Súmula Nº 47 do TST; Súmula Nº 289 do TST; artigo 195 da CLT",
+      "confidence_score": 3,
+      "status": "active",
+      "casos_vistos": [
+        "0010032-85.2024.5.15.0097",
+        "0011264-73.2024.5.15.0052"
+      ],
+      "acertos": 2,
+      "punicoes": 0,
+      "created_at": "2026-03-27T10:43:42.852085",
+      "updated_at": "2026-04-03T10:13:42.491245"
+    },
+    {
+      "rule_id": "DYN_20260403_101342_4726",
+      "descricao": "Ausência da verba Aviso Prévio Trabalhado",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "Aviso Prévio Trabalhado"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'Aviso Prévio Trabalhado', deferida em sentença, não foi localizada no cálculo de liquidação."
+      },
+      "base_legal": "Art. 487 da CLT",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0011264-73.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-04-03T10:13:42.472663",
+      "updated_at": "2026-04-03T10:13:42.472663"
+    },
+    {
+      "rule_id": "DYN_20260403_101342_4902",
+      "descricao": "Ausência da verba DSR",
+      "condicao": {
+        "tipo": "verba_ausente",
+        "verba": "DSR"
+      },
+      "acao": {
+        "tipo": "alerta",
+        "nivel": "ERRO",
+        "mensagem": "A verba 'DSR' (Descanso Semanal Remunerado), deferida em sentença, não foi localizada no cálculo de liquidação."
+      },
+      "base_legal": "Lei nº 605/49",
+      "confidence_score": 1,
+      "status": "shadow",
+      "casos_vistos": [
+        "0011264-73.2024.5.15.0052"
+      ],
+      "acertos": 0,
+      "punicoes": 0,
+      "created_at": "2026-04-03T10:13:42.490280",
+      "updated_at": "2026-04-03T10:13:42.490280"
     }
   ],
   "_meta": {
     "version": "1.0",
     "tenant_id": "usuario_teste",
     "last_updated": "2026-03-17T15:32:12.442944",
-    "updated_at": "2026-03-18T14:28:47.857993"
+    "updated_at": "2026-04-03T10:13:42.491245"
   }
 }
