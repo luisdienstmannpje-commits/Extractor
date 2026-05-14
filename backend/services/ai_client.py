@@ -145,14 +145,23 @@ REGRAS OBRIGATÓRIAS:
 - status_final de cada verba: use "deferida" para sentença de 1ª instância, "mantida"/"reformada"/"excluída"/"acrescida" para acórdão/embargos — NUNCA deixar null ou "não informado"
 
 INSTRUÇÕES ESPECÍFICAS PARA CAMPOS DIFÍCEIS:
+- reclamante: é SEMPRE o trabalhador (autor da ação original). Em acórdão, não confunda com quem recorreu — o recorrente pode ser a reclamada. Buscar no Relatório a frase que identifica as partes: "entre [NOME], reclamante, e [NOME], reclamada".
+- reclamada: se houver litisconsórcio passivo (múltiplas empresas rés), liste TODAS separadas por " + ". Percorra o cabeçalho e o relatório inteiro — não pare na primeira empresa encontrada.
 - jornada_contratual: buscar "jornada de X horas", "44h semanais", "horário de X às X" e calcular horas semanais. Se encontrar horário mas não jornada explícita, calcule: (saída - entrada - intervalo) × dias da semana
 - fgts_periodo_completo: montar como "Todo o período contratual — [data_admissao] a [data_demissao]" usando as datas do próprio documento
-- base_calculo de cada verba: buscar explicitamente o que compõe a base — "calculado sobre o salário base", "sobre a remuneração", "incidindo sobre"
-- reflexos de cada verba: buscar frases "com reflexos em", "repercussão em", "integrando o salário para fins de". Listar apenas os explícitos
 - fgts_sobre_aviso_previo / fgts_multa_40_aviso_previo / fgts_sobre_ferias_indenizadas: extrair do texto — se não mencionado, retornar null (não copiar regra padrão)
 - salario_base: priorizar o valor RECONHECIDO PELO JUIZ, não o alegado pelas partes
 - data_sentenca: priorizar "Assinado eletronicamente em DD/MM/AAAA" — se não houver, buscar "Cidade, DD de mês de AAAA" ao final
 - aviso_previo_dias: se aplicada a Lei 12.506/2011, registrar total + composição (ex: "42 dias — 30 + 12 pela Lei 12.506/2011")
+- advogado_reclamante / advogado_reclamada: são pessoas DIFERENTES. advogado_reclamante defende o TRABALHADOR (autor); advogado_reclamada defende a EMPRESA (ré). No cabeçalho, procurar "Adv. do Reclamante:", "Adv. da Reclamada:", "Dr./Dra. [NOME] (OAB/XX NNNNN)" com indicação de parte. Se não houver indicação explícita da parte, não preencher — retornar null.
+
+REGRAS CRÍTICAS PARA verbas_deferidas — leia com atenção antes de preencher o array:
+- COMPLETUDE: percorra o dispositivo linha a linha. Extraia TODAS as verbas condenadas — nenhuma omissão. Se o dispositivo condena em 10 verbas, o array deve ter 10 itens.
+- status_final: em sentença de 1ª instância, use "deferida" para TODAS as verbas — nunca null, nunca "não informado".
+- valor_fixado: valores individuais por verba raramente constam na sentença (apenas o total geral aparece). Retorne null se não encontrar valor explícito para a verba — NUNCA calcule, estime ou prorrateie.
+- base_calculo: retorne null se o texto não menciona explicitamente a base desta verba — NUNCA invente com base em conhecimento geral (ex: "salário base" é invenção se o juiz não disse isso).
+- reflexos: liste APENAS os reflexos expressamente mencionados no texto para esta verba. Se o texto não contém "com reflexos em", "repercussão em" ou equivalente para esta verba, retorne [] (lista vazia) — nunca presuma reflexos pela natureza da verba.
+- integracao_salarial: true APENAS se o juiz afirmar integração; false APENAS se o juiz negar; null se não mencionado explicitamente.
 
 ESTRUTURA ESPERADA (retorne exatamente estas chaves, com null para não encontrados):
 {{
@@ -163,6 +172,7 @@ ESTRUTURA ESPERADA (retorne exatamente estas chaves, com null para não encontra
   "tipo_rito": null,
   "funcao_reclamante": null,
   "advogado_reclamante": null,
+  "advogado_reclamada": null,
   "juiz_responsavel": null,
 
   "data_sentenca": null,
@@ -347,16 +357,18 @@ def extract_data_with_gemini(
     if not text or not text.strip():
         return {"data": None, "model_used": None, "error": "Texto vazio"}
 
-    # Monta seção de âncoras a partir dos medium confidence fields
+    # Monta contexto pré-extraído: HIGH (confirma) + MEDIUM (âncoras)
     anchor_section = ""
-    if pre_fields and pre_fields.get("medium"):
-        from services.pre_extractor import build_anchor_section
-        anchor_section = build_anchor_section(pre_fields["medium"])
+    if pre_fields and (pre_fields.get("high") or pre_fields.get("medium")):
+        from services.pre_extractor import build_prompt_context
+        anchor_section = build_prompt_context(pre_fields)
 
+    n_high   = len(pre_fields.get("high", {}))   if pre_fields else 0
+    n_medium = len(pre_fields.get("medium", {})) if pre_fields else 0
     print(
         f"[AI] Iniciando extração | Texto: {len(text)} chars "
         f"| Playbook: {len(playbook)} chars "
-        f"| Âncoras: {len(pre_fields.get('medium', {})) if pre_fields else 0} campos",
+        f"| HIGH: {n_high} campos | MEDIUM: {n_medium} campos",
         flush=True,
     )
 

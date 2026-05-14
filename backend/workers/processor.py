@@ -5,6 +5,7 @@ import re
 from datetime import datetime, date, timedelta
 from services.sentence_finder import extract_sentence_from_pdf
 from services.ai_client import extract_data_with_gemini
+from services.pre_extractor import pre_extract
 from services.text_processor import find_section_hybrid
 from services.database import save_extraction, get_cache, save_cache, get_user_credits, deduct_credit
 from services.legal_validator import validar_dados
@@ -59,6 +60,7 @@ CAMPOS_TEXTO = [
     "data_sentenca",
     "data_ajuizamento",
     "advogado_reclamante",
+    "advogado_reclamada",
     "juiz_responsavel",
     # Contrato
     "data_admissao",
@@ -91,6 +93,12 @@ CAMPOS_TEXTO = [
     "fgts_sobre_ferias_indenizadas",
     "fgts_periodo_completo",
     "fgts_observacoes",
+    # Campos calculados no pós-processamento — incluídos aqui para que valores
+    # eventualmente retornados pela IA sejam preservados e o guarda
+    # `if not cleaned.get(campo)` funcione corretamente.
+    "prescricao_quinquenal",
+    "divisor_horas",
+    "evolucao_salarial",
 ]
 
 # Campos de texto simples de cada VerbaDeferida
@@ -197,9 +205,11 @@ def _validate_result(data: dict) -> dict:
         if not v.get("nome"):
             v["nome"] = "Verba não identificada"
 
-        # status_final tem valor padrão
+        # status_final — "deferida" é o estado correto para sentença de 1ª instância.
+        # "não informado" estava no set SUSPICIOUS, criando um ciclo: IA retorna null →
+        # _clean_str → None → aqui voltava para "não informado". Corrigido para "deferida".
         if not v.get("status_final"):
-            v["status_final"] = "não informado"
+            v["status_final"] = "deferida"
 
         # integracao_salarial: booleano ou null
         integ = verba.get("integracao_salarial")
@@ -313,6 +323,20 @@ def _validate_result(data: dict) -> dict:
         if salario:
             cleaned["evolucao_salarial"] = f"Salário fixo reconhecido: {salario}"
 
+    # 6. data_saida_ctps — projeta aviso prévio sobre data_demissao (OJ 82 SDI-I TST)
+    if not cleaned.get("data_saida_ctps") and cleaned.get("data_demissao") and cleaned.get("aviso_previo_dias"):
+        try:
+            d, m_n, y = cleaned["data_demissao"].split("/")
+            demissao = date(int(y), int(m_n), int(d))
+            m_dias = re.search(r"\b(\d+)\s*dias?", cleaned["aviso_previo_dias"])
+            if m_dias:
+                dias = int(m_dias.group(1))
+                saida_ctps = demissao + timedelta(days=dias)
+                cleaned["data_saida_ctps"] = saida_ctps.strftime("%d/%m/%Y")
+                print(f"[POSTP] data_saida_ctps calculada: {cleaned['data_saida_ctps']}", flush=True)
+        except Exception:
+            pass
+
     return cleaned
 
 
@@ -344,9 +368,160 @@ def _qualidade_ok(dados: dict) -> tuple[bool, str]:
     return True, "ok"
 
 
-def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> dict:
+# Mapa doc_type → arquivo de playbook (constante de módulo — não recriar a cada chamada)
+_PLAYBOOK_MAP = {
+    "sentenca":   "sentenca_ordinaria.md",
+    "acordao":    "acordao.md",
+    "liquidacao": "calculo_liquidacao.md",
+    "embargos":   "embargos_declaracao.md",
+    "despacho":   "despacho_execucao.md",
+    "completo":   "sentenca_ordinaria.md",
+}
+
+
+def _check_cache(pdf_hash: str) -> dict | None:
+    """Retorna dados do cache se existirem e tiverem qualidade mínima; None caso contrário."""
+    cached = get_cache(pdf_hash)
+    if not cached:
+        return None
+    ok, motivo = _qualidade_ok(cached)
+    if ok:
+        print("[PROCESSOR] Cache hit! (qualidade ok)", flush=True)
+        return cached
+    print(f"[PROCESSOR] Cache descartado — qualidade insuficiente: {motivo}", flush=True)
+    return None
+
+
+def _load_playbook(doc_type: str, texto: str) -> str:
+    """Carrega o playbook para o tipo de documento; anexa filtro_dispositivo.md se necessário."""
+    playbook = _load_skill(_PLAYBOOK_MAP.get(doc_type, "sentenca_ordinaria.md"))
+    if find_section_hybrid(texto, "dispositivo") < 0:
+        print("[SKILL] Dispositivo não encontrado — carregando filtro_dispositivo.md", flush=True)
+        playbook += "\n\n" + _load_skill("filtro_dispositivo.md")
+    return playbook
+
+
+def _apply_ai_result(ai_data: dict, pre_fields: dict) -> tuple[dict, list]:
+    """Valida saída da IA, aplica HIGH fields e deduplica verbas.
+
+    Returns:
+        (dados_limpos, avisos_dedup)
     """
-    Pipeline completo de extração.
+    dados_limpos = _validate_result(ai_data)
+
+    # HIGH fields sobrescrevem resultado da IA (≥99% precisão, zero tokens)
+    for campo, valor in pre_fields.get("high", {}).items():
+        dados_limpos[campo] = valor
+
+    # Deduplicação de verbas — S11 (zero tokens — Python puro)
+    if dados_limpos.get("verbas_deferidas"):
+        verbas_dedup, avisos_dedup = deduplicar_verbas(dados_limpos["verbas_deferidas"])
+        dados_limpos["verbas_deferidas"] = verbas_dedup
+        if avisos_dedup:
+            print(f"[DEDUP] {len(avisos_dedup)} duplicata(s) removida(s)", flush=True)
+    else:
+        avisos_dedup = []
+
+    return dados_limpos, avisos_dedup
+
+
+def _run_legal_analysis(dados_finais: dict) -> tuple[list, list, list, list, list]:
+    """Executa as 3 camadas de validação jurídica + explanation engine.
+
+    Returns:
+        (alertas_validator, alertas_engine, regras_aplicadas, memorial_juridico, explicacoes)
+    """
+    # Camada 1: legal_validator (reflexos e consistência de campos)
+    alertas_validator = validar_dados(dados_finais)
+
+    # Camada 2: LegalRuleEngine estático (31 regras)
+    resultado_engine  = _RULE_ENGINE.executar(dados_finais)
+    alertas_engine    = resultado_engine["alertas"]
+    regras_aplicadas  = resultado_engine["regras_aplicadas"]
+    memorial_juridico = resultado_engine["memorial_juridico"]
+
+    # Camada 3: Self-Healing — regras dinâmicas ativas (Knowledge Base, confidence >= 3)
+    try:
+        regras_dinamicas = carregar_regras_ativas()
+        if regras_dinamicas:
+            res_dyn = LegalRuleEngine(regras_dinamicas).executar(dados_finais)
+            alertas_engine   = alertas_engine   + res_dyn.get("alertas", [])
+            regras_aplicadas = regras_aplicadas + res_dyn.get("regras_aplicadas", [])
+    except Exception as _e_dyn:
+        print(f"[PROCESSOR] Aviso: erro nas regras dinâmicas (não crítico): {_e_dyn}", flush=True)
+
+    # Explanation Engine: texto jurídico por verba (sem LLM)
+    explicacoes = gerar_explicacoes(
+        verbas=dados_finais.get("verbas_deferidas", []),
+        memorial_juridico=memorial_juridico,
+    )
+
+    return alertas_validator, alertas_engine, regras_aplicadas, memorial_juridico, explicacoes
+
+
+def _build_parecer(dados_finais: dict) -> dict:
+    """Gera o parecer técnico completo (seções I, II e texto integrado).
+
+    Returns dict com campos parecer_* para injetar em dados_finais.
+    """
+    result = {}
+
+    # Seção I: PARCELAS APURADAS (intro + itens)
+    secao_i = gerar_parecer_parcelas_apuradas(
+        dados_finais.get("verbas_deferidas", []),
+        dados_finais,
+    )
+    result["parecer_intro_parcelas"]    = secao_i.get("intro", "")
+    result["parecer_parcelas_apuradas"] = secao_i.get("itens", [])
+
+    # Seção II: CRITÉRIOS UTILIZADOS (textos fixos — INSS e IRRF)
+    criterios = obter_textos_padrao_criterios_parecer()
+    result["parecer_criterios_inss"] = criterios.get("inss", "")
+    result["parecer_criterios_irrf"] = criterios.get("irrf", "")
+
+    # Parecer completo: template fixo + slot da IA (Padrão Ouro)
+    try:
+        parecer_completo = gerar_parecer_tecnico_completo(
+            dados_finais,
+            dados_finais.get("verbas_deferidas", []),
+        )
+        result["parecer_texto"]       = parecer_completo.get("texto", "")
+        result["parecer_parcelas_ia"] = parecer_completo.get("parcelas", "")
+        result["parecer_model_used"]  = parecer_completo.get("model_used")
+        if parecer_completo.get("error"):
+            print(f"[PARECER] Aviso: IA retornou erro ao gerar parcelas — {parecer_completo['error']}", flush=True)
+    except Exception as _e_parecer:
+        result["parecer_texto"]       = ""
+        result["parecer_parcelas_ia"] = ""
+        result["parecer_model_used"]  = None
+        print(f"[PARECER] Erro ao gerar parecer completo (não crítico): {_e_parecer}", flush=True)
+
+    return result
+
+
+def _persist_result(
+    user_id: str, pdf_hash: str, doc_type: str, dados_finais: dict
+) -> tuple[str, bool, str]:
+    """Cacheia, salva no banco e desconta crédito se qualidade mínima atingida.
+
+    Returns:
+        (doc_id, qualidade_ok, qualidade_motivo)
+    """
+    ok, motivo = _qualidade_ok(dados_finais)
+    if ok:
+        dados_finais["_meta_doc_type"] = doc_type
+        save_cache(pdf_hash, dados_finais)
+        doc_id = save_extraction(user_id, dados_finais)
+        deduct_credit(user_id)
+        print("[PROCESSOR] Resultado salvo (qualidade ok)", flush=True)
+    else:
+        doc_id = save_extraction(user_id, dados_finais)
+        print(f"[PROCESSOR] Qualidade insuficiente — NÃO cacheado: {motivo}", flush=True)
+    return str(doc_id), ok, motivo
+
+
+def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> dict:
+    """Pipeline completo de extração (10 steps).
 
     Parâmetros
     ----------
@@ -358,165 +533,68 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     print(f"[PROCESSOR] user={user_id}", flush=True)
 
     # 1. Freemium — verifica créditos
-    credits = get_user_credits(user_id)
-    if credits <= 0:
+    if get_user_credits(user_id) <= 0:
         return {"status": "erro", "msg": "Saldo esgotado. Adquira mais créditos."}
 
-    # 2. Cache — só usa se tiver qualidade mínima
+    # 2. Cache hit
     pdf_hash = _hash_pdf(file_bytes)
-    cached = get_cache(pdf_hash)
+    cached = _check_cache(pdf_hash)
     if cached:
-        ok, motivo = _qualidade_ok(cached)
-        if ok:
-            print("[PROCESSOR] Cache hit! (qualidade ok)", flush=True)
-            cached_doc_type = cached.get("_meta_doc_type", "sentenca")
-            return {
-                "status": "sucesso",
-                "source": "cache",
-                "doc_type": cached_doc_type,
-                "data": cached,
-            }
-        else:
-            print(f"[PROCESSOR] Cache descartado — qualidade insuficiente: {motivo}", flush=True)
+        return {
+            "status": "sucesso",
+            "source": "cache",
+            "doc_type": cached.get("_meta_doc_type", "sentenca"),
+            "data": cached,
+        }
 
     # 3. Extração inteligente — detecta e recorta sentença/acórdão
     texto, doc_type = extract_sentence_from_pdf(file_bytes)
     if not texto.strip():
         return {"status": "erro", "msg": "PDF sem texto legível"}
-
     print(f"[PROCESSOR] Tipo detectado: {doc_type} | Chars extraídos: {len(texto)}", flush=True)
 
-    # 4. Carrega o playbook correto para o tipo de documento
-    _PLAYBOOK_MAP = {
-        "sentenca":   "sentenca_ordinaria.md",
-        "acordao":    "acordao.md",
-        "liquidacao": "calculo_liquidacao.md",
-        "embargos":   "embargos_declaracao.md",
-        "despacho":   "despacho_execucao.md",
-        "completo":   "sentenca_ordinaria.md",
-    }
-    skill_file = _PLAYBOOK_MAP.get(doc_type, "sentenca_ordinaria.md")
-    playbook = _load_skill(skill_file)
+    # 4. Playbook + fallback se dispositivo ausente
+    playbook = _load_playbook(doc_type, texto)
 
-    # Se dispositivo não encontrado, carrega skill extra
-    dispositivo_pos = find_section_hybrid(texto, "dispositivo")
-    if dispositivo_pos < 0:
-        print("[SKILL] Dispositivo não encontrado — carregando filtro_dispositivo.md", flush=True)
-        playbook += "\n\n" + _load_skill("filtro_dispositivo.md")
-
-    # 5. IA com cascata + playbook
-    ai_result = extract_data_with_gemini(texto, playbook=playbook)
+    # 5. Extração regex pré-IA + chamada à IA
+    pre_fields = pre_extract(texto)
+    ai_result  = extract_data_with_gemini(texto, playbook=playbook, pre_fields=pre_fields)
     if ai_result["error"]:
         return {"status": "erro", "msg": ai_result["error"]}
 
-    # 6. Validação pós-IA
-    dados_limpos = _validate_result(ai_result["data"])
-
-    # 6b. Deduplicação de verbas — S11 (zero tokens — Python puro)
-    if dados_limpos.get("verbas_deferidas"):
-        verbas_dedup, avisos_dedup = deduplicar_verbas(dados_limpos["verbas_deferidas"])
-        dados_limpos["verbas_deferidas"] = verbas_dedup
-        if avisos_dedup:
-            print(f"[DEDUP] {len(avisos_dedup)} duplicata(s) removida(s)", flush=True)
-    else:
-        avisos_dedup = []
+    # 6. Validação + HIGH override + deduplicação de verbas
+    dados_limpos, avisos_dedup = _apply_ai_result(ai_result["data"], pre_fields)
 
     # 7. Validação Pydantic
     try:
-        processo = ProcessoTrabalhista(**dados_limpos)
-        dados_finais = processo.model_dump()
+        dados_finais = ProcessoTrabalhista(**dados_limpos).model_dump()
     except Exception as e:
         return {"status": "erro", "msg": f"Dados inválidos da IA: {e}"}
 
-    # 8. Validação jurídica — duas camadas, zero tokens
-    # 8a. legal_validator: alertas de reflexos e consistência de campos
-    alertas_validator = validar_dados(dados_finais)
+    # 8. Validação jurídica (3 camadas) + explanation engine
+    alertas_validator, alertas_engine, regras_aplicadas, memorial_juridico, explicacoes = \
+        _run_legal_analysis(dados_finais)
 
-    # 8b. LegalRuleEngine: aplica as regras jurídicas estáticas (20 fixas)
-    resultado_engine  = _RULE_ENGINE.executar(dados_finais)
-    alertas_engine    = resultado_engine["alertas"]            # list[str]
-    regras_aplicadas  = resultado_engine["regras_aplicadas"]   # list[str] — IDs
-    memorial_juridico = resultado_engine["memorial_juridico"]  # list[dict]
-
-    # 8b+. Self-Healing: injeta regras dinâmicas ATIVAS (Knowledge Base)
-    # Apenas as regras com confidence_score >= 3 (status "active") geram alertas reais.
-    try:
-        regras_dinamicas = carregar_regras_ativas()
-        if regras_dinamicas:
-            engine_dyn = LegalRuleEngine(regras_dinamicas)
-            res_dyn = engine_dyn.executar(dados_finais)
-            alertas_engine  = alertas_engine + res_dyn.get("alertas", [])
-            regras_aplicadas = regras_aplicadas + res_dyn.get("regras_aplicadas", [])
-    except Exception as _e_dyn:
-        print(f"[PROCESSOR] Aviso: erro nas regras dinâmicas (não crítico): {_e_dyn}", flush=True)
-
-    # 8c. Explanation Engine: texto jurídico por verba (sem LLM)
-    explicacoes = gerar_explicacoes(
-        verbas=dados_finais.get("verbas_deferidas", []),
-        memorial_juridico=memorial_juridico,
-    )
-
-    # Mescla todos os alertas — validator + engine + dinâmicas + dedup (sem duplicatas textuais)
     dados_finais["alertas_juridicos"] = _dedup_alertas(alertas_validator, alertas_engine, avisos_dedup)
     dados_finais["regras_aplicadas"]  = regras_aplicadas
     dados_finais["memorial_juridico"] = memorial_juridico
     dados_finais["explicacoes"]       = explicacoes
 
-    # Parecer técnico — I. PARCELAS APURADAS (modelo perita: intro + itens com titulo/texto)
-    parecer_secao_i = gerar_parecer_parcelas_apuradas(
-        dados_finais.get("verbas_deferidas", []),
-        dados_finais,
-    )
-    dados_finais["parecer_intro_parcelas"] = parecer_secao_i.get("intro", "")
-    dados_finais["parecer_parcelas_apuradas"] = parecer_secao_i.get("itens", [])
-    # Textos padrão da seção II. CRITÉRIOS UTILIZADOS (INSS e IRRF — redação oficial dos peritos)
-    criterios_padrao = obter_textos_padrao_criterios_parecer()
-    dados_finais["parecer_criterios_inss"] = criterios_padrao.get("inss", "")
-    dados_finais["parecer_criterios_irrf"] = criterios_padrao.get("irrf", "")
+    # 8d. Parecer técnico (seções I, II e texto integrado)
+    dados_finais.update(_build_parecer(dados_finais))
 
-    # Parecer técnico completo — template fixo + slot gerado pela IA no Padrão Ouro
-    # Gera o texto final contínuo: cabeçalho + I. PARCELAS (IA) + II. CRITÉRIOS (fixo)
-    # Armazenado em parecer_texto para uso no Excel/Word sem necessidade de montagem.
-    try:
-        parecer_completo = gerar_parecer_tecnico_completo(
-            dados_finais,
-            dados_finais.get("verbas_deferidas", []),
-        )
-        dados_finais["parecer_texto"]              = parecer_completo.get("texto", "")
-        dados_finais["parecer_parcelas_ia"]        = parecer_completo.get("parcelas", "")
-        dados_finais["parecer_model_used"]         = parecer_completo.get("model_used")
-        if parecer_completo.get("error"):
-            print(f"[PARECER] Aviso: IA retornou erro ao gerar parcelas — {parecer_completo['error']}", flush=True)
-    except Exception as _e_parecer:
-        dados_finais["parecer_texto"]       = ""
-        dados_finais["parecer_parcelas_ia"] = ""
-        dados_finais["parecer_model_used"]  = None
-        print(f"[PARECER] Erro ao gerar parecer completo (não crítico): {_e_parecer}", flush=True)
-
-    # 8d. Shadow Mode: executa regras shadow silenciosamente (métricas internas, sem output)
-    # Não polui os alertas do usuário — usado apenas para coletar acertos/erros das hipóteses.
+    # 8e. Shadow Mode — métricas internas, não polui output do usuário
     try:
         executar_shadow_pipeline(dados_finais)
     except Exception as _e_shadow:
         print(f"[SHADOW] Aviso: erro no shadow pipeline (não crítico): {_e_shadow}", flush=True)
 
-    # 9. Só cacheia e desconta crédito se qualidade mínima atingida
-    ok, motivo = _qualidade_ok(dados_finais)
-    if ok:
-        dados_finais["_meta_doc_type"] = doc_type
-        save_cache(pdf_hash, dados_finais)
-        doc_id = save_extraction(user_id, dados_finais)
-        deduct_credit(user_id)
-        print(f"[PROCESSOR] Resultado salvo (qualidade ok)", flush=True)
-    else:
-        doc_id = save_extraction(user_id, dados_finais)
-        print(f"[PROCESSOR] Qualidade insuficiente — NÃO cacheado: {motivo}", flush=True)
+    # 9. Persistência (cache + banco + crédito)
+    doc_id, ok, motivo = _persist_result(user_id, pdf_hash, doc_type, dados_finais)
 
-    # 10. Memória de cálculo — M1 (trilha de auditoria por extração)
-    # Gerada apenas para extrações novas via IA — cache hits não reprocessam o pipeline.
-    # job_id vindo do main.py tem precedência; fallback para doc_id do banco.
+    # 10. Memória de cálculo — M1 (job_id do main.py tem precedência; fallback: doc_id)
     gerar_memoria(
-        job_id=job_id or str(doc_id),
+        job_id=job_id or doc_id,
         dados=dados_finais,
         model_used=ai_result["model_used"],
         doc_type=doc_type,
@@ -534,10 +612,10 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         "doc_id": doc_id,
         "data": dados_finais,
         "raiox": raiox,
-        "alertas_juridicos":  dados_finais["alertas_juridicos"],
-        "regras_aplicadas":   regras_aplicadas,
-        "memorial_juridico":  memorial_juridico,
-        "explicacoes":        explicacoes,
-        "qualidade_ok":       ok,
-        "qualidade_motivo":   motivo if not ok else None,
+        "alertas_juridicos": dados_finais["alertas_juridicos"],
+        "regras_aplicadas":  regras_aplicadas,
+        "memorial_juridico": memorial_juridico,
+        "explicacoes":       explicacoes,
+        "qualidade_ok":      ok,
+        "qualidade_motivo":  motivo if not ok else None,
     }

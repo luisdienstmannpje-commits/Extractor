@@ -31,3 +31,10 @@ known-first-party = ["services", "workers", "memoria_calculo"]
 [tool.ruff.format]
 quote-style = "double"
 skip-magic-trailing-comma = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "integration: requer GEMINI_API_KEY e PDFs reais (desative com -m 'not integration')",
+]

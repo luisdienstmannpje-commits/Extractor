@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "pdf_nome": "processo_001.pdf",
+    "doc_type": "sentenca",
+    "validado_por": "PENDENTE — substituir por PDF real validado pela perita",
+    "data_validacao": null,
+    "observacoes": "Exemplo de estrutura. Substituir por dados reais após colocar o PDF em fixtures/pdfs/"
+  },
+  "numero_processo": "0001234-56.2023.5.04.0001",
+  "reclamante": "Nome Anonimizado",
+  "reclamada": "Empresa XYZ Ltda",
+  "vara_trabalho": "1ª Vara do Trabalho de Porto Alegre",
+  "tipo_rito": "Ordinário",
+  "data_sentenca": "10/03/2024",
+  "data_ajuizamento": "15/07/2023",
+  "data_admissao": "15/01/2020",
+  "data_demissao": "30/06/2023",
+  "salario_base": "R$ 3.500,00",
+  "motivo_rescisao": "Sem justa causa",
+  "indice_correcao": "IPCA-E (pré-ajuizamento) / SELIC (pós-ajuizamento) — ADC 58/STF",
+  "juros_mora": "SELIC",
+  "justica_gratuita": true,
+  "aviso_previo_dias": "30 dias",
+  "verbas_deferidas": [
+    {"nome": "Horas Extras", "status_final": "deferida"},
+    {"nome": "Férias Proporcionais + 1/3", "status_final": "deferida"},
+    {"nome": "13º Salário Proporcional", "status_final": "deferida"},
+    {"nome": "Aviso Prévio Indenizado", "status_final": "deferida"},
+    {"nome": "FGTS + Multa de 40%", "status_final": "deferida"}
+  ]
+}

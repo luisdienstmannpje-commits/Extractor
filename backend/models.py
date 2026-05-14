@@ -5,7 +5,7 @@ from typing import List, Optional
 # database.py usa esta constante para invalidar entradas de cache com schema antigo.
 # Histórico: 2.3 (base), 2.4 (fgts_observacoes no ContextoJuridico + schema_version),
 #            2.5 (campos de dedução/autorização financeira)
-SCHEMA_VERSION = "2.5"
+SCHEMA_VERSION = "2.6"
 
 
 class VerbaDeferida(BaseModel):
@@ -30,6 +30,7 @@ class ProcessoTrabalhista(BaseModel):
     tipo_rito: Optional[str] = Field(None, description="Rito processual (ex: Ordinário, Sumaríssimo)")
     funcao_reclamante: Optional[str] = Field(None, description="Cargo ou função exercida (ex: Auxiliar de Produção, Motorista)")
     advogado_reclamante: Optional[str] = Field(None, description="Nome do advogado do reclamante")
+    advogado_reclamada: Optional[str] = Field(None, description="Nome do advogado da reclamada (empresa ré)")
     juiz_responsavel: Optional[str] = Field(None, description="Nome do juiz ou desembargador que assinou a sentença/acórdão")
 
     # ── Datas Cruciais ─────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ class ProcessoTrabalhista(BaseModel):
     data_admissao: Optional[str] = Field(None, description="Data de admissão")
     data_demissao: Optional[str] = Field(None, description="Data de demissão")
     motivo_rescisao: Optional[str] = Field(None, description="Tipo de rescisão (ex: Sem justa causa, Pedido de demissão, Rescisão indireta)")
-    tipo_contrato: Optional[str] = Field(None, description="Natureza jurídica reconhecida (ex: CLT, Pejotização reconhecida, Autônomo)")
+    tipo_contrato: Optional[str] = Field(None, description="Tipo de contrato (ex: CLT, Prazo determinado, Experiência, Pejotização reconhecida, Autônomo)")
 
     # ── Parâmetros Financeiros ─────────────────────────────────────────────────
     salario_base: Optional[str] = Field(None, description="Último salário ou salário base reconhecido pelo juiz")
@@ -124,7 +125,7 @@ class ProcessoTrabalhista(BaseModel):
     @field_validator(
         # Identificação
         "numero_processo", "vara_trabalho", "reclamante", "reclamada",
-        "tipo_rito", "funcao_reclamante", "advogado_reclamante", "juiz_responsavel",
+        "tipo_rito", "funcao_reclamante", "advogado_reclamante", "advogado_reclamada", "juiz_responsavel",
         # Datas e contrato
         "data_sentenca", "data_ajuizamento", "data_admissao", "data_demissao",
         "motivo_rescisao", "tipo_contrato",

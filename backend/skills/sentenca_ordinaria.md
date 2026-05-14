@@ -17,11 +17,13 @@ Palavras-chave que identificam este tipo: "sentença", "juiz(a) do trabalho",
 ### Identificação do processo (Relatório)
 - `numero_processo`: formato CNJ (ex: 0001234-56.2023.5.03.0001)
 - `vara_trabalho`: nome completo da vara (ex: "2ª Vara do Trabalho de Belo Horizonte")
-- `reclamante`: nome completo do trabalhador (autor)
-- `reclamada`: nome completo da empresa (ré) — incluir CNPJ se mencionado
+- `reclamante`: nome completo do trabalhador (autor da ação). Buscar: "entre as partes [NOME], reclamante, e [NOME], reclamada"; "proposta por [NOME] em face de [NOME]"; cabeçalho do processo.
+- `reclamada`: nome completo da empresa (ré) — incluir CNPJ se mencionado.
+  Se houver **litisconsórcio passivo** (múltiplas empresas rés), listar TODAS separadas por " + " (ex: "Empresa A Ltda + Empresa B S.A. + Empresa C"). Não omitir nenhuma reclamada mencionada no cabeçalho ou no relatório.
 - `tipo_rito`: buscar "rito ordinário", "rito sumaríssimo" ou "procedimento sumaríssimo"
 - `funcao_reclamante`: cargo ou função exercida, buscar "exercia a função de", "contratado como", "na função de"
 - `advogado_reclamante`: nome do advogado do autor — buscar no cabeçalho ou assinatura da petição inicial
+- `advogado_reclamada`: nome do advogado da empresa ré — buscar no cabeçalho ou na contestação; se houver litisconsórcio, registrar o advogado principal ou separar por " + "
 - `juiz_responsavel`: nome do juiz que assinou a sentença — buscar na assinatura digital ao final
 
 ### Datas (Relatório e Fundamentação)
@@ -163,7 +165,7 @@ Para cada verba deferida, extraia:
 - `nome`: nome exato da verba (ex: "Horas Extras", "Adicional Noturno", "FGTS + 40%",
   "Aviso Prévio Indenizado", "Saldo de Salário", "Férias Proporcionais + 1/3",
   "13º Salário Proporcional", "Intervalo Intrajornada")
-- `status_final`: sempre "mantida" para sentença de 1ª instância (ainda não houve reforma)
+- `status_final`: sempre "deferida" para sentença de 1ª instância ("mantida"/"reformada"/"excluída"/"acrescida" são exclusivos de acórdão/embargos)
 - `periodo`: período de apuração — **nunca assumir que a verba abrange todo o contrato**. A IA deve **caçar ativamente** limitações temporais impostas pelo juiz, por exemplo:
   - "a partir de DD/MM/AAAA", "desde DD/MM/AAAA", "apuração a partir de 01/07/2017";
   - "até DD/MM/AAAA", "limitado até novembro de 2018";

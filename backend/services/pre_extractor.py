@@ -77,26 +77,37 @@ _RE_RITO_ORDINARIO = re.compile(
 
 # Datas contratuais (admissão/demissão)
 _RE_ADMISSAO = re.compile(
-    r"(?i)(?:admitid[oa]\s+em|admissão\s+em|a\s+partir\s+de|desde|"
-    r"ingressou\s+em|contratad[oa]\s+em|início\s+do\s+contrato\s+em|"
-    r"data\s+de\s+admissão[:\s]+)"
+    r"(?i)(?:admitid[oa]\s+em|admiss[aã]o\s+em|"
+    r"empregad[oa]\s+em|com\s+in[íi]cio\s+em|"
+    r"ingressou\s+em|contratad[oa]\s+em|"
+    r"contrata[çc][aã]o\s+em|"
+    r"in[íi]cio\s+do\s+(?:contrato|v[íi]nculo)\s+(?:empregatício\s+)?em|"
+    r"data\s+de\s+(?:admiss[aã]o|contrata[çc][aã]o)[:\s]+)"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 _RE_DEMISSAO = re.compile(
-    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|rescisão\s+em|"
-    r"saiu\s+em|desligad[oa]\s+em|término\s+do\s+contrato\s+em|"
-    r"data\s+de\s+demissão[:\s]+|data\s+da\s+rescisão[:\s]+)"
+    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|"
+    r"rescis[aã]o\s+(?:contratual\s+)?em|"
+    r"saiu\s+em|desligad[oa]\s+em|desligamento\s+em|"
+    r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
+    r"término\s+do\s+contrato\s+em|"
+    r"data\s+de\s+demiss[aã]o[:\s]+|"
+    r"data\s+d[ao]\s+rescis[aã]o[:\s]+)"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 
 # Salário base — diversas formas de menção
 _RE_SALARIO = re.compile(
-    r"(?i)(?:sal[aá]rio\s+(?:base\s+)?de|remunera[çc][aã]o\s+de|"
-    r"percebia\s+a\s+importância\s+de|piso\s+(?:salarial\s+)?de|"
-    r"sal[aá]rio\s+contratual\s+de|sal[aá]rio\s+normativo\s+de|"
-    r"vencimento\s+de|sal[aá]rio\s+(?:mensal\s+)?(?:líquido\s+)?de\s+R\$)"
+    r"(?i)(?:sal[aá]rio\s+(?:(?:base|fixo|contratual|normativo)\s+)?de|"
+    r"remunera[çc][aã]o\s+(?:mensal\s+)?(?:bruta\s+)?de|"
+    r"percebia\s+(?:o\s+sal[aá]rio\s+de|a\s+importância\s+de)|"
+    r"recebia\s+o\s+sal[aá]rio\s+de|"
+    r"[úu]ltima\s+remunera[çc][aã]o\s+(?:mensal\s+)?de|"
+    r"piso\s+(?:salarial\s+)?de|"
+    r"vencimento\s+de|"
+    r"sal[aá]rio\s+(?:mensal\s+)?(?:l[ií]quido\s+)?de\s+R\$)"
     r"\s*R?\$?\s*"
-    r"([\d.,]+(?:\s*(?:reais|mil))?)(?:\s*(?:mensais?|brutos?|líquidos?))?",
+    r"([\d.,]+(?:\s*(?:reais|mil))?)(?:\s*(?:mensais?|brutos?|l[ií]quidos?))?",
     re.IGNORECASE,
 )
 
@@ -125,7 +136,19 @@ _RE_RESCISAO_TERMINO = re.compile(
     r"(?i)\btérmino\s+do\s+(?:prazo\s+do\s+)?contrato\b"
 )
 
-# Tipo de contrato
+# Tipo de contrato — duração (HIGH: frases terminológicas fixas)
+_RE_CONTRATO_EXPERIENCIA = re.compile(
+    r"(?i)\bcontrato\s+de\s+experi[eê]ncia\b"
+    r"|\bper[íi]odo\s+de\s+experi[eê]ncia\b"
+    r"|\badmitido[oa]?\s+(?:para\s+)?per[íi]odo\s+de\s+experi[eê]ncia\b"
+)
+_RE_CONTRATO_PRAZO_DET = re.compile(
+    r"(?i)\bcontrato\s+(?:por|a)\s+prazo\s+determinado\b"
+    r"|\bprazo\s+determinado\b.{0,40}\bcontrato\b"
+    r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+)?prazo\s+determinado\b"
+)
+
+# Tipo de contrato — natureza jurídica (MEDIUM: dependem de contexto)
 _RE_CONTRATO_CLT = re.compile(r"(?i)\bv[íi]nculo\s+(?:de\s+)?emprego\b|\bCLT\b")
 _RE_CONTRATO_PEJOTA = re.compile(
     r"(?i)(pejotiza[çc][aã]o|contrato\s+de\s+pessoa\s+jur[ií]dica|CNPJ|MEI\b)"
@@ -144,9 +167,86 @@ _RE_HORAS_SEMANAIS = re.compile(
     r"(?i)(\b30\b|\b35\b|\b36\b|\b40\b|\b44\b)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
 )
 
-# Aviso prévio — dias
+# Aviso prévio — dias (forma direta e invertida)
 _RE_AVISO_DIAS = re.compile(
-    r"(?i)aviso\s+pr[eé]vio\s+(?:indenizado\s+)?(?:de\s+)?(\d+)\s*dias?"
+    r"(?i)aviso\s+pr[eé]vio\s+"
+    r"(?:(?:indenizado|trabalhado|proporcional|integral)\s+)?(?:de\s+)?"
+    r"(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?"
+)
+_RE_AVISO_DIAS_INV = re.compile(
+    r"(?i)(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?\s+de\s+aviso\s+pr[eé]vio"
+)
+
+# Aviso prévio — tipo (trabalhado vs indenizado)
+_RE_AVISO_TRABALHADO = re.compile(
+    r"(?i)\baviso\s+pr[eé]vio\s+trabalhado\b"
+)
+_RE_AVISO_INDENIZADO = re.compile(
+    r"(?i)\b(?:aviso\s+pr[eé]vio\s+indenizado"
+    r"|indeniza[çc][aã]o\s+substitutiva\s+do\s+aviso\s+pr[eé]vio"
+    r"|aviso\s+pr[eé]vio\s+convertido\s+em\s+indeniza[çc][aã]o)\b"
+)
+
+# Horário de trabalho — "das HH[h:mm] às HH[h:mm] [com X h de intervalo]"
+# Nota: \s* (não \s+) após "trabalho" para aceitar "trabalho:" sem espaço intermediário.
+_RE_HORARIO_TRABALHO = re.compile(
+    r"(?i)"
+    r"(?:hor[aá]rio\s+(?:de\s+trabalho\s*)?(?:\s*[:\-]\s*)?|"
+    r"trabalha(?:va|ndo|r)?\s+|labora(?:va|ndo|r)?\s+|"
+    r"jornada\s+(?:de\s+trabalho\s*)?)"
+    r"(das?\s+\d{1,2}[h:]\d{0,2}\s*[àa][s]?\s*\d{1,2}[h:]\d{0,2}"
+    r"(?:[^.;:\n]{0,60}(?:intervalo|almo[çc]o|refei[çc][aã]o)[^.;:\n]{0,20})?)",
+    re.IGNORECASE,
+)
+
+# Vara do Trabalho — "NNª Vara do Trabalho de [Cidade]" (HIGH: padrão jurídico muito específico)
+_RE_VARA_TRABALHO = re.compile(
+    r"(?i)((?:\d{1,2}[aªoº°]?\s*\.?\s*)?Vara\s+do\s+Trabalho\s+de\s+[^,\.;\n\(\)]{3,50}?)"
+    r"(?=[,\.;\n\(\)]|$)",
+)
+
+# Advogados — rótulo explícito no cabeçalho (HIGH: campo labelado com identificação de parte)
+_RE_ADV_RECLAMANTE = re.compile(
+    r"(?i)"
+    r"(?:Adv\.|Advogad[oa])\s*do\s+[Rr]eclamante\s*[:\-]\s*"
+    r"(?:Dr(?:a)?\.?\s*)?"
+    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;]{3,80}?)(?=\s*(?:OAB|CNA|\(|,|\n|;|$))"
+)
+_RE_ADV_RECLAMADA = re.compile(
+    r"(?i)"
+    r"(?:Adv\.|Advogad[oa])\s*da\s+[Rr]eclamad[ao]\s*[:\-]\s*"
+    r"(?:Dr(?:a)?\.?\s*)?"
+    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;]{3,80}?)(?=\s*(?:OAB|CNA|\(|,|\n|;|$))"
+)
+
+# Juiz responsável — rótulo explícito no cabeçalho da peça (HIGH: campo labelado)
+_RE_JUIZ_LABEL = re.compile(
+    r"(?i)"
+    r"(?:MM\.?\s*)?Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho|Titular|Substitut[ao])?\s*[:\-]\s*"
+    r"(?:Dr(?:a)?\.?\s*)?"
+    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;(]{3,60}?)(?=[,;\n(]|$)"
+)
+
+# Função/cargo do reclamante — frases-gatilho específicas (texto livre: captura até stop char)
+_RE_FUNCAO_RECLAMANTE = re.compile(
+    r"(?i)"
+    r"(?:exercia\s+(?:a\s+)?fun[çc][aã]o\s+de\s+|"
+    r"(?:foi\s+)?contratad[oa]\s+como\s+|"
+    r"admitid[oa]\s+como\s+|"
+    r"trabalha(?:va)?\s+como\s+|"
+    r"ocupa(?:va)?\s+(?:o\s+)?cargo\s+de\s+|"
+    r"na\s+fun[çc][aã]o\s+de\s+)"
+    r"([^,\.;\n\(\)]{3,40}?)(?=[,\.;\n\(\)]|$)",
+    re.IGNORECASE,
+)
+
+# Jornada contratual — "X horas diárias [e Y horas semanais]" ou "Y horas semanais"
+_RE_JORNADA_CONTRATUAL = re.compile(
+    r"(?i)"
+    r"(?:jornada\s+(?:de\s+trabalho\s+)?(?:de\s+)?|carga\s+hor[aá]ria\s+(?:de\s+)?)"
+    r"(\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:di[aá]rias?|semanais?)"
+    r"(?:\s*[e,]\s*\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*semanais?)?)",
+    re.IGNORECASE,
 )
 
 # Data de ajuizamento
@@ -256,16 +356,32 @@ class PreExtractor:
     # ── Extratores HIGH ──────────────────────────────────────────────────────
 
     def _extract_numero_processo(self):
-        """Número CNJ — altíssima precisão via regex rígido."""
+        """Número CNJ — regex rígido + validação de dígito verificador."""
+        from services.jurisprudencia.consistencia.numero_cnj_validator import validar_cnj
+
+        candidato = None
+
         # Prioridade: cabeçalho explícito
         m = _RE_PROCESSO_CABECALHO.search(self.texto)
         if m:
-            self._set_high("numero_processo", m.group(1))
-            return
+            candidato = m.group(1)
+
         # Fallback: primeira ocorrência de padrão CNJ no texto
-        m = _RE_CNJ.search(self.texto)
-        if m:
-            self._set_high("numero_processo", m.group(1))
+        if not candidato:
+            m = _RE_CNJ.search(self.texto)
+            if m:
+                candidato = m.group(1)
+
+        if not candidato:
+            return
+
+        # Valida dígito verificador — dígito inválido desce para MEDIUM (IA pode corrigir)
+        valido, motivo = validar_cnj(candidato)
+        if valido:
+            self._set_high("numero_processo", candidato)
+        else:
+            print(f"[PRE-EXTRACT] numero_processo MEDIUM (dígito inválido): {motivo}", flush=True)
+            self._set_medium("numero_processo", candidato)
 
     def _extract_data_sentenca(self):
         """Data da sentença — prioriza assinatura digital PJe."""
@@ -308,6 +424,37 @@ class PreExtractor:
             self._set_high("tipo_rito", "Sumaríssimo")
         elif _RE_RITO_ORDINARIO.search(self.texto):
             self._set_high("tipo_rito", "Ordinário")
+
+    def _extract_vara_trabalho(self):
+        """Vara do Trabalho — 'Nª Vara do Trabalho de [Cidade]' (HIGH: padrão jurídico específico)."""
+        m = _RE_VARA_TRABALHO.search(self.texto)
+        if m:
+            vara = m.group(1).strip()
+            # Rejeita captura sem cidade (ex: "Vara do Trabalho de" sozinho)
+            partes = vara.split("de", maxsplit=1)
+            if len(partes) == 2 and partes[1].strip():
+                self._set_high("vara_trabalho", vara)
+
+    def _extract_juiz_responsavel(self):
+        """Juiz(a) responsável — rótulo 'Juiz(a) do Trabalho: Dr(a). Nome' (HIGH)."""
+        m = _RE_JUIZ_LABEL.search(self.texto)
+        if m:
+            nome = m.group(1).strip().rstrip(".")
+            # Rejeita capturas com menos de dois tokens (evita capturar só "Dr." ou artigos)
+            if len(nome.split()) >= 2:
+                self._set_high("juiz_responsavel", nome)
+
+    def _extract_advogados(self):
+        """Advogados das partes — rótulos 'Adv. do Reclamante:' / 'Adv. da Reclamada:' (HIGH)."""
+        for campo, regex in (
+            ("advogado_reclamante", _RE_ADV_RECLAMANTE),
+            ("advogado_reclamada", _RE_ADV_RECLAMADA),
+        ):
+            m = regex.search(self.texto)
+            if m:
+                nome = m.group(1).strip().rstrip(".")
+                if len(nome.split()) >= 2:
+                    self._set_high(campo, nome)
 
     # ── Extratores MEDIUM ────────────────────────────────────────────────────
 
@@ -400,7 +547,13 @@ class PreExtractor:
             self._set_medium("motivo_rescisao", "Término de contrato")
 
     def _extract_tipo_contrato(self):
-        if _RE_CONTRATO_PEJOTA.search(self.texto):
+        # HIGH: terminologia de duração — inequívoca
+        if _RE_CONTRATO_EXPERIENCIA.search(self.texto):
+            self._set_high("tipo_contrato", "Experiência")
+        elif _RE_CONTRATO_PRAZO_DET.search(self.texto):
+            self._set_high("tipo_contrato", "Prazo determinado")
+        # MEDIUM: natureza jurídica — depende de contexto circundante
+        elif _RE_CONTRATO_PEJOTA.search(self.texto):
             self._set_medium("tipo_contrato", "Pejotização reconhecida")
         elif _RE_CONTRATO_AUTONOMO.search(self.texto):
             self._set_medium("tipo_contrato", "Autônomo reconhecido")
@@ -422,12 +575,42 @@ class PreExtractor:
             if div:
                 self._set_medium("divisor_horas", div)
 
+    def _extract_funcao_reclamante(self):
+        """Extrai cargo/função por frases-gatilho; texto livre — MEDIUM."""
+        m = _RE_FUNCAO_RECLAMANTE.search(self.texto)
+        if m:
+            funcao = m.group(1).strip()
+            if funcao:
+                self._set_medium("funcao_reclamante", funcao)
+
+    def _extract_horario_trabalho(self):
+        """Extrai horário de trabalho — 'das HHh às HHh [com X h de intervalo]'."""
+        m = _RE_HORARIO_TRABALHO.search(self.texto)
+        if m:
+            horario = m.group(1).strip().rstrip(",;")
+            self._set_medium("horario_trabalho", horario)
+
+    def _extract_jornada_contratual(self):
+        """Extrai jornada contratual — 'X horas diárias [e Y horas semanais]'."""
+        m = _RE_JORNADA_CONTRATUAL.search(self.texto)
+        if m:
+            jornada = m.group(1).strip()
+            self._set_medium("jornada_contratual", jornada)
+
     def _extract_aviso_previo_dias(self):
-        m = _RE_AVISO_DIAS.search(self.texto)
+        m = _RE_AVISO_DIAS.search(self.texto) or _RE_AVISO_DIAS_INV.search(self.texto)
         if m:
             dias = int(m.group(1))
             if 20 <= dias <= 90:  # plausibilidade
                 self._set_medium("aviso_previo_dias", f"{dias} dias")
+
+    def _extract_aviso_previo_tipo(self):
+        # indenizado tem precedência: se o texto menciona ambas as formas, a forma
+        # indenizada é a determinada na sentença (trabalhado pode aparecer no histórico)
+        if _RE_AVISO_INDENIZADO.search(self.texto):
+            self._set_high("aviso_previo_tipo", "indenizado")
+        elif _RE_AVISO_TRABALHADO.search(self.texto):
+            self._set_high("aviso_previo_tipo", "trabalhado")
 
     # ── Interface pública ─────────────────────────────────────────────────────
 
@@ -446,6 +629,10 @@ class PreExtractor:
             self._extract_data_sentenca,
             self._extract_justica_gratuita,
             self._extract_tipo_rito,
+            self._extract_vara_trabalho,
+            self._extract_aviso_previo_tipo,
+            self._extract_juiz_responsavel,
+            self._extract_advogados,
         ]
         for fn in high_extractors:
             try:
@@ -465,6 +652,9 @@ class PreExtractor:
             self._extract_tipo_contrato,
             self._extract_divisor_horas,
             self._extract_aviso_previo_dias,
+            self._extract_funcao_reclamante,
+            self._extract_horario_trabalho,
+            self._extract_jornada_contratual,
         ]
         for fn in medium_extractors:
             try:
@@ -494,46 +684,70 @@ def pre_extract(texto: str) -> dict:
 # Função auxiliar para ai_client.py
 # ---------------------------------------------------------------------------
 
-def build_anchor_section(medium_fields: dict) -> str:
+_ROTULOS_HIGH = {
+    "numero_processo":      "Número do processo (CNJ)",
+    "data_sentenca":        "Data da sentença",
+    "justica_gratuita":     "Justiça gratuita",
+    "tipo_rito":            "Tipo de rito",
+    "vara_trabalho":        "Vara do Trabalho",
+    "aviso_previo_tipo":    "Tipo de aviso prévio",
+    "tipo_contrato":        "Tipo de contrato",
+    "juiz_responsavel":     "Juiz(a) responsável",
+    "advogado_reclamante":  "Advogado do reclamante",
+    "advogado_reclamada":   "Advogado da reclamada",
+}
+
+_ROTULOS_MEDIUM = {
+    "data_admissao":      "Data de admissão",
+    "data_demissao":      "Data de demissão",
+    "data_ajuizamento":   "Data de ajuizamento",
+    "salario_base":       "Salário base",
+    "indice_correcao":    "Índice de correção monetária",
+    "juros_mora":         "Juros de mora",
+    "motivo_rescisao":    "Motivo da rescisão",
+    "tipo_contrato":      "Tipo de contrato",
+    "divisor_horas":      "Divisor de horas extras",
+    "aviso_previo_dias":  "Aviso prévio (dias)",
+    "funcao_reclamante":  "Função/cargo do reclamante",
+    "horario_trabalho":   "Horário de trabalho",
+    "jornada_contratual": "Jornada contratual",
+}
+
+
+def build_prompt_context(pre_fields: dict) -> str:
     """
-    Converte os campos MEDIUM do pre_extractor em bloco de âncoras
-    para injeção no prompt da IA.
+    Constrói o bloco de contexto pré-extraído para injeção no prompt da IA.
 
-    O objetivo é reduzir alucinação: a IA recebe os valores já extraídos
-    via regex como referência, confirmando-os em vez de inventar.
-
-    Args:
-        medium_fields: dict com campos de média confiança (saída de PreExtractor.run()["medium"])
-
-    Returns:
-        String formatada para inserção no prompt, ou "" se não houver campos.
+    Seção HIGH  — alta confiança (≥95%): instrui a IA a usar esses valores
+                  diretamente, sem reextração. Economiza tokens e elimina
+                  alucinação para campos como numero_processo e data_sentenca.
+    Seção MEDIUM — média confiança (~80%): âncoras para reduzir alucinação;
+                  a IA confirma no texto antes de usar.
     """
-    if not medium_fields:
+    high   = pre_fields.get("high", {})
+    medium = pre_fields.get("medium", {})
+    if not high and not medium:
         return ""
 
-    # Mapa de campo → rótulo legível para o prompt
-    ROTULOS = {
-        "data_admissao":     "Data de admissão",
-        "data_demissao":     "Data de demissão",
-        "data_ajuizamento":  "Data de ajuizamento",
-        "salario_base":      "Salário base",
-        "indice_correcao":   "Índice de correção monetária",
-        "juros_mora":        "Juros de mora",
-        "motivo_rescisao":   "Motivo da rescisão",
-        "tipo_contrato":     "Tipo de contrato",
-        "divisor_horas":     "Divisor de horas extras",
-        "aviso_previo_dias": "Aviso prévio (dias)",
-    }
+    linhas = []
 
-    linhas = [
-        "VALORES PRÉ-EXTRAÍDOS (média confiança — confirme no texto antes de usar):",
-    ]
-    for campo, valor in medium_fields.items():
-        rotulo = ROTULOS.get(campo, campo)
-        linhas.append(f"  • {rotulo}: {valor}")
+    if high:
+        linhas.append("CAMPOS CONFIRMADOS — ALTA CONFIANÇA (use estes valores diretamente, não reextraia):")
+        for campo, valor in high.items():
+            rotulo = _ROTULOS_HIGH.get(campo, campo)
+            linhas.append(f"  [OK] {rotulo}: {valor}")
+        linhas.append("")
 
-    linhas.append(
-        "Se o texto confirmar estes valores, use-os. "
-        "Se contradizer, prefira o que o texto diz explicitamente."
-    )
+    if medium:
+        linhas.append("VALORES PRÉ-EXTRAÍDOS — MÉDIA CONFIANÇA (confirme no texto antes de usar):")
+        for campo, valor in medium.items():
+            rotulo = _ROTULOS_MEDIUM.get(campo, campo)
+            linhas.append(f"  • {rotulo}: {valor}")
+        linhas.append("Se o texto confirmar estes valores, use-os. Se contradizer, prefira o que o texto diz explicitamente.")
+
     return "\n".join(linhas)
+
+
+def build_anchor_section(medium_fields: dict) -> str:
+    """Mantido para compatibilidade — prefira build_prompt_context."""
+    return build_prompt_context({"medium": medium_fields})

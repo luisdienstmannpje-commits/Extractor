@@ -27,11 +27,12 @@ O campo `status_final` de cada verba deve refletir o resultado APÓS o acórdão
 ### Identificação do processo (Relatório)
 - `numero_processo`: formato CNJ — buscar no cabeçalho ou no Relatório
 - `vara_trabalho`: vara de origem — buscar "oriundo da X Vara do Trabalho de..."
-- `reclamante`: nome completo do trabalhador
-- `reclamada`: nome completo da empresa
+- `reclamante`: nome completo do **trabalhador (autor da ação original)** — ATENÇÃO: em acórdão, qualquer das partes pode ser o "recorrente". O reclamante é sempre o trabalhador, mesmo que seja o "recorrido" no recurso. Buscar no Relatório: "entre as partes [NOME], reclamante/autor, e [NOME], reclamada/ré"; "recurso ordinário interposto por [NOME], reclamante" ou "interposto por [NOME], reclamada".
+- `reclamada`: nome completo da empresa (ré) — se houver **litisconsórcio passivo** (múltiplas empresas rés), listar TODAS separadas por " + " (ex: "Empresa A Ltda + Empresa B S.A."). Não omitir nenhuma.
 - `tipo_rito`: buscar no Relatório — "rito ordinário" ou "rito sumaríssimo"
 - `funcao_reclamante`: cargo exercido — buscar no Relatório ou Voto
 - `advogado_reclamante`: advogado do reclamante — buscar no Relatório ou cabeçalho
+- `advogado_reclamada`: advogado da reclamada — buscar no Relatório ou cabeçalho; se houver litisconsórcio, registrar o advogado principal ou separar por " + "
 - `juiz_responsavel`: nome do desembargador relator que assinou o acórdão
 
 ### Datas (Relatório e Voto)

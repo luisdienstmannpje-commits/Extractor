@@ -40,10 +40,10 @@ class NumeroCNJValidator(LegalRule):
             ok, motivo = validar_cnj(numero)
             if not ok:
                 msg = (
-                    f"[AVISO] Dígito verificador CNJ parece atípico: {numero}. "
-                    f"{motivo} Apenas confira se o número do processo foi extraído corretamente."
+                    f"Dígito verificador CNJ inválido: {numero}. "
+                    f"{motivo} Verifique se o número do processo foi extraído corretamente."
                 )
-                self._alerta(contexto, msg, nivel="AVISO")
+                self._alerta(contexto, msg, nivel="ERRO")
             self._registrar(contexto)
         except Exception as exc:
             self._alerta(contexto,f"[AVISO] Falha interna: {exc}",nivel="AVISO"); self._registrar(contexto)

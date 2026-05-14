@@ -816,7 +816,7 @@ def _registrar_log(aprendizado: dict, numero_processo: str, caminho: str) -> Non
 def _chamar_gemini_para_codify(prompt: str) -> tuple[str, str]:
     """
     Chama Gemini (modelo de raciocínio) para gerar conteúdo a partir de um prompt.
-    Usa cascata gemini-2.5-pro → gemini-2.0-flash.
+    Usa cascata gemini-2.5-pro → gemini-2.5-flash.
     Retorna (conteudo_gerado, model_used). Nunca lança exceção.
     """
     try:
@@ -825,7 +825,7 @@ def _chamar_gemini_para_codify(prompt: str) -> tuple[str, str]:
         import time as _time
 
         _client = _genai.Client(api_key=_settings.GEMINI_API_KEY)
-        cascade = ["models/gemini-2.5-pro", "gemini-2.0-flash"]
+        cascade = ["models/gemini-2.5-pro", "gemini-2.5-flash"]
 
         for model in cascade:
             for attempt in range(1, 3):

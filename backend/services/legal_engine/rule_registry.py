@@ -54,6 +54,8 @@ def _discover_modules(base_dir: str, base_package: str) -> list[str]:
                 continue
             if fname.startswith("_"):
                 continue
+            if fname.startswith("lab_"):
+                continue
 
             full_path  = os.path.join(dirpath, fname)
             rel_path   = os.path.relpath(full_path, base_dir)
