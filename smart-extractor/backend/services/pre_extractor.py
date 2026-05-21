@@ -228,6 +228,36 @@ _RE_MULTA_477_DEFERIDA = re.compile(
     r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,140}"
     r"\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
 )
+_RE_DANO_MORAL = re.compile(
+    r"(?is)"
+    # A: valor → conector "a título de" → rótulo (conector é discriminante; verbo desnecessário)
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"\s+a\s+t[íi]tulo\s+de\s+dano\s+moral\b"
+    r"|"
+    # B: verbo + rótulo → conector → valor (Fixo o dano moral em / no valor de / no importe de)
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\bdano\s+moral\b\s+"
+    r"(?:em|no\s+valor\s+de|no\s+importe\s+de|no\s+montante\s+de|de|:)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"|"
+    # C: verbo + "indenização por dano moral" → conector → valor
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\bindeniza[çc][aã]o\s+por\s+dano\s+moral\b\s+"
+    r"(?:no\s+valor\s+de|de|em)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+)
+_RE_DANO_MATERIAL = re.compile(
+    r"(?is)"
+    # A: valor → conector "a título de" → rótulo de dano material / lucros cessantes
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"\s+a\s+t[íi]tulo\s+de\s+(?:dano\s+(?:material|emergente)|lucros?\s+cessantes?)\b"
+    r"|"
+    # B: verbo + rótulo → conector → valor
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\b(?:dano\s+(?:material|emergente)|lucros?\s+cessantes?)\b\s+"
+    r"(?:em|no\s+valor\s+de|no\s+importe\s+de|no\s+montante\s+de|de|:)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+)
 _RE_FGTS_FRAGMENTO = re.compile(r"(?is)\bFGTS\b.{0,220}")
 _RE_FGTS_TODO_PERIODO = re.compile(
     r"(?i)\b(todo\s+o\s+(?:per[ií]odo\s+contratual|contrato)|per[ií]odo\s+contratual\s+completo)\b"
@@ -1191,6 +1221,30 @@ class PreExtractor:
         elif _RE_MULTA_477_DEFERIDA.search(self.texto):
             self._set_medium("multa_art_477", "Deferida")
 
+    def _extract_dano_moral(self):
+        """Valor fixado a título de dano moral — MEDIUM quando condenação judicial expressa."""
+        m = _RE_DANO_MORAL.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("dano_moral", valor)
+
+    def _extract_dano_material(self):
+        """Valor fixado a título de dano material/emergente ou lucros cessantes — MEDIUM."""
+        m = _RE_DANO_MATERIAL.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("dano_material", valor)
+
     def _extract_fgts(self):
         """FGTS — periodo completo e multa de 40% apenas quando expressos."""
         if not re.search(r"(?i)\bFGTS\b", self.texto):
@@ -1447,6 +1501,8 @@ class PreExtractor:
             self._extract_divisor_horas,
             self._extract_aviso_previo_dias,
             self._extract_honorarios_sucumbenciais,
+            self._extract_dano_moral,
+            self._extract_dano_material,
         ]
         for fn in medium_extractors:
             try:
@@ -1521,6 +1577,8 @@ def build_anchor_section(medium_fields: dict) -> str:
         "aviso_previo_dias": "Aviso prévio (dias)",
         "honorarios_sucumbenciais": "Honorários sucumbenciais",
         "percentual_honorarios": "Percentual de honorários",
+        "dano_moral":            "Dano moral",
+        "dano_material":         "Dano material",
     }
 
     linhas = [
