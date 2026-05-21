@@ -201,6 +201,16 @@ _RE_SEGURO_GUIAS_ALVARA = re.compile(
     r"|\b(entregar|entrega|fornecer|expedir|expe[çc]a-se|liberar|habilita[çc][aã]o)\b"
     r".{0,120}seguro[-\s]+desemprego"
 )
+_RE_PPP_FRAGMENTO = re.compile(
+    r"(?is)"
+    r"\b(determino|condeno|dever[aá]|fornecer|entregar|entrega|expedir|retificar|retifica[çc][aã]o)\b"
+    r".{0,160}\bPPP\b"
+    r"|\bPPP\b.{0,160}"
+    r"\b(determino|condeno|dever[aá]|fornecer|entregar|entrega|expedir|retificar|retifica[çc][aã]o)\b"
+)
+_RE_PPP_AGENTE_NOCIVO = re.compile(
+    r"(?i)\bagente\s+nocivo\s+([\w]+(?:[\s\-][\w]+){0,3})"
+)
 _RE_GUIAS_RESCISORIAS_FRAGMENTO = re.compile(
     r"(?is)\b(entregar|entrega|fornecer|expedir|expe[çc]a-se|liberar|determino)\b.{0,180}"
     r"\b(TRCT|chave\s+de\s+conectividade|alvar[aá].{0,40}FGTS|FGTS.{0,40}alvar[aá])\b"
@@ -1111,6 +1121,33 @@ class PreExtractor:
                     item["multa_limite"] = limite
             self._append_obrigacao_fazer(item)
 
+    def _extract_obrigacoes_fazer_ppp(self):
+        """Obrigacao de fazer — entrega ou retificacao do PPP, com prazo/multa opcionais.
+
+        Exige verbo de ordem judicial antes ou depois de 'PPP' para nao capturar
+        mencoes narrativas ('alega que o PPP nao foi entregue').
+        """
+        m = _RE_PPP_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        frag = self.texto[m.start(): min(len(self.texto), m.end() + 200)]
+        descricao = "Entregar/retificar PPP"
+        m_an = _RE_PPP_AGENTE_NOCIVO.search(frag)
+        if m_an:
+            agente = m_an.group(1).strip()
+            descricao = f"Entregar/retificar PPP — agente nocivo: {agente}"
+        item: dict = {"tipo": "PPP", "descricao": descricao}
+        prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+        if prazo:
+            item["prazo_dias"] = prazo
+        multa = _multa_diaria_obrigacao_no_fragmento(frag)
+        if multa:
+            item["multa_diaria"] = multa
+            limite = _multa_limite_obrigacao_no_fragmento(frag)
+            if limite:
+                item["multa_limite"] = limite
+        self._append_obrigacao_fazer(item)
+
     def _extract_guias_rescisorias(self):
         """Guias rescisórias/FGTS — TRCT, código SJ2, chave e alvará em contexto de entrega."""
         m = _RE_GUIAS_RESCISORIAS_FRAGMENTO.search(self.texto)
@@ -1397,6 +1434,7 @@ class PreExtractor:
             self._extract_anotacao_ctps,
             self._extract_obrigacoes_fazer_ctps,
             self._extract_seguro_desemprego,
+            self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
             self._extract_multa_art_477,
             self._extract_fgts,

@@ -63,17 +63,23 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **prazo_dias em obrigacoes_fazer de seguro-desemprego**.
-- Diagnostico: o fragmento de seguro ja era capturado no ciclo anterior mas `_prazo_obrigacao_dias_no_fragmento(frag)` nao era chamado. Uma linha por branch (CD/SD e alvara), identico ao CTPS. Guard 1–120 dias ja existe no helper.
+- Dado-alvo concluido: **obrigacoes_fazer tipo PPP** (Perfil Profissiografico Previdenciario).
+- Diagnostico: quarto tipo de obrigacao de fazer; schema ja listava `'PPP'` como tipo valido mas nao havia extrator. Regex `_RE_PPP_FRAGMENTO` exige verbo de ordem judicial (determino, condeno, deverá, fornecer, entregar, retificar, etc.) associado a `PPP` num raio de 160 chars — isso impede que mencoes narrativas ("alega que o PPP nao foi entregue") gerem obrigacoes. Extrator opcional `_RE_PPP_AGENTE_NOCIVO` enriquece a descricao quando agente nocivo expresso no mesmo fragmento. Contrato identico aos 3 tipos anteriores: tipo, descricao, prazo_dias, multa_diaria, multa_limite.
 - Camada: `backend/services/pre_extractor.py`.
-- Contrato: `prazo_dias` preenchido em seguro_desemprego (CD/SD e alvara) quando prazo em dias expresso no mesmo fragmento. Paridade total com CTPS: todos os 3 tipos de obrigacao (CTPS, guias, seguro) suportam os mesmos 4 campos (tipo, descricao, prazo_dias, multa_diaria, multa_limite).
+- Contrato: `obrigacoes_fazer` recebe item `{"tipo": "PPP", "descricao": "...", ...}` com prazo/multa opcionais. Paridade completa com CTPS, guias_rescisorias e seguro_desemprego.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_seguro_prazo.py` -> `5 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_ppp.py` -> `7 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `369 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `376 passed`.
+
+## Proximo ciclo sugerido
+
+- Dado-alvo: **honorarios_periciais** ou **numero_cnj HIGH** melhorado para incluir mascaras sem hifen no cabecalho PJe.
+- Alternativa: conectar `pre_extract` ao `processor.py` (bug critico documentado em CLAUDE.md) — alto impacto, nao requer novo campo.
 
 ## Ciclos anteriores (referencia)
 
+- **obrigacoes_fazer PPP** — regex com guard de verbo judicial; agente nocivo opcional na descricao; contrato 5-campo (tipo/descricao/prazo_dias/multa_diaria/multa_limite); 7 testes focados; suite `tests/test_extraction_cycle_*.py` `376 passed`.
 - **prazo_dias em seguro_desemprego** — paridade com CTPS: uma linha por branch (CD/SD e alvara) para chamar `_prazo_obrigacao_dias_no_fragmento`; guard 1-120 dias; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `369 passed`.
 - **multa_diaria/multa_limite em seguro_desemprego** — hookup de astreintes para itens seguro CD/SD e alvara; captura fragment via walrus operator no match; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `364 passed`.
 - **obrigacoes_fazer[].multa_limite** — teto de astreintes no mesmo fragmento, somente quando `multa_diaria` ja existe; regex `_RE_MULTA_LIMITE_OBRIGACAO` com 4 formas (limitada a / ate o limite de / nao podendo exceder / com teto de); guard impede extracao sem multa_diaria; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `359 passed`.
