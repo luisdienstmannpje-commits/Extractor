@@ -63,22 +63,22 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **obrigacoes_fazer tipo PPP** (Perfil Profissiografico Previdenciario).
-- Diagnostico: quarto tipo de obrigacao de fazer; schema ja listava `'PPP'` como tipo valido mas nao havia extrator. Regex `_RE_PPP_FRAGMENTO` exige verbo de ordem judicial (determino, condeno, deverá, fornecer, entregar, retificar, etc.) associado a `PPP` num raio de 160 chars — isso impede que mencoes narrativas ("alega que o PPP nao foi entregue") gerem obrigacoes. Extrator opcional `_RE_PPP_AGENTE_NOCIVO` enriquece a descricao quando agente nocivo expresso no mesmo fragmento. Contrato identico aos 3 tipos anteriores: tipo, descricao, prazo_dias, multa_diaria, multa_limite.
+- Dado-alvo concluido: **dano_moral + dano_material** (MEDIUM).
+- Diagnostico: dois campos monetarios de alto risco de alucinacao. Pattern A ancora no conector juridico "a titulo de" (discriminante, nao precisa de verbo). Pattern B: verbo + rotulo + conector especifico + valor. Licao aprendida: `[^.]*?` nao pode cruzar pontos de milhar ("5.000,00") — alternativa usa ancoras de linguagem juridica em vez de quantificadores genericos. Ambos campos adicionados ao `build_anchor_section`.
 - Camada: `backend/services/pre_extractor.py`.
-- Contrato: `obrigacoes_fazer` recebe item `{"tipo": "PPP", "descricao": "...", ...}` com prazo/multa opcionais. Paridade completa com CTPS, guias_rescisorias e seguro_desemprego.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_ppp.py` -> `7 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_dano_moral_material.py` -> `12 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `376 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `388 passed`.
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **honorarios_periciais** ou **numero_cnj HIGH** melhorado para incluir mascaras sem hifen no cabecalho PJe.
-- Alternativa: conectar `pre_extract` ao `processor.py` (bug critico documentado em CLAUDE.md) — alto impacto, nao requer novo campo.
+- Dado-alvo: **`multa_art_467`** — parceiro natural da `multa_art_477` ja implementada; detectar deferimento/indeferimento da multa do art. 467 CLT.
+- Alternativa: **`custas_processuais`** — quem paga custas e valor (campo frequente no relatorio final, baixa complexidade).
 
 ## Ciclos anteriores (referencia)
 
+- **dano_moral + dano_material** — Pattern A: conector "a titulo de" (sem verbo); Pattern B: verbo + rotulo + conector; licao `[^.]*?` vs pontos de milhar; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `388 passed`.
 - **obrigacoes_fazer PPP** — regex com guard de verbo judicial; agente nocivo opcional na descricao; contrato 5-campo (tipo/descricao/prazo_dias/multa_diaria/multa_limite); 7 testes focados; suite `tests/test_extraction_cycle_*.py` `376 passed`.
 - **prazo_dias em seguro_desemprego** — paridade com CTPS: uma linha por branch (CD/SD e alvara) para chamar `_prazo_obrigacao_dias_no_fragmento`; guard 1-120 dias; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `369 passed`.
 - **multa_diaria/multa_limite em seguro_desemprego** — hookup de astreintes para itens seguro CD/SD e alvara; captura fragment via walrus operator no match; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `364 passed`.
