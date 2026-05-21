@@ -63,17 +63,18 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **multa_diaria e multa_limite em seguro-desemprego (obrigacoes_fazer)**.
-- Diagnostico: `_extract_seguro_desemprego` criava itens em `obrigacoes_fazer` mas descartava o match object, sem capturar o fragmento — impossibilitando deteccao de multa_diaria/multa_limite. O fix captura o match e usa `self.texto[m.start():m.end()+120]` como fragmento, identico ao padrao ja aplicado em guias_rescisorias.
+- Dado-alvo concluido: **prazo_dias em obrigacoes_fazer de seguro-desemprego**.
+- Diagnostico: o fragmento de seguro ja era capturado no ciclo anterior mas `_prazo_obrigacao_dias_no_fragmento(frag)` nao era chamado. Uma linha por branch (CD/SD e alvara), identico ao CTPS. Guard 1–120 dias ja existe no helper.
 - Camada: `backend/services/pre_extractor.py`.
-- Contrato: `multa_diaria` e `multa_limite` preenchidos em seguro_desemprego (CD/SD e alvara) quando presentes no fragmento da obrigacao; guarda identico ao CTPS/guias: multa_limite so se multa_diaria existir.
+- Contrato: `prazo_dias` preenchido em seguro_desemprego (CD/SD e alvara) quando prazo em dias expresso no mesmo fragmento. Paridade total com CTPS: todos os 3 tipos de obrigacao (CTPS, guias, seguro) suportam os mesmos 4 campos (tipo, descricao, prazo_dias, multa_diaria, multa_limite).
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_seguro_multa.py` -> `5 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_seguro_prazo.py` -> `5 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `364 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `369 passed`.
 
 ## Ciclos anteriores (referencia)
 
+- **prazo_dias em seguro_desemprego** — paridade com CTPS: uma linha por branch (CD/SD e alvara) para chamar `_prazo_obrigacao_dias_no_fragmento`; guard 1-120 dias; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `369 passed`.
 - **multa_diaria/multa_limite em seguro_desemprego** — hookup de astreintes para itens seguro CD/SD e alvara; captura fragment via walrus operator no match; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `364 passed`.
 - **obrigacoes_fazer[].multa_limite** — teto de astreintes no mesmo fragmento, somente quando `multa_diaria` ja existe; regex `_RE_MULTA_LIMITE_OBRIGACAO` com 4 formas (limitada a / ate o limite de / nao podendo exceder / com teto de); guard impede extracao sem multa_diaria; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `359 passed`.
 - **obrigacoes_fazer[].multa_diaria** - astreintes vinculadas a CTPS/guias quando aparecem no mesmo fragmento; teste focado 5 passed; suite tests/test_extraction_cycle_*.py 353 passed.
@@ -188,9 +189,8 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo proposto
 
-- Dado-alvo sugerido: **`prazo_dias` em obrigacoes_fazer de seguro-desemprego** — aplicar `_prazo_obrigacao_dias_no_fragmento(frag)` ao seguro CD/SD e alvara, identico ao CTPS que ja tem prazo. O fragmento ja e capturado no ciclo atual.
-- Escopo: so preencher `prazo_dias` no item seguro quando houver prazo em dias expresso no mesmo fragmento (ex: "no prazo de 10 dias"). Guard `1 <= dias <= 120` ja existe na funcao helper.
-- Camada: `backend/services/pre_extractor.py` — uma linha por branch (CD/SD e alvara).
+- Dado-alvo sugerido: **`obrigacoes_fazer` para PPP** — o schema `ObrigacaoFazer` ja lista `"PPP"` como tipo valido mas nao ha extrator dedicado. Fragmentos com "entregar PPP", "fornecer PPP", "PPP com agente nocivo" devem gerar um item `tipo="PPP"`. Relevante para aposentadoria especial.
+- Escopo: extrator `_extract_obrigacoes_fazer_ppp` em `pre_extractor.py`; MEDIUM; mesmo padrao dos extratores CTPS/guias/seguro com suporte a prazo_dias, multa_diaria e multa_limite.
 - Manter TDD/validacao pequena por ciclo.
 
 ## Mensagem recomendada para o Cursor

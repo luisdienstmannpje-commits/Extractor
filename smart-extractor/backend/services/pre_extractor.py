@@ -1086,6 +1086,9 @@ class PreExtractor:
             valor = "Entregar guias CD/SD do seguro-desemprego"
             self._set_medium("seguro_desemprego", valor)
             item: dict = {"tipo": "seguro_desemprego", "descricao": valor}
+            prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+            if prazo:
+                item["prazo_dias"] = prazo
             multa = _multa_diaria_obrigacao_no_fragmento(frag)
             if multa:
                 item["multa_diaria"] = multa
@@ -1097,6 +1100,9 @@ class PreExtractor:
             frag = self.texto[m_alvara.start(): min(len(self.texto), m_alvara.end() + 120)]
             self._set_medium("seguro_desemprego", "Entregar guias/alvara para seguro-desemprego")
             item = {"tipo": "seguro_desemprego", "descricao": "Entregar guias/alvará para seguro-desemprego"}
+            prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+            if prazo:
+                item["prazo_dias"] = prazo
             multa = _multa_diaria_obrigacao_no_fragmento(frag)
             if multa:
                 item["multa_diaria"] = multa
