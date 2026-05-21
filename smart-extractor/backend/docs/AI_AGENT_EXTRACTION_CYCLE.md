@@ -1,4 +1,4 @@
-﻿# Ciclo de Extracao Incremental com IA Agents
+# Ciclo de Extracao Incremental com IA Agents
 
 Este documento e o ponto de coordenacao entre Codex, Cursor Agent e o usuario.
 Antes de codificar melhorias de extracao, leia este arquivo e siga o ciclo abaixo.
@@ -62,25 +62,50 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Ciclo atual
 
-- Status: `APROVADO` (Codex).
-- Dado-alvo concluido: **revisao documental pos-ciclos** — README raiz, README backend, `.cursorrules`, `AI_RULES`, `PIPELINE`, `SYSTEM_OVERVIEW`, `CODE_MAP`, `CODE_INTELLIGENCE_MAP`, `DEVELOPER` e docstring de exportacao foram alinhados aos contratos ja testados (`pre_extract` MEDIUM/HIGH, upload/status/WS, `cache_context`, export API e export por job).
-- Camada: documentacao / regras de agentes; sem mudanca de comportamento de producao.
+- Status: `APROVADO` (Claude Code).
+- Dado-alvo concluido: **obrigacoes_fazer[].multa_limite — teto de astreintes**.
+- Diagnostico: o schema `ObrigacaoFazer` ja tinha `multa_limite` e o renderizador em `build_anchor_section` ja lia o campo, mas o pre-extrator nao o preenchida. A extracao segue o mesmo padrao de `multa_diaria`: helper `_multa_limite_obrigacao_no_fragmento` + regex `_RE_MULTA_LIMITE_OBRIGACAO`.
+- Camada: `backend/services/pre_extractor.py`.
+- Contrato: preencher `multa_limite` somente quando o mesmo fragmento ja produzir `multa_diaria` (guard na chamada). Formas aceitas: `limitada a R$ X`, `ate o limite de R$ X`, `nao podendo exceder R$ X`, `com teto de R$ X`. Nao capturar valor da causa, honorarios, custas ou multa art. 477.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_export_api.py tests/test_extraction_cycle_export_job_excel.py tests/test_extraction_cycle_upload_status_api.py`
-- Resultado:
-  - suite curta export/upload-status: `24 passed`.
-  - `tests/test_extraction_cycle_*.py` -> `223 passed`.
-  - suite completa backend: `1095 passed`.
-
-## Proximo ciclo recomendado
-
-- **Escolha sugerida:** revisar/automatizar contrato que ainda esteja pouco coberto fora dos ciclos atuais, antes de adicionar novos campos. Candidatos pequenos:
-  - `GET /status/{job_id}` com job ausente/persistido em repo, se o comportamento ainda nao tiver teste HTTP dedicado.
-  - `POST /api/extract` sincrono com `cache_context=peticao_inicial` ou `contestacao`, se quisermos simetria com `/upload`.
-  - consolidacao leve de docs somente se novos ciclos alterarem contrato publico.
+  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_multa_limite.py` -> `6 passed`.
+- Regressao:
+  - `tests/test_extraction_cycle_*.py` -> `359 passed`.
 
 ## Ciclos anteriores (referencia)
 
+- **obrigacoes_fazer[].multa_limite** — teto de astreintes no mesmo fragmento, somente quando `multa_diaria` ja existe; regex `_RE_MULTA_LIMITE_OBRIGACAO` com 4 formas (limitada a / ate o limite de / nao podendo exceder / com teto de); guard impede extracao sem multa_diaria; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `359 passed`.
+- **obrigacoes_fazer[].multa_diaria** - astreintes vinculadas a CTPS/guias quando aparecem no mesmo fragmento; teste focado 5 passed; suite tests/test_extraction_cycle_*.py 353 passed.
+- **obrigacoes_fazer[].prazo_dias CTPS** - prazo em dias vinculado ao item CTPS quando estiver na mesma frase da obrigacao; anchor renderiza prazo; teste focado 4 passed; suite tests/test_extraction_cycle_*.py 348 passed.
+- **frontend fixture DEV obrigacoes_fazer** - URL /extractor?fixture=obrigacoes carrega CTPS, guias rescisorias e seguro-desemprego no modo audit; npm run lint e npm run build passed; inspecao visual Browser Use bloqueada por Node v22.15.0 (< v22.22.0).
+- **frontend obrigacoes_fazer no AnalysisReport** - lista CTPS/guias visivel no modo audit e padrao; npm run lint e npm run build passed.
+- **obrigacoes_fazer guias rescisorias** — lista estruturada MEDIUM com item TRCT/codigo SJ2/chave/alvara FGTS, agregando com CTPS; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `339 passed`.
+- **obrigacoes_fazer CTPS** — lista estruturada MEDIUM com item CTPS derivado de anotacao/retificacao/baixa da CTPS; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `333 passed`.
+- **guias_rescisorias** — novo campo top-level no schema `2.20`, extraido como MEDIUM para TRCT/codigo SJ2/chave/alvara FGTS em contexto de entrega; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `327 passed`.
+- **funcao_reclamante** — campo ja existente, agora extraido como MEDIUM em contexto claro de funcao/cargo do reclamante; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `320 passed`.
+- **prazo_calculos_dias** — novo campo top-level no schema `2.19`, extraido como MEDIUM quando prazo de dias esta ligado a calculos/liquidacao; teste focado `8 passed`; suite `tests/test_extraction_cycle_*.py` `313 passed`.
+- **data_intimacao_calculos** — novo campo top-level no schema `2.18`, extraido como MEDIUM quando ha intimacao expressa para calculos/liquidacao; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `305 passed`.
+- **data_transito_julgado** — novo campo top-level no schema `2.17`, extraido como MEDIUM quando ha transito em julgado expresso; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `298 passed`.
+- **verbas_deferidas_itens[].detalhe** — enriquece itens de verbas com detalhe de 13o, ferias, saldo e aviso quando a propria linha traz subtipo/avos/dias; teste focado `8 passed`; suite `tests/test_extraction_cycle_*.py` `285 passed`.
+- **FGTS periodo completo / multa de 40%** — extrai como MEDIUM periodo completo do FGTS, multa 40% em observacoes e incidencia sobre aviso apenas quando expressa; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `277 passed`.
+- **multa_art_477** — extrai como MEDIUM `Deferida`/`Indeferida` para decisao clara da multa do art. 477, sem confundir com art. 467; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `270 passed`.
+- **seguro_desemprego / guias** — extrai como MEDIUM entrega de guias CD/SD, guias/alvara, indenizacao substitutiva ou indeferimento; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `264 passed`.
+- **anotacao_ctps** — extrai como MEDIUM obrigacao expressa de anotar/retificar/baixar CTPS com resumo curto e detalhes do mesmo fragmento; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `257 passed`.
+- **data_saida_ctps** — extrai como MEDIUM a saida projetada expressa em contexto de CTPS/projecao de saida; teste focado `8 passed`; suite `tests/test_extraction_cycle_*.py` `250 passed`.
+- **honorarios_sucumbenciais / percentual_honorarios** — extrai como MEDIUM honorarios sucumbenciais/reciprocos com percentual legal entre 5% e 15%; teste focado `7 passed`; suite `tests/test_extraction_cycle_*.py` `242 passed`.
+- **UI selecao de texto e marca-texto no PDF** — `PdfViewer` renderiza camada de texto transparente sobre o canvas para permitir copiar trechos; botao `Marcar` cria destaque amarelo local na selecao; `npm run lint` e `npm run build` passed.
+- **UI layout em largura total** — `MainLayout` removeu `mx-auto max-w-6xl`; conteudo principal agora usa `w-full min-w-0`, ocupando toda a area util entre sidebar e lateral direita; `npm run lint` e `npm run build` passed.
+- **UI PDF contínuo e âncoras com página visível** — `PdfViewer` renderiza páginas contínuas em coluna, com rolagem vertical independente e página ajustada à largura no zoom 100%; correntes do modo audit exibem `pág. N` ou `sem pág.`; `npm run lint` e `npm run build` passed.
+- **UI split-screen pericial da aba Extrator** — painel esquerdo PDF, painel direito relatório auditável com tema escuro, correntes e badges HIGH/MEDIUM; `npm run lint` e `npm run build` passed.
+- **Aba Extrator erro terminal por log Unicode no processor** — `Mescla Regex -> ...`; suite completa backend `1107 passed`.
+- **M1 memoria de calculo em stdout cp1252** — logs M1 passaram a usar ASCII para nao registrar falsa falha apos salvar JSON UTF-8; suite completa backend `1106 passed`.
+- **PDF real ATSum 0010691 `partial_update` real no WebSocket** — processor real emite parcial de IA com `_meta_doc_type=embargos` e CNJ HIGH antes do terminal; suite completa backend `1105 passed`.
+- **PDF real ATSum 0010691 via `/upload` + `/ws/{job_id}`** — WebSocket terminal `done` com worker real e Gemini mockado; suite completa backend `1104 passed`.
+- **Consolidacao HTTP/WS PDF real ATSum 0010691** — helpers locais `_setup_real_pdf_processor_mocks`, `_post_real_pdf_upload` e `_assert_real_pdf_anchor_contract`; suite completa backend `1104 passed`.
+- **PDF real ATSum 0010691 via `/upload` + `/status`** — worker real com Gemini mockado termina `done` e valida texto/ancoras no caminho da UI; suite completa backend `1103 passed`.
+- **PDF real ATSum 0010691 — verbas do dispositivo** — reconhece `saldo de salários`, `13º proporcional/integral` e corta recorte antes de nova intimação PJe; suite completa backend `1102 passed`.
+- **PDF real ATSum 0010691 — texto vazio / campos estruturais** — corrigiu log Unicode `≤` no `sentence_finder`, `RÉU:` para reclamada, data de dispensa em frase invertida e vara em cabeçalho judicial profundo; suite completa backend `1100 passed`.
+- **Revisao documental pos-ciclos** — alinhou README/regras/docs aos contratos `pre_extract`, upload/status/WS, `cache_context` e export; suite completa backend `1095 passed`.
 - **`/export-excel/{job_id}` com falha do exporter** — `test_export_excel_job_falha_exporter_retorna_500_estavel`.
 - **`/export-excel/{job_id}` com resultado invalido** — `test_export_excel_job_resultado_invalido_retorna_400_sem_exporter`; corrigiu fallback `job["result"]`.
 - **`/export-excel/{job_id}` com job em erro** — `test_export_excel_job_error_retorna_400_sem_exporter`.
@@ -162,15 +187,20 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo proposto
 
-- Dado-alvo sugerido: encerrar fio `/export-excel/{job_id}` e escolher novo fluxo de negocio (ex.: Lab/Ghostwriter ou auditoria PJC por job) — **um** objetivo por ciclo.
-- Manter proibição de API real nos testes de ciclo.
+- Dado-alvo sugerido: **`reclamante` e `reclamada` via regex HIGH** — extrair diretamente do cabecalho do documento quando houver rotulo explicito (`Reclamante:`, `Reclamado(a):`, `Parte Autora:`, `Parte Re:`). Atualmente 100% IA (~85-80%).
+- Escopo recomendado: padrao labelado no cabecalho PJe, com guard de nome minimo (2 tokens). Nao capturar em contexto narrativo ("o reclamante afirma...").
+- Camada: `backend/services/pre_extractor.py`, nivel HIGH (sobrescreve IA).
+- Manter TDD/validacao pequena por ciclo.
+
+### Alternativa: `obrigacoes_fazer[]` para seguro-desemprego com multa_diaria
+Quando o item seguro-desemprego ja tiver `multa_diaria` no fragmento (mesmo padrao do CTPS/guias), preencher `multa_limite` tambem. O codigo atual so conecta CTPS e guias; seguro_desemprego ainda nao tem esse hookup.
 
 ## Mensagem recomendada para o Cursor
 
-Cursor, revise `backend/docs/AI_AGENT_EXTRACTION_CYCLE.md` e os testes
-`backend/tests/test_extraction_cycle_*.py`.
+Cursor, revise `backend/docs/AI_AGENT_EXTRACTION_CYCLE.md`, `backend/services/pre_extractor.py` e `backend/tests/test_extraction_cycle_obrigacoes_fazer_multa_diaria.py`.
 
-Suite `test_extraction_cycle_upload_status_api.py` ja cobre feliz, `400`, WS, parcial, erro e timeout. Matriz `cache_context` dedicada, fio dossie/quadro/cache/credito, fio Excel API e fio PJC API estao fechados. Fio `/export-excel/{job_id}` cobre happy path, job ausente 404, processing 202, error 400, result invalido 400 e falha exporter 500.
-Crie primeiro o teste focado antes de alterar codigo.
+O ciclo `obrigacoes_fazer[].multa_diaria` esta aprovado: CTPS e guias rescisorias recebem astreintes quando `multa diaria de R$ ...`, `multa de R$ ... por dia` ou `astreintes de R$ ... por dia` aparece no mesmo fragmento da obrigacao. O teste negativo preserva multa art. 477 como campo proprio, sem virar astreinte. Focado `5 passed`; CTPS+guias+seguro+prazo+multa diaria `26 passed`; regressao dos ciclos `353 passed`.
+
+Discuta o proximo ciclo proposto: `obrigacoes_fazer[].multa_limite`, somente se houver teto expresso no mesmo fragmento e preferencialmente apenas quando `multa_diaria` ja existir.
 
 Ao final, diga `APROVADO`, `BLOQUEADO` ou `DISCORDO`.
