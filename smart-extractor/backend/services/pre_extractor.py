@@ -1081,17 +1081,29 @@ class PreExtractor:
             self._set_medium("seguro_desemprego", "Indeferido")
         elif _RE_SEGURO_INDENIZACAO.search(self.texto):
             self._set_medium("seguro_desemprego", "Indenizacao substitutiva")
-        elif _RE_SEGURO_GUIAS_CD_SD.search(self.texto):
+        elif m_cd_sd := _RE_SEGURO_GUIAS_CD_SD.search(self.texto):
+            frag = self.texto[m_cd_sd.start(): min(len(self.texto), m_cd_sd.end() + 120)]
             valor = "Entregar guias CD/SD do seguro-desemprego"
             self._set_medium("seguro_desemprego", valor)
-            self._append_obrigacao_fazer({"tipo": "seguro_desemprego", "descricao": valor})
-        elif _RE_SEGURO_GUIAS_ALVARA.search(self.texto):
-            valor = "Entregar guias/alvara para seguro-desemprego"
-            self._set_medium("seguro_desemprego", valor)
-            self._append_obrigacao_fazer({
-                "tipo": "seguro_desemprego",
-                "descricao": "Entregar guias/alvará para seguro-desemprego",
-            })
+            item: dict = {"tipo": "seguro_desemprego", "descricao": valor}
+            multa = _multa_diaria_obrigacao_no_fragmento(frag)
+            if multa:
+                item["multa_diaria"] = multa
+                limite = _multa_limite_obrigacao_no_fragmento(frag)
+                if limite:
+                    item["multa_limite"] = limite
+            self._append_obrigacao_fazer(item)
+        elif m_alvara := _RE_SEGURO_GUIAS_ALVARA.search(self.texto):
+            frag = self.texto[m_alvara.start(): min(len(self.texto), m_alvara.end() + 120)]
+            self._set_medium("seguro_desemprego", "Entregar guias/alvara para seguro-desemprego")
+            item = {"tipo": "seguro_desemprego", "descricao": "Entregar guias/alvará para seguro-desemprego"}
+            multa = _multa_diaria_obrigacao_no_fragmento(frag)
+            if multa:
+                item["multa_diaria"] = multa
+                limite = _multa_limite_obrigacao_no_fragmento(frag)
+                if limite:
+                    item["multa_limite"] = limite
+            self._append_obrigacao_fazer(item)
 
     def _extract_guias_rescisorias(self):
         """Guias rescisórias/FGTS — TRCT, código SJ2, chave e alvará em contexto de entrega."""

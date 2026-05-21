@@ -63,17 +63,18 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **obrigacoes_fazer[].multa_limite — teto de astreintes**.
-- Diagnostico: o schema `ObrigacaoFazer` ja tinha `multa_limite` e o renderizador em `build_anchor_section` ja lia o campo, mas o pre-extrator nao o preenchida. A extracao segue o mesmo padrao de `multa_diaria`: helper `_multa_limite_obrigacao_no_fragmento` + regex `_RE_MULTA_LIMITE_OBRIGACAO`.
+- Dado-alvo concluido: **multa_diaria e multa_limite em seguro-desemprego (obrigacoes_fazer)**.
+- Diagnostico: `_extract_seguro_desemprego` criava itens em `obrigacoes_fazer` mas descartava o match object, sem capturar o fragmento — impossibilitando deteccao de multa_diaria/multa_limite. O fix captura o match e usa `self.texto[m.start():m.end()+120]` como fragmento, identico ao padrao ja aplicado em guias_rescisorias.
 - Camada: `backend/services/pre_extractor.py`.
-- Contrato: preencher `multa_limite` somente quando o mesmo fragmento ja produzir `multa_diaria` (guard na chamada). Formas aceitas: `limitada a R$ X`, `ate o limite de R$ X`, `nao podendo exceder R$ X`, `com teto de R$ X`. Nao capturar valor da causa, honorarios, custas ou multa art. 477.
+- Contrato: `multa_diaria` e `multa_limite` preenchidos em seguro_desemprego (CD/SD e alvara) quando presentes no fragmento da obrigacao; guarda identico ao CTPS/guias: multa_limite so se multa_diaria existir.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_multa_limite.py` -> `6 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_obrigacoes_fazer_seguro_multa.py` -> `5 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `359 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `364 passed`.
 
 ## Ciclos anteriores (referencia)
 
+- **multa_diaria/multa_limite em seguro_desemprego** — hookup de astreintes para itens seguro CD/SD e alvara; captura fragment via walrus operator no match; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `364 passed`.
 - **obrigacoes_fazer[].multa_limite** — teto de astreintes no mesmo fragmento, somente quando `multa_diaria` ja existe; regex `_RE_MULTA_LIMITE_OBRIGACAO` com 4 formas (limitada a / ate o limite de / nao podendo exceder / com teto de); guard impede extracao sem multa_diaria; teste focado `6 passed`; suite `tests/test_extraction_cycle_*.py` `359 passed`.
 - **obrigacoes_fazer[].multa_diaria** - astreintes vinculadas a CTPS/guias quando aparecem no mesmo fragmento; teste focado 5 passed; suite tests/test_extraction_cycle_*.py 353 passed.
 - **obrigacoes_fazer[].prazo_dias CTPS** - prazo em dias vinculado ao item CTPS quando estiver na mesma frase da obrigacao; anchor renderiza prazo; teste focado 4 passed; suite tests/test_extraction_cycle_*.py 348 passed.
@@ -187,13 +188,10 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo proposto
 
-- Dado-alvo sugerido: **`reclamante` e `reclamada` via regex HIGH** — extrair diretamente do cabecalho do documento quando houver rotulo explicito (`Reclamante:`, `Reclamado(a):`, `Parte Autora:`, `Parte Re:`). Atualmente 100% IA (~85-80%).
-- Escopo recomendado: padrao labelado no cabecalho PJe, com guard de nome minimo (2 tokens). Nao capturar em contexto narrativo ("o reclamante afirma...").
-- Camada: `backend/services/pre_extractor.py`, nivel HIGH (sobrescreve IA).
+- Dado-alvo sugerido: **`prazo_dias` em obrigacoes_fazer de seguro-desemprego** — aplicar `_prazo_obrigacao_dias_no_fragmento(frag)` ao seguro CD/SD e alvara, identico ao CTPS que ja tem prazo. O fragmento ja e capturado no ciclo atual.
+- Escopo: so preencher `prazo_dias` no item seguro quando houver prazo em dias expresso no mesmo fragmento (ex: "no prazo de 10 dias"). Guard `1 <= dias <= 120` ja existe na funcao helper.
+- Camada: `backend/services/pre_extractor.py` — uma linha por branch (CD/SD e alvara).
 - Manter TDD/validacao pequena por ciclo.
-
-### Alternativa: `obrigacoes_fazer[]` para seguro-desemprego com multa_diaria
-Quando o item seguro-desemprego ja tiver `multa_diaria` no fragmento (mesmo padrao do CTPS/guias), preencher `multa_limite` tambem. O codigo atual so conecta CTPS e guias; seguro_desemprego ainda nao tem esse hookup.
 
 ## Mensagem recomendada para o Cursor
 
