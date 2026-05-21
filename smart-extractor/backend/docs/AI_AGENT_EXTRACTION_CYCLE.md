@@ -63,21 +63,22 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **dano_moral + dano_material** (MEDIUM).
-- Diagnostico: dois campos monetarios de alto risco de alucinacao. Pattern A ancora no conector juridico "a titulo de" (discriminante, nao precisa de verbo). Pattern B: verbo + rotulo + conector especifico + valor. Licao aprendida: `[^.]*?` nao pode cruzar pontos de milhar ("5.000,00") — alternativa usa ancoras de linguagem juridica em vez de quantificadores genericos. Ambos campos adicionados ao `build_anchor_section`.
+- Dado-alvo concluido: **multa_art_467** (MEDIUM).
+- Diagnostico: parceiro natural de `multa_art_477` ja implementado. Mesmo contrato: string "Deferida" ou "Indeferida". Regex `_RE_MULTA_467_INDEFERIDA` e `_RE_MULTA_467_DEFERIDA` espelham o padrao da 477 trocando apenas o numero do artigo. Guard negativo: `467` nao casa com `477` por diferenca de digitos — campos sao independentes e coexistem no mesmo texto sem colisao. Campo adicionado ao `build_anchor_section`.
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_dano_moral_material.py` -> `12 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_multa_art_467.py` -> `8 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `388 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `396 passed`.
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`multa_art_467`** — parceiro natural da `multa_art_477` ja implementada; detectar deferimento/indeferimento da multa do art. 467 CLT.
-- Alternativa: **`custas_processuais`** — quem paga custas e valor (campo frequente no relatorio final, baixa complexidade).
+- Dado-alvo: **`custas_processuais`** — quem paga custas e valor (campo frequente, baixa complexidade).
+- Alternativa: **`contribuicao_previdenciaria`** — responsavel pelo recolhimento do INSS (Deferida/reclamada/ambas as partes).
 
 ## Ciclos anteriores (referencia)
 
+- **multa_art_467** — regex espelhada da 477 com numero de artigo trocado; guard por diferenca de digitos; 8 testes focados (inclui independencia 467+477); suite `tests/test_extraction_cycle_*.py` `396 passed`.
 - **dano_moral + dano_material** — Pattern A: conector "a titulo de" (sem verbo); Pattern B: verbo + rotulo + conector; licao `[^.]*?` vs pontos de milhar; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `388 passed`.
 - **obrigacoes_fazer PPP** — regex com guard de verbo judicial; agente nocivo opcional na descricao; contrato 5-campo (tipo/descricao/prazo_dias/multa_diaria/multa_limite); 7 testes focados; suite `tests/test_extraction_cycle_*.py` `376 passed`.
 - **prazo_dias em seguro_desemprego** — paridade com CTPS: uma linha por branch (CD/SD e alvara) para chamar `_prazo_obrigacao_dias_no_fragmento`; guard 1-120 dias; 5 testes focados; suite `tests/test_extraction_cycle_*.py` `369 passed`.

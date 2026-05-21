@@ -218,6 +218,16 @@ _RE_GUIAS_RESCISORIAS_FRAGMENTO = re.compile(
 _RE_GUIAS_RESCISORIAS_TERMO = re.compile(
     r"(?i)\b(TRCT|chave\s+de\s+conectividade|c[oó]digo\s+SJ2|alvar[aá].{0,40}FGTS|FGTS.{0,40}alvar[aá])\b"
 )
+_RE_MULTA_467_INDEFERIDA = re.compile(
+    r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b.{0,100}\bindeferid[ao]\b"
+)
+_RE_MULTA_467_DEFERIDA = re.compile(
+    r"(?is)\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+    r".{0,140}\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b.{0,140}"
+    r"\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+)
 _RE_MULTA_477_INDEFERIDA = re.compile(
     r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b"
     r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,100}\bindeferid[ao]\b"
@@ -1214,6 +1224,13 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_multa_art_467(self):
+        """Multa do art. 467 da CLT — deferida/indeferida quando o texto e claro."""
+        if _RE_MULTA_467_INDEFERIDA.search(self.texto):
+            self._set_medium("multa_art_467", "Indeferida")
+        elif _RE_MULTA_467_DEFERIDA.search(self.texto):
+            self._set_medium("multa_art_467", "Deferida")
+
     def _extract_multa_art_477(self):
         """Multa do art. 477 da CLT — deferida/indeferida quando o texto e claro."""
         if _RE_MULTA_477_INDEFERIDA.search(self.texto):
@@ -1490,6 +1507,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_multa_art_467,
             self._extract_multa_art_477,
             self._extract_fgts,
             self._extract_salario_base,
@@ -1579,6 +1597,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "percentual_honorarios": "Percentual de honorários",
         "dano_moral":            "Dano moral",
         "dano_material":         "Dano material",
+        "multa_art_467":         "Multa art. 467 CLT",
     }
 
     linhas = [
