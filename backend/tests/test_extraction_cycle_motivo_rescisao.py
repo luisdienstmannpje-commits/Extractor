@@ -1,0 +1,109 @@
+"""
+Ciclo TDD — motivo_rescisao (MEDIUM)
+Gaps principais:
+  1. Texto sem acento ('rescisao', 'demissao', 'termino')
+  2. 'demitido sem justa causa' (demitid[oa] vs demitiu)
+  3. 'imotivadamente'
+  4. Novos motivos: aposentadoria, acordo rescisório, falecimento
+"""
+import pytest
+from services.pre_extractor import PreExtractor
+
+
+def _med(text: str):
+    return PreExtractor(text).run()["medium"].get("motivo_rescisao")
+
+
+# ---------------------------------------------------------------------------
+# Padrões cobertos — com acento (smoke)
+# ---------------------------------------------------------------------------
+
+def test_sjc_dispensado():
+    assert _med("dispensado sem justa causa") == "Sem justa causa"
+
+
+def test_sjc_demissao_sem_jc():
+    assert _med("demissão sem justa causa") == "Sem justa causa"
+
+
+def test_jc_com():
+    assert _med("com justa causa pelo empregador") == "Com justa causa"
+
+
+def test_rescisao_indireta_acentuada():
+    assert _med("rescisão indireta por falta grave") == "Rescisão indireta"
+
+
+def test_pedido_demissao_acentuado():
+    assert _med("pedido de demissão do reclamante") == "Pedido de demissão"
+
+
+def test_termino_contrato_acentuado():
+    assert _med("término do prazo do contrato") == "Término de contrato"
+
+
+# ---------------------------------------------------------------------------
+# GAPS — texto sem acento (PDF strips accents)
+# ---------------------------------------------------------------------------
+
+def test_sjc_rescisao_sem_acento():
+    """'rescisao sem justa causa' — sem acento, sem verbo antecedente."""
+    assert _med("rescisao sem justa causa") == "Sem justa causa"
+
+
+def test_sjc_demitido():
+    """'demitido sem justa causa' — particípio, não estava no padrão."""
+    assert _med("demitido sem justa causa") == "Sem justa causa"
+
+
+def test_sjc_dispensada():
+    assert _med("dispensada imotivadamente") == "Sem justa causa"
+
+
+def test_rescisao_indireta_sem_acento():
+    assert _med("rescisao indireta") == "Rescisão indireta"
+
+
+def test_pedido_demissao_sem_acento():
+    assert _med("pedido de demissao") == "Pedido de demissão"
+
+
+def test_termino_sem_acento():
+    assert _med("termino do contrato") == "Término de contrato"
+
+
+# ---------------------------------------------------------------------------
+# GAPS — novos motivos
+# ---------------------------------------------------------------------------
+
+def test_aposentadoria():
+    assert _med("aposentadoria espontânea do reclamante") == "Aposentadoria"
+
+
+def test_aposentadoria_sem_acento():
+    assert _med("aposentadoria espontanea") == "Aposentadoria"
+
+
+def test_acordo_rescisorio():
+    assert _med("acordo rescisório entre as partes") == "Acordo rescisório"
+
+
+def test_acordo_entre_partes():
+    assert _med("acordo entre as partes (art. 484-A CLT)") == "Acordo rescisório"
+
+
+def test_falecimento():
+    assert _med("falecimento do empregado") == "Falecimento"
+
+
+# ---------------------------------------------------------------------------
+# Prioridade — indireta > SJC > JC
+# ---------------------------------------------------------------------------
+
+def test_indireta_prevalece_sobre_jc():
+    txt = "rescisao indireta em razão da justa causa do empregador"
+    assert _med(txt) == "Rescisão indireta"
+
+
+def test_sem_contexto_nao_extrai():
+    assert _med("O processo foi distribuído em 2023.") is None

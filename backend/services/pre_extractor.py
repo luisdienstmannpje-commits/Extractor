@@ -145,18 +145,33 @@ _RE_JUROS_1 = re.compile(
 _RE_JUROS_SELIC = re.compile(r"(?i)juros\s+(?:de\s+mora\s+)?(?:pela\s+)?SELIC")
 _RE_JUROS_LEGAIS = re.compile(r"(?i)juros\s+legais")
 
-# Motivo da rescisão
+# Motivo da rescisão — padrões aceitam texto com e sem acentos (PDFs variam)
 _RE_RESCISAO_SJC = re.compile(
-    r"(?i)\b(dispensad[oa]|dispensou|demissão|demitiu)\b.{0,60}"
-    r"\bsem\s+justa\s+causa\b",
+    r"(?i)"
+    r"(?:dispensad[oa]|dispensou|demitid[oa]|demitiu|demiss[aã]o|rescis[aã]o)"
+    r".{0,60}\bsem\s+justa\s+causa\b"
+    r"|\bimotivadamente\b"
+    r"|\bsem\s+justa\s+causa\b"          # padrão direto sem verbo antecedente
 )
 _RE_RESCISAO_JC = re.compile(r"(?i)\bcom\s+justa\s+causa\b")
-_RE_RESCISAO_INDIRETA = re.compile(r"(?i)\brescisão\s+indireta\b")
+_RE_RESCISAO_INDIRETA = re.compile(r"(?i)\brescis[aã]o\s+indireta\b")
 _RE_RESCISAO_PEDIDO = re.compile(
-    r"(?i)\b(pedido\s+de\s+demissão|demitiu[-\s]+se|pediu\s+demissão)\b"
+    r"(?i)\b(?:pedido\s+de\s+demiss[aã]o|demitiu[-\s]+se|pediu\s+demiss[aã]o)\b"
 )
 _RE_RESCISAO_TERMINO = re.compile(
-    r"(?i)\btérmino\s+do\s+(?:prazo\s+do\s+)?contrato\b"
+    r"(?i)\bt[eé]rmino\s+do\s+(?:prazo\s+do\s+)?contrato\b"
+)
+_RE_RESCISAO_APOSENTADORIA = re.compile(
+    r"(?i)\baposentadoria\b"
+)
+_RE_RESCISAO_ACORDO = re.compile(
+    r"(?i)\bacordo\s+rescis[oó]rio\b"
+    r"|\bacordo\s+entre\s+as\s+partes\b"
+    r"|\bart\.?\s*484-?A\b"
+)
+_RE_RESCISAO_FALECIMENTO = re.compile(
+    r"(?i)\bfalecimento\b"
+    r"|\b[oó]bito\s+do\s+empregado\b"
 )
 
 # Tipo de contrato — duração (HIGH: frases terminológicas fixas)
@@ -652,6 +667,12 @@ class PreExtractor:
             self._set_medium("motivo_rescisao", "Pedido de demissão")
         elif _RE_RESCISAO_TERMINO.search(self.texto):
             self._set_medium("motivo_rescisao", "Término de contrato")
+        elif _RE_RESCISAO_APOSENTADORIA.search(self.texto):
+            self._set_medium("motivo_rescisao", "Aposentadoria")
+        elif _RE_RESCISAO_ACORDO.search(self.texto):
+            self._set_medium("motivo_rescisao", "Acordo rescisório")
+        elif _RE_RESCISAO_FALECIMENTO.search(self.texto):
+            self._set_medium("motivo_rescisao", "Falecimento")
 
     def _extract_tipo_contrato(self):
         # HIGH: terminologia de duração — inequívoca
