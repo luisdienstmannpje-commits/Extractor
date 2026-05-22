@@ -79,21 +79,40 @@ _RE_RITO_ORDINARIO = re.compile(
 _RE_ADMISSAO = re.compile(
     r"(?i)(?:admitid[oa]\s+em|admiss[aã]o\s+em|"
     r"empregad[oa]\s+em|com\s+in[íi]cio\s+em|"
-    r"ingressou\s+em|contratad[oa]\s+em|"
+    r"ingressou\s+em|iniciou\s+em|"
+    r"contratad[oa]\s+em|"
     r"contrata[çc][aã]o\s+em|"
     r"in[íi]cio\s+do\s+(?:contrato|v[íi]nculo)\s+(?:empregatício\s+)?em|"
     r"data\s+de\s+(?:admiss[aã]o|contrata[çc][aã]o)[:\s]+)"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
+# Extenso: "admitido em 15 de janeiro de 2020"
+_RE_ADMISSAO_EXTENSO = re.compile(
+    r"(?i)(?:admitid[oa]\s+em|admiss[aã]o\s+em|"
+    r"empregad[oa]\s+em|com\s+in[íi]cio\s+em|"
+    r"ingressou\s+em|iniciou\s+em|"
+    r"contratad[oa]\s+em|contrata[çc][aã]o\s+em|"
+    r"in[íi]cio\s+do\s+(?:contrato|v[íi]nculo)\s+(?:empregatício\s+)?em)"
+    r"\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})"
+)
 _RE_DEMISSAO = re.compile(
     r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|"
-    r"rescis[aã]o\s+(?:contratual\s+)?em|"
+    r"rescis[aã]o\s+(?:contratual\s+)?em|rescindid[oa]\s+em|"
     r"saiu\s+em|desligad[oa]\s+em|desligamento\s+em|"
     r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
     r"término\s+do\s+contrato\s+em|"
     r"data\s+de\s+demiss[aã]o[:\s]+|"
     r"data\s+d[ao]\s+rescis[aã]o[:\s]+)"
     r"\s*(\d{2}/\d{2}/\d{4})"
+)
+# Extenso: "dispensado em 30 de junho de 2023"
+_RE_DEMISSAO_EXTENSO = re.compile(
+    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|"
+    r"rescindid[oa]\s+em|saiu\s+em|"
+    r"desligad[oa]\s+em|desligamento\s+em|"
+    r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
+    r"término\s+do\s+contrato\s+em)"
+    r"\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})"
 )
 
 # Salário base — diversas formas de menção
@@ -530,16 +549,32 @@ class PreExtractor:
                 self._set_medium("data_ajuizamento", norm)
 
     def _extract_data_admissao(self):
+        # Tenta formato slash primeiro (DD/MM/AAAA)
         m = _RE_ADMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
             if norm:
                 self._set_medium("data_admissao", norm)
+                return
+        # Fallback: data por extenso ("admitido em 15 de janeiro de 2020")
+        m = _RE_ADMISSAO_EXTENSO.search(self.texto)
+        if m:
+            norm = self._data_extenso_para_slash(m.group(1))
+            if norm:
+                self._set_medium("data_admissao", norm)
 
     def _extract_data_demissao(self):
+        # Tenta formato slash primeiro (DD/MM/AAAA)
         m = _RE_DEMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
+            if norm:
+                self._set_medium("data_demissao", norm)
+                return
+        # Fallback: data por extenso ("dispensado em 30 de junho de 2023")
+        m = _RE_DEMISSAO_EXTENSO.search(self.texto)
+        if m:
+            norm = self._data_extenso_para_slash(m.group(1))
             if norm:
                 self._set_medium("data_demissao", norm)
 
