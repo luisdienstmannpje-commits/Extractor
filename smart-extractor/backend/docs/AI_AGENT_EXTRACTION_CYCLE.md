@@ -63,13 +63,13 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **advogado_reclamante + advogado_reclamada** (MEDIUM).
-- Diagnostico: constante `_NOME_ADV` reutilizavel captura "Dr(a). " opcional + 2-4 palavras capitalizadas com preposicoes internas (da/de/dos). Prefixos suportados: Advogado do/da, Adv. reclamante/reclamada, Patrono do/da. Unico metodo `_extract_advogados` preenche os dois campos.
+- Dado-alvo concluido: **horario_trabalho** (MEDIUM).
+- Diagnostico: dois padroes — A "das/de/jornada: HH as HH" e B "Entrada as HH, saida as HH". Fix chave: `_HORA` usa `(?:(?:h|:)(\d{2})|h)?` para consumir 'h' solto sem minutos (antes ficava travado). Intervalo capturado no fragmento restante (h ou min). Normalizacao: "07:30" → "07h30".
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_advogados.py` -> `11 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_horario_trabalho.py` -> `10 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `472 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `482 passed`.
 - Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
@@ -79,11 +79,12 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`horario_trabalho`** — horario de entrada/saida/intervalo reconhecido pelo juiz (ex: "07h as 17h com 1h de intervalo").
-- Alternativa: **`banco_horas_valido`** — banco de horas reconhecido como valido/invalido (bool).
+- Dado-alvo: **`banco_horas_valido`** — banco de horas reconhecido como valido/invalido (bool MEDIUM).
+- Alternativa: **`cargo_confianca`** — cargo de confianca reconhecido (bool MEDIUM).
 
 ## Ciclos anteriores (referencia)
 
+- **horario_trabalho** — 2 padroes (das/de vs Entrada/saida); fix `_HORA` consome 'h' solto; intervalo em h ou min; normalizacao 07:30→07h30; 10 testes focados; suite `tests/test_extraction_cycle_*.py` `482 passed`.
 - **advogado_reclamante + advogado_reclamada** — `_NOME_ADV` reutilizavel; prefixos Advogado/Adv./Patrono; Dr(a). opcional; unico metodo para ambos; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `472 passed`.
 - **prescricao_quinquenal** — prioridade Parcial > Afastada > Acolhida; "acolho parcialmente" nao vira "Acolhida"; cobre quinquenal e bienal; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `461 passed`.
 - **valor_causa** — 3 padroes (cabecalho, "Atribuo/Fixo/Dou a causa", "em R$"); normalizado via `_formatar_moeda_br`; nao confunde com valores de condenacao; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `449 passed`.
