@@ -63,13 +63,13 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **prescricao_quinquenal** (MEDIUM).
-- Diagnostico: prioridade Parcial > Afastada > Acolhida. Parcial detecta "acolho parcialmente" antes de Acolhida para evitar falso positivo. Afastada cobre afasto/rejeito/nao acolho. Acolhida cobre acolho/reconheco/pronuncio/declaro prescritos. Acentos opcionais via `[çc][aã]`.
+- Dado-alvo concluido: **advogado_reclamante + advogado_reclamada** (MEDIUM).
+- Diagnostico: constante `_NOME_ADV` reutilizavel captura "Dr(a). " opcional + 2-4 palavras capitalizadas com preposicoes internas (da/de/dos). Prefixos suportados: Advogado do/da, Adv. reclamante/reclamada, Patrono do/da. Unico metodo `_extract_advogados` preenche os dois campos.
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_prescricao_quinquenal.py` -> `12 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_advogados.py` -> `11 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `461 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `472 passed`.
 - Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
@@ -79,11 +79,12 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`advogado_reclamante`** + **`advogado_reclamada`** — nomes e OAB do cabecalho (par natural, mesmo ciclo).
-- Alternativa: **`horario_trabalho`** — horario de entrada/saida/intervalo reconhecido pelo juiz.
+- Dado-alvo: **`horario_trabalho`** — horario de entrada/saida/intervalo reconhecido pelo juiz (ex: "07h as 17h com 1h de intervalo").
+- Alternativa: **`banco_horas_valido`** — banco de horas reconhecido como valido/invalido (bool).
 
 ## Ciclos anteriores (referencia)
 
+- **advogado_reclamante + advogado_reclamada** — `_NOME_ADV` reutilizavel; prefixos Advogado/Adv./Patrono; Dr(a). opcional; unico metodo para ambos; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `472 passed`.
 - **prescricao_quinquenal** — prioridade Parcial > Afastada > Acolhida; "acolho parcialmente" nao vira "Acolhida"; cobre quinquenal e bienal; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `461 passed`.
 - **valor_causa** — 3 padroes (cabecalho, "Atribuo/Fixo/Dou a causa", "em R$"); normalizado via `_formatar_moeda_br`; nao confunde com valores de condenacao; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `449 passed`.
 - **jornada_contratual** — regex A: `\bjornada\b.{0,60}?` tolera palavras intermediarias; fix `(?:[xX]|por)` vs classe de caracteres; 12x36 tem prioridade; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `438 passed`.
