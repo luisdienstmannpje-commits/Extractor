@@ -99,8 +99,9 @@ _RE_DEMISSAO = re.compile(
 # Salário base — diversas formas de menção
 _RE_SALARIO = re.compile(
     r"(?i)(?:sal[aá]rio\s+(?:(?:base|fixo|contratual|normativo)\s+)?de|"
+    r"sal[aá]rio(?:\s+(?:base|fixo|contratual|normativo))?\s*:\s*R\$|"
     r"remunera[çc][aã]o\s+(?:mensal\s+)?(?:bruta\s+)?de|"
-    r"percebia\s+(?:o\s+sal[aá]rio\s+de|a\s+importância\s+de)|"
+    r"percebia\s+(?:o\s+sal[aá]rio\s+de|a\s+import[aâ]ncia\s+de)|"
     r"recebia\s+o\s+sal[aá]rio\s+de|"
     r"[úu]ltima\s+remunera[çc][aã]o\s+(?:mensal\s+)?de|"
     r"piso\s+(?:salarial\s+)?de|"
