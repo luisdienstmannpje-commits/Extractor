@@ -63,6 +63,16 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
+- Dado-alvo concluido: **jornada_contratual** (MEDIUM).
+- Diagnostico: regex A usa `\bjornada\b.{0,60}?` para cobrir "jornada contratual era de N horas" (a âncora "era" não estava no padrão original). Fix 12x36: `(?:[xX×]|por)` em vez de classe de caracteres `[xX×por]` que só casava um caractere por vez. Lição: `[abc]` ≠ alternação `(?:a|b|c)` para tokens de mais de um caractere.
+- Camada: `backend/services/pre_extractor.py`.
+- Teste focado:
+  - `python -m pytest -q tests/test_extraction_cycle_jornada_contratual.py` -> `11 passed`.
+- Regressao:
+  - `tests/test_extraction_cycle_*.py` -> `438 passed`.
+
+## Ciclo anterior
+
 - Dado-alvo concluido: **ir_retido_fonte** (MEDIUM).
 - Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
@@ -73,11 +83,12 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`motivo_rescisao`** — motivo da rescisao contratual (pedido de demissao / dispensa sem justa causa / justa causa / rescisao indireta / comum acordo).
-- Alternativa: **`tipo_contrato`** — determinado / indeterminado / temporario.
+- Dado-alvo: **`valor_causa`** — valor da causa declarado no cabecalho (ex: R$ 50.000,00).
+- Alternativa: **`prescricao_quinquenal`** — acolhida/afastada/parcial.
 
 ## Ciclos anteriores (referencia)
 
+- **jornada_contratual** — regex A: `\bjornada\b.{0,60}?` tolera palavras intermediarias; fix `(?:[xX]|por)` vs classe de caracteres; 12x36 tem prioridade; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `438 passed`.
 - **ir_retido_fonte** — prioridade: sem incidencia > tabela progressiva > reclamada desconta; 3 sub-padroes reclamada; cobre IRRF, IR e "imposto de renda"; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `427 passed`.
 - **contribuicao_previdenciaria** — prioridade: sem incidencia > ambas as partes > reclamada; 4 sub-padroes reclamada; fix plural `contribuicoes previdenciarias` (`s?`); 11 testes focados; suite `tests/test_extraction_cycle_*.py` `416 passed`.
 - **custas_processuais** — 3 sub-padroes reclamada (nominal/explicito/implicito); prioridade isencao > reclamante > reclamada; valor base "sobre R$" e "no valor de"; `pel[ao]` handle "pelo reu"; 9 testes focados; suite `tests/test_extraction_cycle_*.py` `405 passed`.
