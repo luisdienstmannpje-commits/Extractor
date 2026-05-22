@@ -254,6 +254,19 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+_RE_VALOR_CAUSA = re.compile(
+    r"(?is)"
+    # A: "Valor da causa[/ação]: R$ X"
+    r"\bvalor\s+da\s+(?:causa|a[çc][aã]o)\s*:\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+    r"|"
+    # B: "Atribuo/Fixo/Dou a causa o valor de R$ X"
+    r"\b(?:atribuo|fixo|dou)\b.{0,40}\b(?:causa|a[çc][aã]o)\b.{0,40}\bvalor\s+de\s+"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+    r"|"
+    # C: "Valor da causa em R$ X"
+    r"\bvalor\s+da\s+(?:causa|a[çc][aã]o)\s+em\s+"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+)
 _RE_JORNADA_12x36 = re.compile(
     r"(?i)\b(?:escala\s+(?:de\s+)?|jornada\s+(?:de\s+)?)?12\s*(?:[xX×]|por)\s*36\b"
 )
@@ -1332,6 +1345,18 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_valor_causa(self):
+        """Valor da causa declarado no cabecalho ou dispositivo — normalizado para 'R$ X.XXX,XX'."""
+        m = _RE_VALOR_CAUSA.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("valor_causa", valor)
+
     def _extract_jornada_contratual(self):
         """Jornada contratual padrao reconhecida — normalizada para '44h semanais', '12x36', etc."""
         texto = self.texto
@@ -1354,12 +1379,7 @@ class PreExtractor:
                     per_norm = "mensais"
                 self._set_medium("jornada_contratual", f"{horas}h {per_norm}")
                 return
-        # 3. Horas mensais sem qualificador (ex: "220 horas mensais")
-        m2 = _RE_JORNADA_MENSAIS.search(texto)
-        if m2:
-            horas = m2.group(1) or m2.group(2)
-            if horas:
-                self._set_medium("jornada_contratual", f"{horas}h mensais")
+        # 3. (mensais ja cobertos pelo grupo "mensais?" de _RE_JORNADA_HORAS — nada a fazer)
 
     def _extract_ir_retido_fonte(self):
         """IR retido na fonte — Reclamada desconta / Sem incidencia / Conforme tabela IRRF."""
@@ -1709,6 +1729,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_valor_causa,
             self._extract_jornada_contratual,
             self._extract_ir_retido_fonte,
             self._extract_contribuicao_previdenciaria,
@@ -1808,6 +1829,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "contribuicao_previdenciaria": "Contribuição previdenciária (INSS)",
         "ir_retido_fonte":             "IR retido na fonte",
         "jornada_contratual":          "Jornada contratual",
+        "valor_causa":                 "Valor da causa",
     }
 
     linhas = [
