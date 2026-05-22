@@ -258,6 +258,22 @@ _RE_CUSTAS_VALOR_DIRETO = re.compile(
 # _HORA: captura HH:MM | HHhMM | HHh | HH — consome o 'h' solto sem exigir minutos
 # Grupos: (horas, minutos_ou_None)
 _HORA = r"(\d{1,2})(?:(?:h|:)(\d{2})|h)?"
+_ADJ_INVALIDO = r"(?:inv[aá]lid[oa]|nul[oa]|irregular|imprest[aá]vel|ineficaz)"
+_ADJ_VALIDO   = r"(?:v[aá]lid[oa]|regular|l[íi]cito|eficaz)"
+_VERBO_JUDICIAL = r"(?:declaro|reconhe[çc]o|considero|julgo)"
+_BANCO_HORAS  = r"\bbanco\s+de\s+horas\b"
+_RE_BANCO_HORAS_INVALIDO = re.compile(
+    r"(?is)" + _VERBO_JUDICIAL + r".{0,60}" + _ADJ_INVALIDO + r".{0,60}" + _BANCO_HORAS
+    + r"|" + _VERBO_JUDICIAL + r".{0,60}" + _BANCO_HORAS + r".{0,80}" + _ADJ_INVALIDO
+    + r"|" + _BANCO_HORAS + r".{0,80}" + _ADJ_INVALIDO
+    + r"|\bn[aã]o\s+" + _VERBO_JUDICIAL + r".{0,80}" + _BANCO_HORAS
+)
+_RE_BANCO_HORAS_VALIDO = re.compile(
+    r"(?is)" + _VERBO_JUDICIAL + r".{0,60}" + _ADJ_VALIDO + r".{0,60}" + _BANCO_HORAS
+    + r"|" + _VERBO_JUDICIAL + r".{0,60}" + _BANCO_HORAS + r".{0,80}" + _ADJ_VALIDO
+    + r"|" + _BANCO_HORAS + r".{0,80}" + _ADJ_VALIDO
+    + r"|\bvalidade\s+do\s+banco\s+de\s+horas\b"
+)
 _RE_HORARIO_DAS_AS = re.compile(
     r"(?i)"
     # Padrão A: "das/de/jornada...: HH[h/:]MM às HH[h/:]MM"
@@ -1416,6 +1432,14 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_banco_horas_valido(self):
+        """Banco de horas valido (True) ou invalido (False) — invalido tem prioridade."""
+        texto = self.texto
+        if _RE_BANCO_HORAS_INVALIDO.search(texto):
+            self._set_medium("banco_horas_valido", False)
+        elif _RE_BANCO_HORAS_VALIDO.search(texto):
+            self._set_medium("banco_horas_valido", True)
+
     def _extract_horario_trabalho(self):
         """Horario de entrada/saida/intervalo reconhecido — normalizado para 'XHh as YYh [com Zh de intervalo]'."""
         def fmt_hora(h, mn):
@@ -1872,6 +1896,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_banco_horas_valido,
             self._extract_horario_trabalho,
             self._extract_advogados,
             self._extract_prescricao_quinquenal,
@@ -1977,6 +2002,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "jornada_contratual":          "Jornada contratual",
         "valor_causa":                 "Valor da causa",
         "prescricao_quinquenal":       "Prescrição quinquenal",
+        "banco_horas_valido":          "Banco de horas válido",
         "horario_trabalho":            "Horário de trabalho",
         "advogado_reclamante":         "Advogado do reclamante",
         "advogado_reclamada":          "Advogado da reclamada",
