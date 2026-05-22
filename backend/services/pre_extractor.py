@@ -264,6 +264,22 @@ _RE_PROCESSO_CABECALHO = re.compile(
 )
 
 # ---------------------------------------------------------------------------
+# Partes — reclamante e reclamada (HIGH, via rótulo no cabeçalho)
+# ---------------------------------------------------------------------------
+# ^ com re.MULTILINE âncora ao início da linha — evita capturar
+# "Advogado do Reclamante:" como rótulo de parte.
+_RE_NOME_RECLAMANTE = re.compile(
+    r"(?im)^\s*(?:Reclamante|Autor[ao]?|Exequente)\s*:\s*([^\n\r]{3,100})"
+)
+_RE_NOME_RECLAMADA = re.compile(
+    r"(?im)^\s*(?:Reclamad[ao]|R[eé]u|Executad[ao])\s*:\s*([^\n\r]{3,100})"
+)
+# Remove sufixo "CPF/RG/CNPJ: ..." que aparece após vírgula na mesma linha
+_RE_SUFIXO_DOCUMENTO = re.compile(
+    r"\s*,\s*(?:CPF|RG|CNPJ)\b.*$", re.IGNORECASE
+)
+
+# ---------------------------------------------------------------------------
 # natureza_reclamada — "fazenda_publica" | "privada"
 # ---------------------------------------------------------------------------
 # Fazenda pública: entidades de direito público, autarquias, empresas públicas,
@@ -479,6 +495,18 @@ class PreExtractor:
             if len(nome.split()) >= 2:
                 self._set_high("juiz_responsavel", nome)
 
+    def _extract_partes(self):
+        """Nomes das partes via rótulo explícito no cabeçalho (HIGH)."""
+        for campo, regex in (
+            ("reclamante", _RE_NOME_RECLAMANTE),
+            ("reclamada",  _RE_NOME_RECLAMADA),
+        ):
+            m = regex.search(self.texto)
+            if m:
+                nome = _RE_SUFIXO_DOCUMENTO.sub("", m.group(1)).strip().rstrip(".,")
+                if len(nome) >= 3:
+                    self._set_high(campo, nome)
+
     def _extract_advogados(self):
         """Advogados das partes — rótulos 'Adv. do Reclamante:' / 'Adv. da Reclamada:' (HIGH)."""
         for campo, regex in (
@@ -678,6 +706,7 @@ class PreExtractor:
             self._extract_aviso_previo_tipo,
             self._extract_juiz_responsavel,
             self._extract_advogados,
+            self._extract_partes,
         ]
         for fn in high_extractors:
             try:
@@ -741,6 +770,8 @@ _ROTULOS_HIGH = {
     "juiz_responsavel":     "Juiz(a) responsável",
     "advogado_reclamante":  "Advogado do reclamante",
     "advogado_reclamada":   "Advogado da reclamada",
+    "reclamante":           "Nome do reclamante",
+    "reclamada":            "Nome da reclamada",
 }
 
 _ROTULOS_MEDIUM = {
