@@ -254,6 +254,32 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+_RE_PRESCRICAO_PARCIAL = re.compile(
+    r"(?is)"
+    r"\b(?:acolho|acolhida?|reconhe[çc]o|pronuncio)\s+parcialmente\b.{0,80}"
+    r"\bprescri[çc][aã]o\b"
+    r"|\bprescri[çc][aã]o\b.{0,80}\bparcialmente\s+acolhida?\b"
+)
+_RE_PRESCRICAO_AFASTADA = re.compile(
+    r"(?is)"
+    r"\b(?:afasto|rejeito|indefiro|nao\s+acolho|afastada?|rejeitada?)\b"
+    r".{0,100}\bprescri[çc][aã]o\b"
+    r"|\bprescri[çc][aã]o\b.{0,100}"
+    r"\b(?:afasto|rejeito|indefiro|afastada?|rejeitada?|nao\s+acolhida?)\b"
+)
+_RE_PRESCRICAO_ACOLHIDA = re.compile(
+    r"(?is)"
+    # A: verbo judicial + prescricao
+    r"\b(?:acolho|reconhe[çc]o|pronuncio|declaro)\b.{0,120}"
+    r"\bprescri[çc][aã]o\b"
+    r"|"
+    # B: "declaro prescritos os creditos"
+    r"\bdeclaro\s+prescritos?\b"
+    r"|"
+    # C: "prescricao quinquenal/bienal" com contexto de reconhecimento
+    r"\bprescri[çc][aã]o\s+(?:quinquenal|bienal)\b.{0,80}"
+    r"\b(?:acolhida?|reconhecida?|pronunciada?)\b"
+)
 _RE_VALOR_CAUSA = re.compile(
     r"(?is)"
     # A: "Valor da causa[/ação]: R$ X"
@@ -1345,6 +1371,21 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_prescricao_quinquenal(self):
+        """Resultado da prescricao quinquenal/bienal — Parcial > Afastada > Acolhida."""
+        texto = self.texto
+        # 1. Parcial — prioridade maxima (evita falso "Acolhida" em "acolho parcialmente")
+        if _RE_PRESCRICAO_PARCIAL.search(texto):
+            self._set_medium("prescricao_quinquenal", "Parcial")
+            return
+        # 2. Afastada
+        if _RE_PRESCRICAO_AFASTADA.search(texto):
+            self._set_medium("prescricao_quinquenal", "Afastada")
+            return
+        # 3. Acolhida
+        if _RE_PRESCRICAO_ACOLHIDA.search(texto):
+            self._set_medium("prescricao_quinquenal", "Acolhida")
+
     def _extract_valor_causa(self):
         """Valor da causa declarado no cabecalho ou dispositivo — normalizado para 'R$ X.XXX,XX'."""
         m = _RE_VALOR_CAUSA.search(self.texto)
@@ -1729,6 +1770,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_prescricao_quinquenal,
             self._extract_valor_causa,
             self._extract_jornada_contratual,
             self._extract_ir_retido_fonte,
@@ -1830,6 +1872,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "ir_retido_fonte":             "IR retido na fonte",
         "jornada_contratual":          "Jornada contratual",
         "valor_causa":                 "Valor da causa",
+        "prescricao_quinquenal":       "Prescrição quinquenal",
     }
 
     linhas = [
