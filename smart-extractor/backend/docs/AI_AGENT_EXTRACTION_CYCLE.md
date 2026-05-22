@@ -63,13 +63,13 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **valor_causa** (MEDIUM).
-- Diagnostico: 3 padroes — (A) cabecalho "Valor da causa/acao: R$ X"; (B) "Atribuo/Fixo/Dou a causa o valor de R$ X"; (C) "valor da causa em R$ X". Normalizado via `_formatar_moeda_br`. Fix bonus: referencia morta a `_RE_JORNADA_MENSAIS` removida do ciclo anterior.
+- Dado-alvo concluido: **prescricao_quinquenal** (MEDIUM).
+- Diagnostico: prioridade Parcial > Afastada > Acolhida. Parcial detecta "acolho parcialmente" antes de Acolhida para evitar falso positivo. Afastada cobre afasto/rejeito/nao acolho. Acolhida cobre acolho/reconheco/pronuncio/declaro prescritos. Acentos opcionais via `[çc][aã]`.
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_valor_causa.py` -> `11 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_prescricao_quinquenal.py` -> `12 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `449 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `461 passed`.
 - Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
@@ -79,11 +79,12 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`prescricao_quinquenal`** — acolhida / afastada / parcial (art. 7 XXIX CF).
-- Alternativa: **`advogado_reclamante`** / **`advogado_reclamada`** — nomes e OAB do cabecalho.
+- Dado-alvo: **`advogado_reclamante`** + **`advogado_reclamada`** — nomes e OAB do cabecalho (par natural, mesmo ciclo).
+- Alternativa: **`horario_trabalho`** — horario de entrada/saida/intervalo reconhecido pelo juiz.
 
 ## Ciclos anteriores (referencia)
 
+- **prescricao_quinquenal** — prioridade Parcial > Afastada > Acolhida; "acolho parcialmente" nao vira "Acolhida"; cobre quinquenal e bienal; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `461 passed`.
 - **valor_causa** — 3 padroes (cabecalho, "Atribuo/Fixo/Dou a causa", "em R$"); normalizado via `_formatar_moeda_br`; nao confunde com valores de condenacao; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `449 passed`.
 - **jornada_contratual** — regex A: `\bjornada\b.{0,60}?` tolera palavras intermediarias; fix `(?:[xX]|por)` vs classe de caracteres; 12x36 tem prioridade; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `438 passed`.
 - **ir_retido_fonte** — prioridade: sem incidencia > tabela progressiva > reclamada desconta; 3 sub-padroes reclamada; cobre IRRF, IR e "imposto de renda"; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `427 passed`.
