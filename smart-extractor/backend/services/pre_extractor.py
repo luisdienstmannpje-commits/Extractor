@@ -254,6 +254,39 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+_RE_CONTRIB_PREV_SEM_INCIDENCIA = re.compile(
+    r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,80}\bsem\s+incid[eê]ncia\b"
+    r"|\bnat(?:ureza)?\s+indenizat[oó]ria\b.{0,120}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,120}\bnat(?:ureza)?\s+indenizat[oó]ria\b"
+    r"|\bn[aã]o\s+h[aá]\s+incid[eê]ncia\s+de\s+(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+)
+_RE_CONTRIB_PREV_AMBAS = re.compile(
+    r"(?is)\b(?:cada\s+(?:uma\s+das?\s+)?parte|ambas\s+as\s+partes)\b"
+    r".{0,140}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS|cota)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,140}"
+    r"\b(?:cada\s+(?:uma\s+das?\s+)?parte|ambas\s+as\s+partes)\b"
+)
+_RE_CONTRIB_PREV_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: condeno/determino + reclamada + INSS/contrib prev
+    r"\b(?:conden[oa]|condeno|determino|dever[aá])\b.{0,120}"
+    r"\b(?:reclamad[ao]|empresa|r[eé]u)\b.{0,160}"
+    r"\b(?:contribui[cç][oõ]es?\s+previdenci[aá]rias?|INSS|cota\s+patronal|encargos?\s+previdenci[aá]rios?)\b"
+    r"|"
+    # B: reclamada + recolher/recolhimento + INSS/contrib (cobre "recolhera as contribuicoes previdenciarias")
+    r"\b(?:reclamad[ao]|empresa)\b.{0,120}"
+    r"\b(?:recolher[aá]?|recolher[aá]|recolhimento|recolhe)\b.{0,120}"
+    r"\b(?:contribui[cç][oõ]es?\s+previdenci[aá]rias?|INSS|cota\s+patronal)\b"
+    r"|"
+    # C: recolhimento da contrib prev + pela reclamada
+    r"\b(?:recolhimento|recolher[aá]?)\b.{0,120}"
+    r"\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS|cota\s+patronal)\b.{0,120}"
+    r"\b(?:pela?\s+reclamad[ao]|a\s+cargo\s+d[ao]?\s+reclamad[ao])\b"
+    r"|"
+    # D: a reclamada devera recolher o INSS
+    r"\b(?:reclamad[ao])\b.{0,80}\bINSS\b"
+)
 _RE_MULTA_477_INDEFERIDA = re.compile(
     r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b"
     r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,100}\bindeferid[ao]\b"
@@ -1250,6 +1283,21 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_contribuicao_previdenciaria(self):
+        """Responsavel pelo recolhimento do INSS (Reclamada / Ambas as partes / Sem incidencia)."""
+        texto = self.texto
+        # 1. Sem incidencia (natureza indenizatoria) — prioridade maxima
+        if _RE_CONTRIB_PREV_SEM_INCIDENCIA.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Sem incidencia")
+            return
+        # 2. Ambas as partes — cada qual sua cota
+        if _RE_CONTRIB_PREV_AMBAS.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Ambas as partes")
+            return
+        # 3. Reclamada recolhe (patronal ou com desconto do empregado)
+        if _RE_CONTRIB_PREV_RECLAMADA.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Reclamada")
+
     def _extract_custas_processuais(self):
         """Custas processuais — pagador (Reclamada/Reclamante/Isencao) e valor base opcional."""
         texto = self.texto
@@ -1567,6 +1615,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_contribuicao_previdenciaria,
             self._extract_custas_processuais,
             self._extract_multa_art_467,
             self._extract_multa_art_477,
@@ -1660,6 +1709,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "dano_material":         "Dano material",
         "multa_art_467":         "Multa art. 467 CLT",
         "custas_processuais":    "Custas processuais",
+        "contribuicao_previdenciaria": "Contribuição previdenciária (INSS)",
     }
 
     linhas = [
