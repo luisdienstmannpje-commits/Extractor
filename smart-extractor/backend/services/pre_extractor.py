@@ -254,6 +254,38 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+_RE_IR_SEM_INCIDENCIA = re.compile(
+    r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b.{0,80}\bsem\s+incid[eê]ncia\b"
+    r"|\bnat(?:ureza)?\s+indenizat[oó]ria\b.{0,120}\b(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\bn[aã]o\s+h[aá]\s+incid[eê]ncia\s+de\s+(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\bisento?\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\b(?:imposto\s+de\s+renda|IRRF)\b.{0,80}\bisento?\b"
+)
+_RE_IR_TABELA = re.compile(
+    r"(?is)\b(?:imposto\s+de\s+renda|IRRF|IR)\b.{0,120}"
+    r"\b(?:tabela\s+progressiva|tabela\s+(?:do\s+)?IRRF|tabela\s+vigente)\b"
+    r"|\b(?:tabela\s+progressiva|tabela\s+(?:do\s+)?IRRF)\b.{0,80}"
+    r"\b(?:imposto\s+de\s+renda|IRRF|IR)\b"
+    r"|\bconforme\s+(?:a\s+)?tabela\s+progressiva\b"
+    r"|\btabela\s+progressiva\s+vigente\b"
+)
+_RE_IR_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: reclamada + descontar/reter/recolher + IR/IRRF
+    r"\b(?:reclamad[ao]|empresa)\b.{0,120}"
+    r"\b(?:descontar[aá]?|descont[ae]|reter[aá]?|ret[eé]m|recolher[aá]?|recolhe)\b.{0,120}"
+    r"\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|"
+    # B: condeno a reclamada a reter/recolher IR
+    r"\b(?:conden[oa]|condeno|determino)\b.{0,120}"
+    r"\b(?:reclamad[ao])\b.{0,160}"
+    r"\b(?:reter|recolher|descontar)\b.{0,120}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|"
+    # C: desconto do IR na fonte (sujeito implícito = reclamada)
+    r"\bautorizo\b.{0,80}\bdesconto\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|\bdesconto\s+do\s+(?:imposto\s+de\s+renda|IRRF|IR)\s+(?:retido\s+)?na\s+fonte\b"
+)
 _RE_CONTRIB_PREV_SEM_INCIDENCIA = re.compile(
     r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
     r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,80}\bsem\s+incid[eê]ncia\b"
@@ -1283,6 +1315,22 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_ir_retido_fonte(self):
+        """IR retido na fonte — Reclamada desconta / Sem incidencia / Conforme tabela IRRF."""
+        texto = self.texto
+        # 1. Sem incidência (natureza indenizatória ou isenção) — prioridade máxima
+        if _RE_IR_SEM_INCIDENCIA.search(texto):
+            self._set_medium("ir_retido_fonte", "Sem incidencia")
+            return
+        # 2. Remissão genérica à tabela progressiva (antes de verificar reclamada,
+        #    pois pode coexistir com menção à empresa)
+        if _RE_IR_TABELA.search(texto):
+            self._set_medium("ir_retido_fonte", "Conforme tabela IRRF")
+            return
+        # 3. Reclamada desconta / retém / recolhe
+        if _RE_IR_RECLAMADA.search(texto):
+            self._set_medium("ir_retido_fonte", "Reclamada desconta")
+
     def _extract_contribuicao_previdenciaria(self):
         """Responsavel pelo recolhimento do INSS (Reclamada / Ambas as partes / Sem incidencia)."""
         texto = self.texto
@@ -1615,6 +1663,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_ir_retido_fonte,
             self._extract_contribuicao_previdenciaria,
             self._extract_custas_processuais,
             self._extract_multa_art_467,
@@ -1710,6 +1759,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "multa_art_467":         "Multa art. 467 CLT",
         "custas_processuais":    "Custas processuais",
         "contribuicao_previdenciaria": "Contribuição previdenciária (INSS)",
+        "ir_retido_fonte":             "IR retido na fonte",
     }
 
     linhas = [
