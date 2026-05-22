@@ -258,9 +258,33 @@ _RE_CUSTAS_VALOR_DIRETO = re.compile(
 # _HORA: captura HH:MM | HHhMM | HHh | HH — consome o 'h' solto sem exigir minutos
 # Grupos: (horas, minutos_ou_None)
 _HORA = r"(\d{1,2})(?:(?:h|:)(\d{2})|h)?"
+_VERBO_JUDICIAL = r"(?:declaro|reconhe[çc]o|considero|julgo)"
+_CARGO_CC = r"(?:cargo\s+de\s+(?:confian[çc]a|fid[úu]cia)|art\.?\s*62[,\s]+II|fun[çc][aã]o\s+de\s+ger[eê]ncia)"
+_RE_CARGO_CONFIANCA_AFASTADO = re.compile(
+    r"(?is)"
+    # "afasto" / "nao reconheco" antes do cargo CC
+    + r"(?:\bafasto\b|\bn[aã]o\s+" + _VERBO_JUDICIAL + r")\b.{0,120}" + _CARGO_CC
+    # cargo CC antes da negacao
+    + r"|" + _CARGO_CC + r".{0,160}\b(?:n[aã]o\s+" + _VERBO_JUDICIAL + r"|n[aã]o\s+restou|n[aã]o\s+foi\s+comprovado)\b"
+    # particípio inicial: "Afastado o cargo de confianca"
+    + r"|\bafastado\b.{0,60}" + _CARGO_CC
+    # cargo CC seguido de adjetivo negativo
+    + r"|" + _CARGO_CC + r".{0,120}\b(?:afastado|n[aã]o\s+comprovado|n[aã]o\s+reconhecido|n[aã]o\s+configurado)\b"
+    + r"|" + _CARGO_CC + r".{0,80}\bn[aã]o\s+restou\s+comprovado\b"
+)
+_RE_CARGO_CONFIANCA_RECONHECIDO = re.compile(
+    r"(?is)"
+    # verbo judicial + cargo CC
+    + _VERBO_JUDICIAL + r".{0,120}" + _CARGO_CC
+    # cargo CC + adjetivo positivo
+    + r"|" + _CARGO_CC + r".{0,80}\b(?:reconhecido|configurado|comprovado|enquadrado)\b"
+    # "exercia/exerceu cargo de confianca"
+    + r"|\b(?:exercia|exerceu|ocupa(?:va)?)\b.{0,60}" + _CARGO_CC
+    # art. 62 II diretamente
+    + r"|\benquadra(?:\s+na\s+excec[aã]o)?\b.{0,80}\bart\.?\s*62\b"
+)
 _ADJ_INVALIDO = r"(?:inv[aá]lid[oa]|nul[oa]|irregular|imprest[aá]vel|ineficaz)"
 _ADJ_VALIDO   = r"(?:v[aá]lid[oa]|regular|l[íi]cito|eficaz)"
-_VERBO_JUDICIAL = r"(?:declaro|reconhe[çc]o|considero|julgo)"
 _BANCO_HORAS  = r"\bbanco\s+de\s+horas\b"
 _RE_BANCO_HORAS_INVALIDO = re.compile(
     r"(?is)" + _VERBO_JUDICIAL + r".{0,60}" + _ADJ_INVALIDO + r".{0,60}" + _BANCO_HORAS
@@ -1432,6 +1456,14 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_cargo_confianca(self):
+        """Cargo de confianca reconhecido (True) ou afastado (False) — afastado tem prioridade."""
+        texto = self.texto
+        if _RE_CARGO_CONFIANCA_AFASTADO.search(texto):
+            self._set_medium("cargo_confianca", False)
+        elif _RE_CARGO_CONFIANCA_RECONHECIDO.search(texto):
+            self._set_medium("cargo_confianca", True)
+
     def _extract_banco_horas_valido(self):
         """Banco de horas valido (True) ou invalido (False) — invalido tem prioridade."""
         texto = self.texto
@@ -1896,6 +1928,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_cargo_confianca,
             self._extract_banco_horas_valido,
             self._extract_horario_trabalho,
             self._extract_advogados,
@@ -2002,6 +2035,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "jornada_contratual":          "Jornada contratual",
         "valor_causa":                 "Valor da causa",
         "prescricao_quinquenal":       "Prescrição quinquenal",
+        "cargo_confianca":             "Cargo de confiança (art. 62 II CLT)",
         "banco_horas_valido":          "Banco de horas válido",
         "horario_trabalho":            "Horário de trabalho",
         "advogado_reclamante":         "Advogado do reclamante",
