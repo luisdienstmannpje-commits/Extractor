@@ -254,6 +254,23 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+_RE_JORNADA_12x36 = re.compile(
+    r"(?i)\b(?:escala\s+(?:de\s+)?|jornada\s+(?:de\s+)?)?12\s*(?:[xX×]|por)\s*36\b"
+)
+_RE_JORNADA_HORAS = re.compile(
+    r"(?is)"
+    # A: "jornada [contratual/prevista/...] [de/era de/...] N h[oras] period"
+    r"\bjornada\b.{0,60}?\b(\d+)\s*h(?:oras?)?\s+(semanais?|di[aá]rias?|mensais?)\b"
+    r"|"
+    # B: "N horas period contrata[da/do]"
+    r"\b(\d+)\s+horas?\s+(semanais?|di[aá]rias?|mensais?)\s+contrata(?:da|do|is)\b"
+    r"|"
+    # C: "N horas period de/da jornada/trabalho"
+    r"\b(\d+)\s+horas?\s+(semanais?|di[aá]rias?|mensais?)\s+(?:de\s+)?(?:jornada|trabalho)\b"
+    r"|"
+    # D: "Nh period" — somente quando acompanhado de contexto claro
+    r"\b(\d+)\s*[hH]\s+(semanais?|di[aá]rias?)\b"
+)
 _RE_IR_SEM_INCIDENCIA = re.compile(
     r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
     r"|\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b.{0,80}\bsem\s+incid[eê]ncia\b"
@@ -1315,6 +1332,35 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_jornada_contratual(self):
+        """Jornada contratual padrao reconhecida — normalizada para '44h semanais', '12x36', etc."""
+        texto = self.texto
+        # 1. Escala 12x36 — tem prioridade (padrão muito específico)
+        if _RE_JORNADA_12x36.search(texto):
+            self._set_medium("jornada_contratual", "12x36")
+            return
+        # 2. Horas + periodicidade (semanais/diárias/mensais)
+        m = _RE_JORNADA_HORAS.search(texto)
+        if m:
+            horas = next((g for g in m.groups()[::2] if g), None)   # grupos ímpares = número
+            periodo = next((g for g in m.groups()[1::2] if g), None) # grupos pares = período
+            if horas and periodo:
+                p = periodo.lower()
+                if "seman" in p:
+                    per_norm = "semanais"
+                elif "di" in p:
+                    per_norm = "diárias"
+                else:
+                    per_norm = "mensais"
+                self._set_medium("jornada_contratual", f"{horas}h {per_norm}")
+                return
+        # 3. Horas mensais sem qualificador (ex: "220 horas mensais")
+        m2 = _RE_JORNADA_MENSAIS.search(texto)
+        if m2:
+            horas = m2.group(1) or m2.group(2)
+            if horas:
+                self._set_medium("jornada_contratual", f"{horas}h mensais")
+
     def _extract_ir_retido_fonte(self):
         """IR retido na fonte — Reclamada desconta / Sem incidencia / Conforme tabela IRRF."""
         texto = self.texto
@@ -1663,6 +1709,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_jornada_contratual,
             self._extract_ir_retido_fonte,
             self._extract_contribuicao_previdenciaria,
             self._extract_custas_processuais,
@@ -1760,6 +1807,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "custas_processuais":    "Custas processuais",
         "contribuicao_previdenciaria": "Contribuição previdenciária (INSS)",
         "ir_retido_fonte":             "IR retido na fonte",
+        "jornada_contratual":          "Jornada contratual",
     }
 
     linhas = [
