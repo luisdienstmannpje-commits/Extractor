@@ -192,9 +192,11 @@ _RE_HORAS_SEMANAIS = re.compile(
 
 # Aviso prévio — dias (forma direta e invertida)
 _RE_AVISO_DIAS = re.compile(
-    r"(?i)aviso\s+pr[eé]vio\s+"
-    r"(?:(?:indenizado|trabalhado|proporcional|integral)\s+)?(?:de\s+)?"
-    r"(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?"
+    r"(?i)aviso\s+pr[eé]vio"
+    r"(?:\s+(?:indenizado|trabalhado|proporcional|integral))?"  # adjetivo opcional
+    r"\s*(?:de\s+|:\s*)?"                                        # "de " ou ": "
+    r"(?:(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?"                   # N (extenso) dias
+    r"|\((\d+)\s*dias?\))"                                       # (N dias)
 )
 _RE_AVISO_DIAS_INV = re.compile(
     r"(?i)(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?\s+de\s+aviso\s+pr[eé]vio"
@@ -712,7 +714,12 @@ class PreExtractor:
     def _extract_aviso_previo_dias(self):
         m = _RE_AVISO_DIAS.search(self.texto) or _RE_AVISO_DIAS_INV.search(self.texto)
         if m:
-            dias = int(m.group(1))
+            # _RE_AVISO_DIAS tem grupo 1 (número fora de parênteses)
+            # e grupo 2 (número dentro de parênteses "(60 dias)")
+            raw = next((g for g in m.groups() if g is not None), None)
+            if raw is None:
+                return
+            dias = int(raw)
             if 20 <= dias <= 90:  # plausibilidade
                 self._set_medium("aviso_previo_dias", f"{dias} dias")
 
