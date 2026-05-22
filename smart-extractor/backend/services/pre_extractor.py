@@ -254,6 +254,22 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+# Nome de advogado: "Dr(a). " opcional + 2-4 palavras capitalizadas
+_NOME_ADV = r"(?:Dr?a?\.\s+)?([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+){1,4})"
+_RE_ADV_RECLAMANTE = re.compile(
+    r"(?i)"
+    r"(?:advogad[oa]s?\s+d[oa]s?\s+(?:reclamante|autor[ao]?)\s*[:\-]\s*"
+    r"|adv\.?\s+reclamante\s*[:\-]\s*"
+    r"|patrono\s+d[oa]s?\s+(?:reclamante|autor[ao]?)\s*[:\-]\s*)"
+    + _NOME_ADV
+)
+_RE_ADV_RECLAMADA = re.compile(
+    r"(?i)"
+    r"(?:advogad[oa]s?\s+d[ao]s?\s+(?:reclamad[ao]|r[eé]u|empresa)\s*[:\-]\s*"
+    r"|adv\.?\s+reclamad[ao]\s*[:\-]\s*"
+    r"|patrono\s+d[ao]s?\s+(?:reclamad[ao]|empresa)\s*[:\-]\s*)"
+    + _NOME_ADV
+)
 _RE_PRESCRICAO_PARCIAL = re.compile(
     r"(?is)"
     r"\b(?:acolho|acolhida?|reconhe[çc]o|pronuncio)\s+parcialmente\b.{0,80}"
@@ -1371,6 +1387,16 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_advogados(self):
+        """Advogado do reclamante e da reclamada a partir do cabecalho da sentenca."""
+        texto = self.texto
+        m = _RE_ADV_RECLAMANTE.search(texto)
+        if m:
+            self._set_medium("advogado_reclamante", m.group(1).strip())
+        m = _RE_ADV_RECLAMADA.search(texto)
+        if m:
+            self._set_medium("advogado_reclamada", m.group(1).strip())
+
     def _extract_prescricao_quinquenal(self):
         """Resultado da prescricao quinquenal/bienal — Parcial > Afastada > Acolhida."""
         texto = self.texto
@@ -1770,6 +1796,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_advogados,
             self._extract_prescricao_quinquenal,
             self._extract_valor_causa,
             self._extract_jornada_contratual,
@@ -1873,6 +1900,8 @@ def build_anchor_section(medium_fields: dict) -> str:
         "jornada_contratual":          "Jornada contratual",
         "valor_causa":                 "Valor da causa",
         "prescricao_quinquenal":       "Prescrição quinquenal",
+        "advogado_reclamante":         "Advogado do reclamante",
+        "advogado_reclamada":          "Advogado da reclamada",
     }
 
     linhas = [
