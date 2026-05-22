@@ -63,21 +63,22 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **multa_art_467** (MEDIUM).
-- Diagnostico: parceiro natural de `multa_art_477` ja implementado. Mesmo contrato: string "Deferida" ou "Indeferida". Regex `_RE_MULTA_467_INDEFERIDA` e `_RE_MULTA_467_DEFERIDA` espelham o padrao da 477 trocando apenas o numero do artigo. Guard negativo: `467` nao casa com `477` por diferenca de digitos — campos sao independentes e coexistem no mesmo texto sem colisao. Campo adicionado ao `build_anchor_section`.
+- Dado-alvo concluido: **custas_processuais** (MEDIUM).
+- Diagnostico: extrai pagador (Reclamada/Reclamante/Isencao) e valor base opcional. Tres sub-padroes para reclamada: (A) nominal, (B) condeno+reclamada+custas, (C) condeno+custas implicito. Prioridade isencao > reclamante > reclamada. Valor "sobre R$" → "sobre R$ X" | "no valor de R$" → "R$ X". `pel[ao]` handle pelo/pela.
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_multa_art_467.py` -> `8 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_custas_processuais.py` -> `9 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `396 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `405 passed`.
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`custas_processuais`** — quem paga custas e valor (campo frequente, baixa complexidade).
-- Alternativa: **`contribuicao_previdenciaria`** — responsavel pelo recolhimento do INSS (Deferida/reclamada/ambas as partes).
+- Dado-alvo: **`contribuicao_previdenciaria`** — responsavel pelo recolhimento do INSS; padrao similar (reclamada/ambas).
+- Alternativa: **`ir_retido_fonte`** — campo complementar de contribuicao_previdenciaria.
 
 ## Ciclos anteriores (referencia)
 
+- **custas_processuais** — 3 sub-padroes reclamada (nominal/explicito/implicito); prioridade isencao > reclamante > reclamada; valor base "sobre R$" e "no valor de"; `pel[ao]` handle "pelo reu"; 9 testes focados; suite `tests/test_extraction_cycle_*.py` `405 passed`.
 - **multa_art_467** — regex espelhada da 477 com numero de artigo trocado; guard por diferenca de digitos; 8 testes focados (inclui independencia 467+477); suite `tests/test_extraction_cycle_*.py` `396 passed`.
 - **dano_moral + dano_material** — Pattern A: conector "a titulo de" (sem verbo); Pattern B: verbo + rotulo + conector; licao `[^.]*?` vs pontos de milhar; 12 testes focados; suite `tests/test_extraction_cycle_*.py` `388 passed`.
 - **obrigacoes_fazer PPP** — regex com guard de verbo judicial; agente nocivo opcional na descricao; contrato 5-campo (tipo/descricao/prazo_dias/multa_diaria/multa_limite); 7 testes focados; suite `tests/test_extraction_cycle_*.py` `376 passed`.

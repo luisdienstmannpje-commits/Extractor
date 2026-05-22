@@ -228,6 +228,32 @@ _RE_MULTA_467_DEFERIDA = re.compile(
     r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b.{0,140}"
     r"\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
 )
+_RE_CUSTAS_ISENCAO = re.compile(
+    r"(?is)\b(?:isento?|dispensad[ao]|exonerad[ao])\b.{0,80}\bcustas?\b"
+    r"|\bcustas?\b.{0,80}\b(?:isento?|gratuidade|dispensad[ao])\b"
+)
+_RE_CUSTAS_RECLAMANTE = re.compile(
+    r"(?is)custas?\s+(?:processuais?\s+)?(?:pelo?\s+|a\s+cargo\s+d[oa]\s+)"
+    r"(?:reclamante|autor[ao]?\b)"
+)
+_RE_CUSTAS_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: "custas pela/pelo reclamada/réu" — forma nominal direta
+    r"custas?\s+(?:processuais?\s+)?(?:pel[ao]\s+|a\s+cargo\s+d[ao]?\s+)"
+    r"(?:reclamad[ao]|r[eé]u\b|empresa|parte\s+passiva)"
+    r"|"
+    # B: "condeno a reclamada ... custas" — condenação explícita
+    r"\b(?:conden[oa]|condeno)\b.{0,80}\breclamad[ao]\b.{0,120}\bcustas?\b"
+    r"|"
+    # C: "condeno ... custas" — condenação sem payer explícito (réu implícito)
+    r"\b(?:conden[oa]|condeno)\b.{0,80}\bcustas?\s*(?:processuais?)?\b"
+)
+_RE_CUSTAS_SOBRE = re.compile(
+    r"(?is)(?:calculadas?\s+)?sobre\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
+)
+_RE_CUSTAS_VALOR_DIRETO = re.compile(
+    r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
+)
 _RE_MULTA_477_INDEFERIDA = re.compile(
     r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b"
     r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,100}\bindeferid[ao]\b"
@@ -1224,6 +1250,40 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_custas_processuais(self):
+        """Custas processuais — pagador (Reclamada/Reclamante/Isencao) e valor base opcional."""
+        texto = self.texto
+        # 1. Isenção tem prioridade sobre tudo
+        if _RE_CUSTAS_ISENCAO.search(texto):
+            self._set_medium("custas_processuais", "Isencao reclamante")
+            return
+        # 2. Identifica pagador pela ordem: reclamante (explícito) > reclamada (implícito/explícito)
+        m_reclamante = _RE_CUSTAS_RECLAMANTE.search(texto)
+        m_reclamada  = _RE_CUSTAS_RECLAMADA.search(texto)
+        if m_reclamante and (not m_reclamada or m_reclamante.start() <= m_reclamada.start()):
+            pagador   = "Reclamante"
+            m_anchor  = m_reclamante
+        elif m_reclamada:
+            pagador   = "Reclamada"
+            m_anchor  = m_reclamada
+        else:
+            return
+        # 3. Extrai valor base do fragmento (120 chars após o match)
+        frag = texto[m_anchor.start(): min(len(texto), m_anchor.end() + 120)]
+        valor_str = ""
+        m_sobre = _RE_CUSTAS_SOBRE.search(frag)
+        if m_sobre:
+            v = _formatar_moeda_br(m_sobre.group(1))
+            if v:
+                valor_str = f", sobre {v}"
+        else:
+            m_val = _RE_CUSTAS_VALOR_DIRETO.search(frag)
+            if m_val:
+                v = _formatar_moeda_br(m_val.group(1))
+                if v:
+                    valor_str = f", {v}"
+        self._set_medium("custas_processuais", f"{pagador}{valor_str}")
+
     def _extract_multa_art_467(self):
         """Multa do art. 467 da CLT — deferida/indeferida quando o texto e claro."""
         if _RE_MULTA_467_INDEFERIDA.search(self.texto):
@@ -1507,6 +1567,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_custas_processuais,
             self._extract_multa_art_467,
             self._extract_multa_art_477,
             self._extract_fgts,
@@ -1598,6 +1659,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "dano_moral":            "Dano moral",
         "dano_material":         "Dano material",
         "multa_art_467":         "Multa art. 467 CLT",
+        "custas_processuais":    "Custas processuais",
     }
 
     linhas = [
