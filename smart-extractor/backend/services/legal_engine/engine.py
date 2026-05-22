@@ -13,6 +13,7 @@ _CAMPOS_EXCLUIDOS_DO_CONTEXTO: frozenset[str] = frozenset({
     "verbas_deferidas",
     "alertas",
     "regras_aplicadas",
+    "shadow_hits",
     "correcao_pre_judicial",
     "correcao_judicial",
     "juros_judicial",
@@ -60,6 +61,7 @@ class LegalRuleEngine:
             "alertas":           alertas_str,
             "regras_aplicadas":  contexto.regras_aplicadas,
             "memorial_juridico": self._gerar_memorial(contexto),
+            "shadow_hits":       [dict(h) for h in contexto.shadow_hits],
         }
 
     def _dict_para_contexto(self, dados: dict) -> ContextoJuridico:

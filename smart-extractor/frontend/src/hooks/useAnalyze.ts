@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../services/api";
+import type { ProcessoTrabalhista } from "../types/api";
 
 export interface AnalyzePayload {
   userId?: string;
@@ -32,10 +33,14 @@ interface UseAnalyzeResult {
   data: LabReport | undefined;
   error: unknown;
   progressMessages: string[];
+  partialData: Partial<ProcessoTrabalhista> | null;
 }
 
 export function useAnalyze(): UseAnalyzeResult {
   const [progressMessages, setProgressMessages] = useState<string[]>([]);
+  const [partialData, setPartialData] = useState<Partial<ProcessoTrabalhista> | null>(
+    null,
+  );
   const wsRef = useRef<WebSocket | null>(null);
 
   const appendProgress = (msg: string) => {
@@ -84,6 +89,10 @@ export function useAnalyze(): UseAnalyzeResult {
         err instanceof Error ? `Erro na análise: ${err.message}` : "Erro desconhecido na análise.",
       );
     },
+    onMutate: () => {
+      setPartialData(null);
+      setProgressMessages([]);
+    },
   });
 
   useEffect(() => {
@@ -105,6 +114,16 @@ export function useAnalyze(): UseAnalyzeResult {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data?.type === "partial_update" && data?.payload && typeof data.payload === "object") {
+            setPartialData((prev) => ({
+              ...(prev || {}),
+              ...(data.payload as Partial<ProcessoTrabalhista>),
+            }));
+            if (data?.message) {
+              appendProgress(String(data.message));
+            }
+            return;
+          }
           if (Array.isArray(data?.steps)) {
             data.steps.forEach((step: string) => appendProgress(step));
           } else if (data?.message) {
@@ -147,6 +166,7 @@ export function useAnalyze(): UseAnalyzeResult {
     data: mutation.data,
     error: mutation.error,
     progressMessages,
+    partialData,
   };
 }
 

@@ -3,8 +3,10 @@ import json
 import os
 import re
 from datetime import datetime, date, timedelta
+from typing import Any, Optional
 from services.sentence_finder import extract_sentence_from_pdf
 from services.ai_client import extract_data_with_gemini
+from services.pre_extractor import pre_extract
 from services.text_processor import find_section_hybrid
 from services.database import (
     get_user_credits,
@@ -13,7 +15,7 @@ from services.database import (
     get_extraction_repo,
     quota_excedida,
 )
-from services.legal_validator import validar_dados
+from services.legal_validator import validar_dados_completo
 from services.legal_engine.rule_registry import carregar_todas_as_regras   # Gap 2
 from services.legal_engine.engine import LegalRuleEngine                   # Gap 2
 from services.legal_engine.dynamic_rule_loader import (                    # Self-Healing
@@ -31,6 +33,9 @@ from memoria_calculo import gerar_memoria                                       
 from models import ProcessoTrabalhista
 from config import settings
 from services.extraction_engine import enriquecer_para_raiox
+from services.verba_page_anchor import anchor_verbas_to_pages, build_page_chunks
+from services.cache_key import pdf_cache_storage_key
+from services.memorial_pedidos import gerar_memorial_pedidos, gerar_memorial_defesa
 
 # ── Singleton — carregado uma vez na inicialização do módulo ─────────────────
 # Evita recarregar as 20 regras e reordenar por prioridade a cada request.
@@ -254,6 +259,51 @@ def _clean_bool(value, default: bool) -> bool:
             return False
     return default
 
+
+# Chaves HIGH emitidas pelo PreExtractor — só estas podem sobrescrever a saída da IA
+_HIGH_MERGE_KEYS = frozenset(
+    {
+        "numero_processo",
+        "reclamante",
+        "reclamada",
+        "vara_trabalho",
+        "data_sentenca",
+        "justica_gratuita",
+        "tipo_rito",
+    }
+)
+
+
+def _aplicar_pre_high(cleaned: dict, pre_high: dict | None) -> dict:
+    """
+    Sobrescreve campos já validados com valores do pré-extrator (alta confiança).
+
+    Regras: ver `test_extraction_cycle_merge_pre_high.py` e AI_AGENT_EXTRACTION_CYCLE.md.
+    Emite uma linha `[PRE-HIGH]` em stdout quando algum campo whitelist muda de fato.
+    """
+    if not pre_high:
+        return cleaned
+    alterados: list[str] = []
+    for k, v in pre_high.items():
+        if k not in _HIGH_MERGE_KEYS:
+            continue
+        if v is None:
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        if k == "justica_gratuita":
+            novo = bool(v)
+        else:
+            novo = v.strip() if isinstance(v, str) else v
+        antigo = cleaned.get(k)
+        if novo != antigo:
+            alterados.append(k)
+        cleaned[k] = novo
+    if alterados:
+        print("[PRE-HIGH] " + ", ".join(alterados), flush=True)
+    return cleaned
+
+
 def _validate_result(data: dict) -> dict:
     """
     Validação pós-IA:
@@ -422,11 +472,48 @@ _CAMPOS_OBRIGATORIOS = [
 _MIN_VERBAS = 3
 
 
-def _qualidade_ok(dados: dict) -> tuple[bool, str]:
+def _qualidade_ok(dados: dict, doc_type: str = "sentenca") -> tuple[bool, str]:
     """
     Verifica se a extração tem qualidade mínima para ser cacheada.
     Retorna (ok, motivo).
+
+    - `liquidacao`: não exige salario_base nem mínimo de 3 verbas; exige partes ou
+      número do processo e pelo menos uma verba.
+    - Demais tipos: critérios rígidos (sentença / acórdão / dossiê completo).
     """
+    dt = (doc_type or "sentenca").strip().lower()
+
+    if dt == "peticao_inicial":
+        ped = dados.get("verbas_pedidas") or []
+        alt = dados.get("verbas_deferidas") or []
+        if len(ped) + len(alt) < 1:
+            return False, "peticao_inicial: nenhum pedido de verba identificado"
+        return True, "ok"
+
+    if dt == "contestacao":
+        teses = dados.get("teses_defesa") or []
+        if len(teses) < 1:
+            return False, "contestacao: nenhuma tese de defesa identificada"
+        return True, "ok"
+
+    if dt == "liquidacao":
+        np = dados.get("numero_processo")
+        has_proc = bool(np and str(np).strip())
+        rec_a = dados.get("reclamante")
+        rec_b = dados.get("reclamada")
+        has_partes = (bool(rec_a and str(rec_a).strip())) or (
+            bool(rec_b and str(rec_b).strip())
+        )
+        if not has_proc and not has_partes:
+            return (
+                False,
+                "liquidacao: falta identificação mínima (número do processo ou partes)",
+            )
+        n_verbas = len(dados.get("verbas_deferidas") or [])
+        if n_verbas < 1:
+            return False, "liquidacao: verbas_deferidas vazias"
+        return True, "ok"
+
     faltando = [c for c in _CAMPOS_OBRIGATORIOS if not dados.get(c)]
     if faltando:
         return False, f"campos obrigatórios ausentes: {faltando}"
@@ -499,6 +586,232 @@ def _extrair_dados_regex_cabecalho(texto: str, label: str = "") -> dict:
     return dados_regex
 
 
+def _coletar_fontes_extracao(
+    dados_finais: dict,
+    texto: str,
+    dados_regex: Optional[dict] = None,
+) -> list[dict]:
+    """Monta trilha de proveniência dos campos exibidos ao usuário."""
+    try:
+        out: list[dict] = []
+        dados_regex = dados_regex or {}
+        chunks = build_page_chunks(texto or "")
+        max_page = max(chunks.keys()) if chunks else None
+
+        def _append(
+            campo: str,
+            valor: Any,
+            *,
+            pagina: Optional[int] = None,
+            trecho: Optional[str] = None,
+            origem: str = "ia",
+            confianca: Optional[float] = None,
+        ) -> None:
+            if valor is None:
+                return
+            valor_txt = str(valor).strip()
+            if not valor_txt:
+                return
+            out.append(
+                {
+                    "campo": campo,
+                    "valor_resumo": valor_txt[:240],
+                    "pagina_origem": pagina,
+                    "trecho": (str(trecho).strip()[:300] if trecho else None),
+                    "origem": origem,
+                    "confianca": confianca,
+                }
+            )
+
+        for campo in (
+            "numero_processo",
+            "reclamante",
+            "reclamada",
+            "data_sentenca",
+            "data_ajuizamento",
+            "data_admissao",
+            "data_demissao",
+            "salario_base",
+            "valor_causa",
+        ):
+            origem = "regex" if campo in dados_regex else "ia"
+            pagina = None
+            if campo in dados_regex:
+                if campo in ("data_ajuizamento", "valor_causa"):
+                    pagina = 1
+                elif campo == "data_sentenca" and max_page is not None:
+                    pagina = max_page
+            _append(campo, dados_finais.get(campo), pagina=pagina, origem=origem)
+
+        for i, verba in enumerate(dados_finais.get("verbas_deferidas") or []):
+            if not isinstance(verba, dict):
+                continue
+            pagina = verba.get("pagina_origem")
+            trecho = verba.get("trecho_fundamentacao")
+            _append(f"verbas_deferidas[{i}].nome", verba.get("nome"), pagina=pagina, trecho=trecho)
+            _append(f"verbas_deferidas[{i}].periodo", verba.get("periodo"), pagina=pagina, trecho=trecho)
+            _append(
+                f"verbas_deferidas[{i}].observacoes",
+                verba.get("observacoes"),
+                pagina=pagina,
+                trecho=trecho,
+            )
+
+        for i, tese in enumerate(dados_finais.get("teses_defesa") or []):
+            if not isinstance(tese, dict):
+                continue
+            pagina = tese.get("pagina_origem")
+            trecho = tese.get("trecho_fundamentacao")
+            _append(f"teses_defesa[{i}].verba_alvo", tese.get("verba_alvo"), pagina=pagina, trecho=trecho)
+            _append(
+                f"teses_defesa[{i}].tese_principal",
+                tese.get("tese_principal"),
+                pagina=pagina,
+                trecho=trecho,
+            )
+
+        for i, item in enumerate(dados_finais.get("quadro_comparativo") or []):
+            if not isinstance(item, dict):
+                continue
+            _append(f"quadro_comparativo[{i}].verba_alvo", item.get("verba_alvo"))
+            _append(f"quadro_comparativo[{i}].resumo_pedido", item.get("resumo_pedido"))
+            _append(f"quadro_comparativo[{i}].resumo_defesa", item.get("resumo_defesa"))
+            _append(f"quadro_comparativo[{i}].resumo_decisao", item.get("resumo_decisao"))
+            _append(f"quadro_comparativo[{i}].status_final", item.get("status_final"))
+
+        # Alertas jurídicos: tentativa de apontar fonte principal do alerta.
+        verbas_idx: list[tuple[str, Optional[int], Optional[str]]] = []
+        for verba in (dados_finais.get("verbas_deferidas") or []):
+            if not isinstance(verba, dict):
+                continue
+            nome = str(verba.get("nome") or "").strip().lower()
+            if not nome:
+                continue
+            verbas_idx.append(
+                (nome, verba.get("pagina_origem"), verba.get("trecho_fundamentacao"))
+            )
+
+        for idx, alerta in enumerate(dados_finais.get("alertas_juridicos") or []):
+            if not isinstance(alerta, str):
+                continue
+            alerta_l = alerta.lower()
+            pagina: Optional[int] = None
+            trecho: Optional[str] = None
+            confianca: Optional[float] = None
+
+            # 1) Tenta casar verba por nome explícito (ou entre aspas)
+            quoted = re.findall(r"[\"']([^\"']+)[\"']", alerta)
+            candidatos = [q.strip().lower() for q in quoted if str(q).strip()]
+            for nome_verba, pag_verba, tre_verba in verbas_idx:
+                if nome_verba in alerta_l or any(c in nome_verba for c in candidatos):
+                    pagina = pag_verba
+                    trecho = tre_verba
+                    confianca = 0.95 if pagina is not None else 0.8
+                    break
+
+            # 2) Regras de identificação por tema do alerta
+            if pagina is None and ("cnj" in alerta_l or "processo" in alerta_l):
+                pagina = 1
+                confianca = 0.7
+            if pagina is None and "ajuiz" in alerta_l:
+                pagina = 1
+                confianca = 0.6
+            if pagina is None and ("senten" in alerta_l or "julgamento" in alerta_l):
+                pagina = max_page
+                confianca = 0.6 if max_page is not None else 0.4
+            if pagina is None and ("admiss" in alerta_l or "demiss" in alerta_l):
+                pagina = 1
+                confianca = 0.5
+
+            _append(
+                f"alertas_juridicos[{idx}]",
+                alerta,
+                pagina=pagina,
+                trecho=trecho,
+                origem="regra",
+                confianca=confianca,
+            )
+
+        return out
+    except Exception:
+        return []
+
+
+def _emit_ws_partial(job_id: str, payload: dict, message: str = "") -> None:
+    """Envia fatia JSON para /ws/{job_id} quando há conexão (lazy import evita ciclo)."""
+    jid = (job_id or "").strip()
+    if not jid or not payload:
+        return
+    try:
+        from api.routers import extractor as _ext
+
+        _ext.push_ws_partial(jid, payload, message)
+    except Exception:
+        pass
+
+
+def _partial_payload_pos_ia(d: dict, doc_type: str) -> dict:
+    """Campos principais do ProcessoTrabalhista já após IA + validação (antes ou após ancoragem)."""
+    keys_scalar = (
+        "numero_processo",
+        "reclamante",
+        "reclamada",
+        "vara_trabalho",
+        "data_sentenca",
+        "data_ajuizamento",
+        "data_admissao",
+        "data_demissao",
+        "salario_base",
+        "motivo_rescisao",
+        "aviso_previo_dias",
+        "valor_causa",
+    )
+    out: dict = {"_meta_doc_type": doc_type}
+    for k in keys_scalar:
+        v = d.get(k)
+        if v is not None and str(v).strip() != "":
+            out[k] = v
+    for k in ("verbas_deferidas", "verbas_pedidas", "quadro_comparativo", "teses_defesa"):
+        if k in d and d.get(k) is not None:
+            out[k] = d[k]
+    if d.get("dano_moral") is not None:
+        out["dano_moral"] = d["dano_moral"]
+    return out
+
+
+def _partial_payload_pos_motor(dados_finais: dict) -> dict:
+    return {
+        "alertas_juridicos": dados_finais.get("alertas_juridicos") or [],
+        "memorial_juridico": dados_finais.get("memorial_juridico"),
+        "regras_aplicadas": dados_finais.get("regras_aplicadas") or [],
+        "explicacoes": dados_finais.get("explicacoes") or [],
+        "fontes_extracao": dados_finais.get("fontes_extracao") or [],
+    }
+
+
+def _partial_payload_pos_parecer(dados_finais: dict) -> dict:
+    keys = (
+        "parecer_texto",
+        "parecer_parcelas_ia",
+        "parecer_intro_parcelas",
+        "parecer_parcelas_apuradas",
+        "parecer_model_used",
+        "parecer_criterios_inss",
+        "parecer_criterios_irrf",
+    )
+    out: dict = {}
+    for k in keys:
+        if k not in dados_finais:
+            continue
+        v = dados_finais.get(k)
+        if v is None:
+            continue
+        if v == "" or v == []:
+            continue
+        out[k] = v
+    return out
+
+
 def _executar_pipeline_pos_ia(
     texto: str,
     dados_limpos: dict,
@@ -548,16 +861,21 @@ def _executar_pipeline_pos_ia(
             dados_finais[key] = dados_regex[key]
             print(f"[PROCESSOR] Mescla Regex → {key}", flush=True)
 
-    # 8a. legal_validator: alertas de reflexos e consistência de campos
-    alertas_validator = validar_dados(dados_finais)
-
-    # 8b. LegalRuleEngine: aplica as regras jurídicas estáticas
-    resultado_engine  = _RULE_ENGINE.executar(dados_finais)
-    alertas_engine    = resultado_engine["alertas"]
-    regras_aplicadas  = resultado_engine["regras_aplicadas"]
+    # 7c. Fonte por página: cruza trecho_fundamentacao com marcadores --- PÁGINA N ---
+    anchor_verbas_to_pages(texto, dados_finais.get("verbas_deferidas") or [])
+    _emit_ws_partial(
+        job_id,
+        _partial_payload_pos_ia(dados_finais, doc_type),
+        "[PIPELINE] Cabeçalho e verbas ancoradas (pré-motor jurídico).",
+    )
+    # 8a. LegalRuleEngine estático (via interface legal_validator):
+    # evita execução duplicada do engine no mesmo request.
+    resultado_engine = validar_dados_completo(dados_finais)
+    alertas_engine = resultado_engine["alertas"]
+    regras_aplicadas = resultado_engine["regras_aplicadas"]
     memorial_juridico = resultado_engine["memorial_juridico"]
 
-    # 8b+. Self-Healing: injeta regras dinâmicas ATIVAS (Knowledge Base)
+    # 8b. Self-Healing: injeta regras dinâmicas ATIVAS (Knowledge Base)
     try:
         regras_dinamicas = carregar_regras_ativas()
         if regras_dinamicas:
@@ -575,10 +893,18 @@ def _executar_pipeline_pos_ia(
     )
 
     # Mescla todos os alertas (sem duplicatas textuais)
-    dados_finais["alertas_juridicos"] = _dedup_alertas(alertas_validator, alertas_engine, avisos_dedup)
+    dados_finais["alertas_juridicos"] = _dedup_alertas(alertas_engine, avisos_dedup)
     dados_finais["regras_aplicadas"]  = regras_aplicadas
     dados_finais["memorial_juridico"] = memorial_juridico
     dados_finais["explicacoes"]       = explicacoes
+    dados_finais["fontes_extracao"] = _coletar_fontes_extracao(
+        dados_finais, texto, dados_regex
+    )
+    _emit_ws_partial(
+        job_id,
+        _partial_payload_pos_motor(dados_finais),
+        "[PIPELINE] Alertas, memorial, regras e rastreabilidade (fontes) consolidados.",
+    )
 
     # Parecer técnico — I. PARCELAS APURADAS
     parecer_secao_i = gerar_parecer_parcelas_apuradas(
@@ -613,14 +939,23 @@ def _executar_pipeline_pos_ia(
         dados_finais["parecer_model_used"]  = None
         print(f"[PARECER] Erro ao gerar parecer completo (não crítico): {_e_parecer}", flush=True)
 
-    # 8d. Shadow Mode: executa regras shadow silenciosamente
+    _pp = _partial_payload_pos_parecer(dados_finais)
+    if _pp:
+        _emit_ws_partial(
+            job_id,
+            _pp,
+            "[PIPELINE] Parecer técnico e critérios (seções geradas).",
+        )
+
+    # 8d. Shadow Mode: regras KB status=shadow (observação; persiste em shadow_logs)
     try:
-        executar_shadow_pipeline(dados_finais)
+        dados_finais["shadow_logs"] = executar_shadow_pipeline(dados_finais)
     except Exception as _e_shadow:
         print(f"[SHADOW] Aviso: erro no shadow pipeline (não crítico): {_e_shadow}", flush=True)
+        dados_finais["shadow_logs"] = []
 
     # 9. Só cacheia e desconta crédito se qualidade mínima atingida
-    ok, motivo = _qualidade_ok(dados_finais)
+    ok, motivo = _qualidade_ok(dados_finais, doc_type)
     if ok:
         dados_finais["_meta_doc_type"] = doc_type
         cache_repo.save_cache(cache_hash, dados_finais)
@@ -673,7 +1008,356 @@ def _executar_pipeline_pos_ia(
     }
 
 
-def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> dict:
+def _verba_dict_from_pedido_item(item: Any) -> Optional[dict]:
+    """Normaliza um item de verbas_pedidas (string ou dict) para dict compatível com VerbaDeferida."""
+    if isinstance(item, str):
+        name = item.strip()
+        if not name:
+            return None
+        return {"nome": name, "status_final": "pedido", "reflexos": []}
+    if isinstance(item, dict):
+        nome = (
+            str(item.get("nome") or item.get("verba") or item.get("pedido") or "")
+        ).strip()
+        if not nome:
+            return None
+        out: dict = {
+            "nome": nome,
+            "status_final": str(item.get("status_final") or "pedido").strip(),
+            "reflexos": list(item.get("reflexos") or []),
+        }
+        for opt in ("observacoes", "periodo", "percentual", "trecho_fundamentacao"):
+            if item.get(opt) is not None:
+                out[opt] = item.get(opt)
+        if item.get("pagina_origem") is not None:
+            try:
+                out["pagina_origem"] = int(item["pagina_origem"])
+            except (TypeError, ValueError):
+                pass
+        return out
+    return None
+
+
+def _montar_base_peticao_inicial(raw: dict) -> dict:
+    pedidas_raw = raw.get("verbas_pedidas") or []
+    verbas: list = []
+    for it in pedidas_raw:
+        vd = _verba_dict_from_pedido_item(it)
+        if vd:
+            verbas.append(vd)
+    vc = raw.get("valor_causa")
+    vc_str: Optional[str] = None
+    if vc is not None and str(vc).strip():
+        vc_str = str(vc).strip()
+    return {
+        "verbas_deferidas": verbas,
+        "verbas_pedidas": verbas,
+        "valor_causa": vc_str,
+    }
+
+
+def _tese_item_para_dict(item: Any) -> Optional[dict]:
+    """Normaliza item de teses_defesa (IA/Lab) para dict compatível com TeseDefesa."""
+    if not isinstance(item, dict):
+        return None
+    alvo = str(item.get("verba_alvo") or item.get("verba") or "").strip()
+    tese = str(item.get("tese_principal") or item.get("argumento") or "").strip()
+    if not alvo and not tese:
+        return None
+    trecho_raw = item.get("trecho_fundamentacao")
+    ts: Optional[str] = None
+    if trecho_raw is not None and str(trecho_raw).strip():
+        ts = str(trecho_raw).strip()
+        if len(ts) > 200:
+            ts = ts[:200]
+    po = item.get("pagina_origem")
+    pagina: Optional[int] = None
+    if po is not None:
+        try:
+            pagina = int(po)
+        except (TypeError, ValueError):
+            pagina = None
+    return {
+        "verba_alvo": alvo or "Pedido não especificado",
+        "tese_principal": tese or "Tese não especificada",
+        "trecho_fundamentacao": ts,
+        "pagina_origem": pagina,
+        "incontroversa": bool(item.get("incontroversa")),
+    }
+
+
+def _montar_base_contestacao(raw: dict) -> dict:
+    def _opt_str(val: Any) -> Optional[str]:
+        if val is None:
+            return None
+        s = str(val).strip()
+        return s or None
+
+    teses_in = raw.get("teses_defesa") or []
+    teses: list = []
+    for it in teses_in:
+        td = _tese_item_para_dict(it)
+        if td:
+            teses.append(td)
+    return {
+        "numero_processo": _opt_str(raw.get("numero_processo")),
+        "reclamante": _opt_str(raw.get("reclamante")),
+        "reclamada": _opt_str(raw.get("reclamada")),
+        "valor_causa": _opt_str(raw.get("valor_causa")),
+        "verbas_deferidas": [],
+        "verbas_pedidas": None,
+        "teses_defesa": teses,
+    }
+
+
+def _pipeline_contestacao(
+    user_id: str,
+    file_bytes: bytes,
+    job_id: str,
+    filename: str,
+    cache_repo,
+    extraction_repo,
+) -> dict:
+    """Fluxo dedicado: contestação (sem sentence_finder + motor de sentença)."""
+    from services.learning_engine import (
+        _extrair_contestacao,
+        _extrair_texto_arquivo_com_marcadores_pagina,
+    )
+
+    pdf_hash = _hash_pdf(file_bytes)
+    storage_key = pdf_cache_storage_key(pdf_hash, "contestacao")
+    cached = cache_repo.get_cache(storage_key)
+    if cached:
+        ok_c, _mot = _qualidade_ok(cached, "contestacao")
+        if ok_c:
+            print("[PROCESSOR] Cache hit (contestacao)", flush=True)
+            return {
+                "status": "sucesso",
+                "source": "cache",
+                "doc_type": "contestacao",
+                "data": cached,
+            }
+        print(f"[PROCESSOR] Cache contestação descartado: {_mot}", flush=True)
+
+    raw = _extrair_contestacao(file_bytes, filename)
+    if raw.get("erro"):
+        return {"status": "erro", "msg": str(raw["erro"])}
+
+    base = _montar_base_contestacao(raw)
+    try:
+        processo = ProcessoTrabalhista(**base)
+        dados_finais = processo.model_dump()
+    except Exception as e:
+        return {"status": "erro", "msg": f"Dados inválidos da contestação: {e}"}
+
+    texto_marcado = _extrair_texto_arquivo_com_marcadores_pagina(
+        file_bytes, filename
+    )
+    if texto_marcado:
+        anchor_verbas_to_pages(texto_marcado, dados_finais.get("teses_defesa") or [])
+    dados_finais["fontes_extracao"] = _coletar_fontes_extracao(
+        dados_finais, texto_marcado
+    )
+
+    memorial = gerar_memorial_defesa(
+        dados_finais.get("teses_defesa"),
+        reclamada=str(dados_finais.get("reclamada") or ""),
+    )
+    dados_finais["memorial_juridico"] = memorial
+    dados_finais["explicacoes"] = []
+    dados_finais["alertas_juridicos"] = []
+    dados_finais["regras_aplicadas"] = []
+    dados_finais["parecer_texto"] = ""
+    dados_finais["parecer_parcelas_ia"] = ""
+    dados_finais["parecer_intro_parcelas"] = ""
+    dados_finais["parecer_parcelas_apuradas"] = []
+    dados_finais["parecer_model_used"] = None
+    dados_finais["parecer_criterios_inss"] = ""
+    dados_finais["parecer_criterios_irrf"] = ""
+    dados_finais["_meta_doc_type"] = "contestacao"
+
+    try:
+        dados_finais["shadow_logs"] = executar_shadow_pipeline(dados_finais)
+    except Exception as _e_sh:
+        print(f"[SHADOW] Aviso contestação: {_e_sh}", flush=True)
+        dados_finais["shadow_logs"] = []
+
+    pl_c = _partial_payload_pos_ia(dados_finais, "contestacao")
+    pl_c["memorial_juridico"] = memorial
+    if dados_finais.get("shadow_logs"):
+        pl_c["shadow_logs"] = dados_finais["shadow_logs"]
+    _emit_ws_partial(job_id, pl_c, "[CONTESTAÇÃO] Teses, memorial de defesa e trilha consolidados.")
+
+    model_used = raw.get("model_used") or "gemini"
+    ok, motivo = _qualidade_ok(dados_finais, "contestacao")
+
+    if ok:
+        cache_repo.save_cache(storage_key, dados_finais)
+        print("[PROCESSOR] Resultado contestação salvo em cache", flush=True)
+
+    doc_id = extraction_repo.save_extraction(
+        user_id=user_id,
+        data=dados_finais,
+        doc_type="contestacao",
+        model_used=str(model_used),
+    )
+    if ok:
+        deduct_credit(user_id)
+
+    try:
+        gerar_memoria(
+            job_id=job_id or str(doc_id),
+            dados=dados_finais,
+            model_used=str(model_used),
+            doc_type="contestacao",
+            avisos_dedup=[],
+            explicacoes=[],
+        )
+    except Exception as _e_m:
+        print(f"[MEMORIA] Aviso contestação: {_e_m}", flush=True)
+
+    raiox = enriquecer_para_raiox(dados_finais)
+
+    return {
+        "status": "sucesso",
+        "source": "ai",
+        "doc_type": "contestacao",
+        "model_used": model_used,
+        "doc_id": doc_id,
+        "data": dados_finais,
+        "raiox": raiox,
+        "alertas_juridicos": dados_finais["alertas_juridicos"],
+        "regras_aplicadas": dados_finais["regras_aplicadas"],
+        "memorial_juridico": memorial,
+        "explicacoes": [],
+        "qualidade_ok": ok,
+        "qualidade_motivo": motivo if not ok else None,
+    }
+
+
+def _pipeline_peticao_inicial(
+    user_id: str,
+    file_bytes: bytes,
+    job_id: str,
+    filename: str,
+    cache_repo,
+    extraction_repo,
+) -> dict:
+    """Fluxo dedicado: petição inicial (sem sentence_finder + motor de sentença)."""
+    pdf_hash = _hash_pdf(file_bytes)
+    storage_key = pdf_cache_storage_key(pdf_hash, "peticao_inicial")
+    cached = cache_repo.get_cache(storage_key)
+    if cached:
+        ok_c, _mot = _qualidade_ok(cached, "peticao_inicial")
+        if ok_c:
+            print("[PROCESSOR] Cache hit (peticao_inicial)", flush=True)
+            return {
+                "status": "sucesso",
+                "source": "cache",
+                "doc_type": "peticao_inicial",
+                "data": cached,
+            }
+        print(f"[PROCESSOR] Cache petição descartado: {_mot}", flush=True)
+
+    from services.learning_engine import _extrair_peticao_inicial
+
+    raw = _extrair_peticao_inicial(file_bytes, filename)
+    if raw.get("erro"):
+        return {"status": "erro", "msg": str(raw["erro"])}
+
+    base = _montar_base_peticao_inicial(raw)
+    try:
+        processo = ProcessoTrabalhista(**base)
+        dados_finais = processo.model_dump()
+    except Exception as e:
+        return {"status": "erro", "msg": f"Dados inválidos da petição: {e}"}
+
+    memorial = gerar_memorial_pedidos(
+        dados_finais.get("verbas_pedidas"),
+        causa_pedir=str(raw.get("causa_pedir") or ""),
+        periodo_reivindicado=str(raw.get("periodo_reivindicado") or ""),
+    )
+    dados_finais["memorial_juridico"] = memorial
+    dados_finais["explicacoes"] = []
+    dados_finais["alertas_juridicos"] = []
+    dados_finais["regras_aplicadas"] = []
+    dados_finais["parecer_texto"] = ""
+    dados_finais["parecer_parcelas_ia"] = ""
+    dados_finais["parecer_intro_parcelas"] = ""
+    dados_finais["parecer_parcelas_apuradas"] = []
+    dados_finais["parecer_model_used"] = None
+    dados_finais["parecer_criterios_inss"] = ""
+    dados_finais["parecer_criterios_irrf"] = ""
+    dados_finais["_meta_doc_type"] = "peticao_inicial"
+    dados_finais["fontes_extracao"] = _coletar_fontes_extracao(dados_finais, texto="")
+
+    try:
+        dados_finais["shadow_logs"] = executar_shadow_pipeline(dados_finais)
+    except Exception as _e_sh:
+        print(f"[SHADOW] Aviso petição: {_e_sh}", flush=True)
+        dados_finais["shadow_logs"] = []
+
+    pl_p = _partial_payload_pos_ia(dados_finais, "peticao_inicial")
+    pl_p["memorial_juridico"] = memorial
+    if dados_finais.get("shadow_logs"):
+        pl_p["shadow_logs"] = dados_finais["shadow_logs"]
+    _emit_ws_partial(job_id, pl_p, "[PETIÇÃO INICIAL] Pedidos, memorial e trilha consolidados.")
+
+    model_used = raw.get("model_used") or "gemini"
+    ok, motivo = _qualidade_ok(dados_finais, "peticao_inicial")
+
+    if ok:
+        cache_repo.save_cache(storage_key, dados_finais)
+        print("[PROCESSOR] Resultado petição salvo em cache", flush=True)
+
+    doc_id = extraction_repo.save_extraction(
+        user_id=user_id,
+        data=dados_finais,
+        doc_type="peticao_inicial",
+        model_used=str(model_used),
+    )
+    if ok:
+        deduct_credit(user_id)
+
+    try:
+        gerar_memoria(
+            job_id=job_id or str(doc_id),
+            dados=dados_finais,
+            model_used=str(model_used),
+            doc_type="peticao_inicial",
+            avisos_dedup=[],
+            explicacoes=[],
+        )
+    except Exception as _e_m:
+        print(f"[MEMORIA] Aviso petição: {_e_m}", flush=True)
+
+    raiox = enriquecer_para_raiox(dados_finais)
+
+    return {
+        "status": "sucesso",
+        "source": "ai",
+        "doc_type": "peticao_inicial",
+        "model_used": model_used,
+        "doc_id": doc_id,
+        "data": dados_finais,
+        "raiox": raiox,
+        "alertas_juridicos": dados_finais["alertas_juridicos"],
+        "regras_aplicadas": dados_finais["regras_aplicadas"],
+        "memorial_juridico": memorial,
+        "explicacoes": [],
+        "qualidade_ok": ok,
+        "qualidade_motivo": motivo if not ok else None,
+    }
+
+
+def process_lawsuit_pdf(
+    user_id: str,
+    file_bytes: bytes,
+    job_id: str = "",
+    *,
+    cache_context: str = "auto",
+    filename: str = "documento.pdf",
+) -> dict:
     """
     Pipeline completo de extração.
 
@@ -683,6 +1367,9 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
     file_bytes : bytes do PDF
     job_id     : identificador do job vindo do main.py — usado na memória de cálculo (M1).
                  Opcional: se vazio, usa doc_id como fallback após salvar no banco.
+    cache_context : "auto" = chave de cache só pelo hash (legado). "peticao_inicial" /
+                    "contestacao" = chave composta + fluxo dedicado (sem motor de sentença).
+    filename   : nome do ficheiro (extensão relevante para petição inicial / contestação).
     """
     print(f"[PROCESSOR] user={user_id}", flush=True)
 
@@ -702,14 +1389,38 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
             "msg": "Limite de PDFs do plano atingido. Faça upgrade para continuar.",
         }
 
+    ctx_req = (cache_context or "auto").strip().lower()
+    if ctx_req == "peticao_inicial":
+        fn = (filename or "documento.pdf").lower()
+        if not (fn.endswith(".pdf") or fn.endswith(".docx") or fn.endswith(".doc")):
+            return {
+                "status": "erro",
+                "msg": "Petição inicial: envie PDF, DOC ou DOCX.",
+            }
+        return _pipeline_peticao_inicial(
+            user_id, file_bytes, job_id, filename, cache_repo, extraction_repo
+        )
+
+    if ctx_req == "contestacao":
+        fn_c = (filename or "documento.pdf").lower()
+        if not (fn_c.endswith(".pdf") or fn_c.endswith(".docx") or fn_c.endswith(".doc")):
+            return {
+                "status": "erro",
+                "msg": "Contestação: envie PDF, DOC ou DOCX.",
+            }
+        return _pipeline_contestacao(
+            user_id, file_bytes, job_id, filename, cache_repo, extraction_repo
+        )
+
     # 2. Cache — só usa se tiver qualidade mínima
     pdf_hash = _hash_pdf(file_bytes)
-    cached = cache_repo.get_cache(pdf_hash)
+    storage_key = pdf_cache_storage_key(pdf_hash, cache_context)
+    cached = cache_repo.get_cache(storage_key)
     if cached:
-        ok, motivo = _qualidade_ok(cached)
+        cached_doc_type = cached.get("_meta_doc_type", "sentenca")
+        ok, motivo = _qualidade_ok(cached, cached_doc_type)
         if ok:
             print("[PROCESSOR] Cache hit! (qualidade ok)", flush=True)
-            cached_doc_type = cached.get("_meta_doc_type", "sentenca")
             return {
                 "status": "sucesso",
                 "source": "cache",
@@ -725,6 +1436,19 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         return {"status": "erro", "msg": "PDF sem texto legível"}
 
     print(f"[PROCESSOR] Tipo detectado: {doc_type} | Chars extraídos: {len(texto)}", flush=True)
+
+    pre_fields = pre_extract(texto)
+
+    _pipeline_dbg_meta = {
+        "job_id": job_id or "",
+        "user_id": user_id,
+        "label": f"single_pdf:{doc_type}",
+    }
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import log_etapa, maybe_write_dump
+
+        log_etapa("step3_sentence_finder", texto, meta=_pipeline_dbg_meta)
+        maybe_write_dump("step3_sentence_finder", texto, meta=_pipeline_dbg_meta)
 
     # 4. Playbook
     _PLAYBOOK_MAP = {
@@ -743,12 +1467,18 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         playbook += "\n\n" + _load_skill("filtro_dispositivo.md")
 
     # 5. IA
-    ai_result = extract_data_with_gemini(texto, playbook=playbook)
+    ai_result = extract_data_with_gemini(
+        texto,
+        playbook=playbook,
+        pre_fields=pre_fields,
+        pipeline_debug_meta=_pipeline_dbg_meta,
+    )
     if ai_result["error"]:
         return {"status": "erro", "msg": ai_result["error"]}
 
     # 6. Validação pós-IA
     dados_limpos = _validate_result(ai_result["data"])
+    dados_limpos = _aplicar_pre_high(dados_limpos, pre_fields.get("high"))
 
     # 6b. Deduplicação de verbas
     if dados_limpos.get("verbas_deferidas"):
@@ -758,6 +1488,12 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
             print(f"[DEDUP] {len(avisos_dedup)} duplicata(s) removida(s)", flush=True)
     else:
         avisos_dedup = []
+
+    _emit_ws_partial(
+        job_id,
+        _partial_payload_pos_ia(dados_limpos, doc_type),
+        "[PIPELINE] Resposta da IA validada e verbas deduplicadas.",
+    )
 
     # 4b–10. Pipeline pós-IA (compartilhado)
     return _executar_pipeline_pos_ia(
@@ -770,7 +1506,7 @@ def process_lawsuit_pdf(user_id: str, file_bytes: bytes, job_id: str = "") -> di
         job_id=job_id,
         cache_repo=cache_repo,
         extraction_repo=extraction_repo,
-        cache_hash=pdf_hash,
+        cache_hash=storage_key,
         label="",
     )
 
@@ -797,13 +1533,14 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
     dossie_hash = _hash_dossie(files_list)
     cached      = cache_repo.get_cache(dossie_hash)
     if cached:
-        ok, motivo = _qualidade_ok(cached)
+        cached_doc_type = cached.get("_meta_doc_type", "completo")
+        ok, motivo = _qualidade_ok(cached, cached_doc_type)
         if ok:
             print("[PROCESSOR] Cache hit dossiê! (qualidade ok)", flush=True)
             return {
                 "status":   "sucesso",
                 "source":   "cache",
-                "doc_type": cached.get("_meta_doc_type", "completo"),
+                "doc_type": cached_doc_type,
                 "data":     cached,
             }
         else:
@@ -821,18 +1558,37 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
     doc_type = "completo"
     print(f"[PROCESSOR] Dossiê: {len(texto)} chars (super-contexto)", flush=True)
 
+    pre_fields = pre_extract(texto)
+
+    _pipeline_dbg_meta_d = {
+        "job_id": job_id or "",
+        "user_id": user_id,
+        "label": "dossie:completo",
+    }
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import log_etapa, maybe_write_dump
+
+        log_etapa("step3_dossie_supercontexto", texto, meta=_pipeline_dbg_meta_d)
+        maybe_write_dump("step3_dossie_supercontexto", texto, meta=_pipeline_dbg_meta_d)
+
     # 4. Playbook
     playbook = _load_skill("sentenca_ordinaria.md")
     if find_section_hybrid(texto, "dispositivo") < 0:
         playbook += "\n\n" + _load_skill("filtro_dispositivo.md")
 
     # 5. IA
-    ai_result = extract_data_with_gemini(texto, playbook=playbook)
+    ai_result = extract_data_with_gemini(
+        texto,
+        playbook=playbook,
+        pre_fields=pre_fields,
+        pipeline_debug_meta=_pipeline_dbg_meta_d,
+    )
     if ai_result["error"]:
         return {"status": "erro", "msg": ai_result["error"]}
 
     # 6. Validação pós-IA
     dados_limpos = _validate_result(ai_result["data"])
+    dados_limpos = _aplicar_pre_high(dados_limpos, pre_fields.get("high"))
 
     # 6b. Deduplicação de verbas
     if dados_limpos.get("verbas_deferidas"):
@@ -841,6 +1597,33 @@ def process_lawsuit_dossie(user_id: str, files_list: list, job_id: str = "") -> 
         avisos_dedup = avisos_dedup or []
     else:
         avisos_dedup = []
+
+    # 6c. Quadro comparativo (≥3 ficheiros): 2ª passagem IA — falha não bloqueia o fluxo
+    dados_limpos["quadro_comparativo"] = []
+    if len(files_list) >= 3:
+        try:
+            from services.ai_client import extrair_quadro_comparativo_dossie
+
+            qr = extrair_quadro_comparativo_dossie(texto)
+            qc = qr.get("quadro_comparativo") or []
+            if isinstance(qc, list) and qc:
+                dados_limpos["quadro_comparativo"] = qc
+                print(
+                    f"[DOSSIE] Quadro comparativo: {len(qc)} linha(s) "
+                    f"(modelo={qr.get('model_used')})",
+                    flush=True,
+            )
+        except Exception as _e_q:
+            print(
+                f"[DOSSIE] Quadro comparativo (não crítico): {_e_q}",
+                flush=True,
+            )
+
+    _emit_ws_partial(
+        job_id,
+        _partial_payload_pos_ia(dados_limpos, doc_type),
+        "[DOSSIÊ] Texto agregado; IA validada e quadro comparativo quando aplicável.",
+    )
 
     # 4b–10. Pipeline pós-IA (compartilhado)
     return _executar_pipeline_pos_ia(

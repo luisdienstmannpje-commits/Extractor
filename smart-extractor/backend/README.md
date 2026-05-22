@@ -19,7 +19,7 @@ Objetivo: reduzir a leitura manual de sentenças de horas para segundos.
 backend/
 ├── main.py                    # API FastAPI (upload PDF, jobs, WebSocket, export PJC/Excel)
 ├── config.py                  # Configuração (Gemini, Firebase, limites, SCHEMA_VERSION)
-├── models.py                  # Pydantic: ProcessoTrabalhista, VerbaDeferida, validadores
+├── models.py                  # Pydantic: ProcessoTrabalhista, VerbaDeferida, TeseDefesa, ItemComparativo, FonteExtracao (rastreabilidade), validadores
 ├── workers/
 │   └── processor.py           # Pipeline de extração (passos 1–10)
 ├── services/
@@ -77,6 +77,7 @@ Para agentes (humanos ou IA) que vão **ler ou alterar código**, use sempre os 
 - `docs/CODE_MAP.md` — mapa rápido arquivo → responsabilidade, e índice por domínio (FGTS, datas, regras, IA, etc.).
 - `docs/CODE_INTELLIGENCE_MAP.md` — mapa de **inteligência de código por domínio** (pipeline, Legal Rule Engine, exportadores, modelos/cache, frontend, testes).
 - `docs/AI_RULES.md` — regras para desenvolvimento assistido por IA (o que nunca fazer, onde ler primeiro, como reduzir consumo de tokens).
+- `docs/AI_AGENT_EXTRACTION_CYCLE.md` — coordenação Codex/Cursor para ciclos TDD de extração, upload/status/WS e exportação; um alvo por vez, teste focado primeiro e status final `APROVADO`/`BLOQUEADO`/`DISCORDO`.
 
 Recomendação:
 
@@ -94,10 +95,10 @@ Fluxo em 10 passos:
 |---|--------|----------------|
 | 1 | Freemium | Verificação de créditos (database) |
 | 2 | Cache | Busca por hash do PDF; se qualidade OK, retorno imediato |
-| 3 | Extração de texto | sentence_finder: detecta tipo (sentença/acórdão/etc.), extrai bloco relevante, OCR se necessário |
+| 3 | Extração de texto | sentence_finder: detecta tipo, recorta bloco decisório (+ capa PJe), opcionalmente anexa páginas fora do recorte (modificativa/liquidação/recurso e parâmetros/acordo/ata, com tetos), OCR se necessário |
 | 4 | Playbook | Carrega skill .md conforme tipo de documento |
-| 5 | IA | ai_client: Gemini (Flash → Pro fallback), playbook + anchor (pre_extractor) |
-| 6 | Pós-IA | _validate_result: limpeza de strings, booleanos, listas; derivações (jornada, divisor_horas, prescrição etc.) |
+| 5 | IA | ai_client: Gemini (Flash → Pro fallback), playbook + anchor (pre_extractor MEDIUM) |
+| 6 | Pós-IA | _validate_result + merge HIGH do pre_extractor (`_aplicar_pre_high`, log `[PRE-HIGH]` quando muda valor); limpeza de strings, booleanos, listas; derivações (jornada, divisor_horas, prescrição etc.) |
 | 6b | Deduplicação | deduplicar_verbas (jurisprudencia/consistencia) |
 | 7 | Pydantic | ProcessoTrabalhista(**dados_limpos) |
 | 8 | Validação jurídica | validar_dados (legal_validator → engine) + LegalRuleEngine.executar + **regras dinâmicas Self-Healing** + gerar_explicacoes |
@@ -197,7 +198,7 @@ analisar → relatório enriquecido (linha do tempo + `triade_pericial` com nós
 
 - `learning_engine.py`: `processar_sete_arquivos` / `processar_cinco_arquivos` (8 arquivos + `processo_arquivos`); `_extrair_peticao_inicial`, `_extrair_contestacao`; `_extrair_titulo_executivo_multiplos` (hierarquia + data do texto); `_extrair_amostragem_pdf/word` (retrocompat.); `_extrair_manifestacao_pericial`, `_merge_dados_manifestacao`, `_atualizar_skill_manifestacao`; guardrails: `_canon_empresa_e_verba_esta`, `_filtrar_*_verba_ausente` (3 camadas); Self-Healing. Ver mapa em `docs/AI_NAVIGATION_LAYER.md` § 5.
 - `skills/amostragem_style.md`, `skills/manifestacao_style.md`: Style Transfer (amostragem Word + impugnação/manifestação).
-- Frontend: `frontend/src/pages/Laboratory.tsx` e `frontend/src/hooks/useAnalyze.ts` — 8 campos de upload, Card processo múltiplos, barra de eficiência, análise completa, HITL e Gerar Minuta Word/PJC/Excel.
+- Frontend: `frontend/src/pages/Laboratory.tsx` e `frontend/src/hooks/useAnalyze.ts` — 8 campos de upload, Card processo múltiplos, barra de eficiência, análise completa, HITL, **preview rico da manifestação em Markdown** (`react-markdown` + `/lab/gerar-manifestacao`) e geração de Minuta Word/PJC/Excel.
 
 ### Self-Healing Rule Engine (aprendizado autônomo de regras)
 
@@ -242,7 +243,7 @@ O site está em `frontend/` (relativo à raiz do repositório smart-extractor) e
 - **Páginas:** `src/pages/Dashboard.tsx`, `Extractor.tsx`, `Laboratory.tsx`.
 - **Layout:** `src/components/layout/MainLayout.tsx` (sidebar, header, navegação).
 - **API e estado:** `src/services/api.ts` (upload, status, export PJC/Excel, créditos, `/api/stats`, `/api/knowledge-base`, `/lab/*`); `src/hooks/useAnalyze.ts` (Laboratório: POST `/lab/analisar`, relatório, pré-visualização, salvar).
-- **Extrator:** upload PDF, polling `/status/{job_id}`, exibição de resultado e Raio-X, export PJC/Excel; histórico e estatísticas consumidos via `api.ts`.
+- **Extrator:** upload PDF/dossiê por `POST /upload` (Form `files`, `cache_context`), progresso por WebSocket `/ws/{job_id}` com `partial_update` e terminal, fallback polling `/status/{job_id}`, exibição de resultado e Raio-X, export PJC/Excel; histórico e estatísticas consumidos via `api.ts`.
 - **Laboratório:** 8 campos de upload, barra de eficiência, análise completa (processar_sete_arquivos), linha do tempo, modal de pré-visualização, salvar aprendizado, Gerar Minuta Word/PJC/Excel.
 
 **Dashboard:** rota `/`; estatísticas e biblioteca de regras via `GET /api/stats` e `GET /api/knowledge-base`.
@@ -256,19 +257,20 @@ Build: `npm run build` em `frontend/` → `dist/`. Servir `dist/` estaticamente 
 ### Raiz e configuração
 
 - **main.py**: FastAPI; endpoints de upload, status, WebSocket, download Excel/PJC; Laboratório (`/lab/*`); **GET /api/knowledge-base** (knowledge_base.json para card Biblioteca de Regras na **aba Estatísticas**); **GET /api/stats** (dashboard); gestão de jobs + SQLite; timeout 5 min.
-- **config.py**: Variáveis de ambiente (GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION etc.).
-- **models.py**: `ProcessoTrabalhista`, `VerbaDeferida` (Pydantic); validadores de normalização; `SCHEMA_VERSION` para cache.
+- **config.py**: Variáveis de ambiente (GEMINI_API_KEY, Firebase, MAX_FILE_SIZE_MB, SCHEMA_VERSION etc.). **Observabilidade:** `DEBUG_PIPELINE`, `DEBUG_PIPELINE_DUMP`, `PIPELINE_DEBUG_OUT` — ver `services/pipeline_debug.py` e `docs/PIPELINE.md`.
+- **models.py**: `ProcessoTrabalhista`, `VerbaDeferida` (Pydantic); `shadow_logs`; validadores de normalização; `SCHEMA_VERSION` para cache (incrementar ao alterar o schema).
 
 ### Workers
 
-- **processor.py**: `process_lawsuit_pdf(user_id, file_bytes, job_id)` — orquestra cache, sentence_finder, playbook, IA, limpeza, dedup, validação Pydantic, legal_validator + engine, explanation_engine, memoria_calculo; retorna `data`, `alertas_juridicos`, `regras_aplicadas`, `explicacoes`. O JSON final agora inclui também `parecer_texto` (parecer completo no Padrão Ouro, texto simples pronto para Word/Excel), `parecer_parcelas_ia` (bloco da seção I gerado por IA) e `parecer_model_used`.
+- **processor.py**: `process_lawsuit_pdf(user_id, file_bytes, job_id, *, cache_context="auto", filename="documento.pdf")` — orquestra cache (`pdf_cache_storage_key`: `auto` = chave legada só hash), sentence_finder, playbook, IA, limpeza, dedup, validação Pydantic, legal_validator + engine, explanation_engine, memoria_calculo; retorna `data`, `alertas_juridicos`, `regras_aplicadas`, `explicacoes`. Com `cache_context="peticao_inicial"`, ramo `_pipeline_peticao_inicial` (extração `_extrair_peticao_inicial`, memorial `memorial_pedidos`, sem motor de sentença completo). O JSON final agora inclui também `parecer_texto` (parecer completo no Padrão Ouro, texto simples pronto para Word/Excel), `parecer_parcelas_ia` (bloco da seção I gerado por IA) e `parecer_model_used`.
 
 ### Services — extração e texto
 
-- **sentence_finder.py**: `extract_sentence_from_pdf(file_bytes)` → (texto, doc_type); extração por página, OCR híbrido, classificação do tipo de documento, recorte do bloco de decisão.
+- **sentence_finder.py**: `extract_sentence_from_pdf(file_bytes)` → (texto, doc_type); extração por página, OCR híbrido, classificação do tipo de documento, recorte do bloco de decisão (PJe por data) e **multi-âncora**: até 5 páginas extras de sinais modificativos/liquidação/recurso e até 3 de TRCT/registro/conciliação/ata, apenas fora do intervalo já extraído.
 - **text_processor.py**: `normalize_text`, `find_section_hybrid` (busca seções como dispositivo).
-- **pre_extractor.py**: `pre_extract(texto)` — extração determinística (regex/campos HIGH/MEDIUM); `build_anchor_section` para o prompt.
-- **ai_client.py**: `extract_data_with_gemini(texto, playbook, anchor_section)` — cascata Gemini Flash → Pro, truncagem, montagem de prompt, parse da resposta. `gerar_parcelas_parecer(verbas, dados, skill_parecer)` — chama Gemini para preencher o slot de texto da seção I do parecer técnico seguindo o estilo de `skills/parecer_pericial.md`; retorna plain text sem Markdown.
+- **pre_extractor.py**: `pre_extract(texto)` — extração determinística (regex/campos HIGH/MEDIUM); `build_anchor_section` para o prompt. No processor, MEDIUM ancora a IA e HIGH sobrescreve campos whitelisted depois da validação.
+- **ai_client.py**: `extract_data_with_gemini(texto, playbook, ..., pipeline_debug_meta=...)` — cascata Gemini Flash → Pro, dedup de intimação + truncagem cirúrgica (`_smart_truncate_after_dedup`, repassa `pipeline_debug_meta` para logs `[truncate]`). Com `DEBUG_PIPELINE=1`, loga etapas do texto até ao modelo e, se `len > max_chars`, a janela (`disp_pos`, `start2`, `end2` ou fallback verbas). `gerar_parcelas_parecer(verbas, dados, skill_parecer)` — chama Gemini para preencher o slot de texto da seção I do parecer técnico seguindo o estilo de `skills/parecer_pericial.md`; retorna plain text sem Markdown.
+- **pipeline_debug.py**: Raio-X opcional do pipeline de texto (`log_etapa`, `alert_large_delta`, `maybe_write_dump`, `log_truncate_*` para geometria da truncagem cirúrgica); não altera contratos nem resultado da extração.
 - **normalizer.py**: `normalizar`, `normalizar_lista`, `eh_chave_valida`, `listar_variacoes` (chaves/valores padronizados).
 - **sentence_understanding.py**: Funções auxiliares para interpretar texto da IA (`extrair_verbas_deferidas`, `extrair_reflexos`, `interpretar_decisao` etc.).
 
@@ -282,6 +284,7 @@ Build: `npm run build` em `frontend/` → `dist/`. Servir `dist/` estaticamente 
 
 ### Services — cálculo e exportação
 
+- **excel_exporter.py**: `exportar_excel(dados, job_id)` — `.xlsx` com abas de resumo, verbas/teses e parâmetros; se `_meta_doc_type=peticao_inicial`, pedidos; se `contestacao`, aba de teses de defesa; resumo com `memorial_juridico` nesses fluxos. Ver `api/routers/exports.py` para nome do ficheiro (`Pedidos_Inicial_*`, `Contestacao_*`, `Auditoria_Calculo_*`) e limpeza do body.
 - **calculation_parameters.py**: `gerar_parametros(dados_extracao)` — período, divisor, jornada, reflexos, índices, FGTS, INSS, honorários (estrutura para PJC/Excel).
 - **explanation_engine.py**: `gerar_explicacoes(verbas, memorial_juridico)` — templates jurídicos por regra (sem LLM); alimenta Excel e memória de cálculo. `gerar_parecer_parcelas_apuradas(verbas, dados)` — seção I do parecer em itens estruturados (a), b), c)) via Python puro (mantido para compatibilidade). `gerar_parecer_tecnico_completo(dados, verbas)` — **novo**: gera o parecer técnico completo usando template fixo (cabeçalho + seção II) + slot preenchido por IA via `ai_client.gerar_parcelas_parecer` orientada por `skills/parecer_pericial.md`; retorna `{"texto", "parcelas", "model_used", "error"}`. `TEXTOS_PADRAO_CRITERIOS_PARECER` agora inclui também a chave `"correcao"` (IPCA-E/SELIC — ADC 58 STF).
 - **pjc_template_patcher.py**: `aplicar_patch(template_xml, dados)` — preenche XML .pjc com dados do processo; funções por seção (gprec, datas, FGTS, processo, parâmetros). `validar_patch`, `gerar_nome_arquivo`.
@@ -305,6 +308,7 @@ Build: `npm run build` em `frontend/` → `dist/`. Servir `dist/` estaticamente 
 ### Testes
 
 - **tests/jurisprudencia/**: Testes por regra (test_reflexos_proibidos, test_bis_in_idem, test_consistencia_datas, test_legal_engine, test_legal_engine_borda, etc.).
+- **tests/test_extraction_cycle_*.py**: suíte incremental Codex/Cursor para travar um alvo por ciclo (pre_extractor, processor, upload/status/WS, cache_context, dossiê, export API e export por job). Atualizar junto com `docs/AI_AGENT_EXTRACTION_CYCLE.md`.
 - **tests/test_normalizer.py**, **test_sentence_understanding.py**, **test_calculation_parameters.py**, **test_explanation_engine.py**: Testes dos serviços correspondentes.
 
 ### Arquivo de referência
@@ -350,6 +354,7 @@ A pasta **`docs/`** contém documentação splitada para reduzir contexto e cust
 | [docs/PIPELINE.md](docs/PIPELINE.md) | Os 10 passos do pipeline e dependências entre eles. |
 | [docs/CODE_MAP.md](docs/CODE_MAP.md) | Mapa arquivo → responsabilidade; índice por domínio (FGTS, datas, regras, etc.). |
 | [docs/AI_RULES.md](docs/AI_RULES.md) | Regras críticas para IA (o que não fazer, onde ler primeiro por tipo de tarefa). |
+| [docs/AI_AGENT_EXTRACTION_CYCLE.md](docs/AI_AGENT_EXTRACTION_CYCLE.md) | Ciclos TDD aprovados e próximo alvo recomendado para Codex/Cursor. |
 | [docs/DIAGNOSTICO_E_PLANO.md](docs/DIAGNOSTICO_E_PLANO.md) | Diagnóstico arquitetural e plano de refatoração da documentação. |
 
 Para alterações pontuais, preferir abrir `docs/AI_RULES.md` e `docs/CODE_MAP.md` em vez do README inteiro.

@@ -4,7 +4,7 @@ import type { ProcessoTrabalhista } from "../types/api";
 // URL base dinâmica — usa a mesma origem do browser (sem hardcode de porta)
 const API_BASE_URL =
   typeof window !== "undefined" ? window.location.origin : "http://localhost:8000";
-const DEFAULT_USER_ID = "usuario_teste";
+export const DEFAULT_USER_ID = "usuario_teste";
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -22,6 +22,14 @@ api.interceptors.request.use((config) => {
 });
 
 // Tipagens auxiliares para respostas principais do backend
+
+/** Resposta imediata de POST /upload (job assíncrono + WebSocket). */
+export interface UploadJobResponse {
+  job_id: string;
+  status: string;
+  timeout_seconds?: number;
+  ws_url: string;
+}
 
 export interface ExtractionResponseEnvelope {
   status: "sucesso" | "erro";
@@ -59,4 +67,19 @@ export type StatsResponse = {
     percentual: number;
   }>;
 };
+
+export interface LabManifestacaoResponse {
+  markdown: string;
+  estrutura: {
+    introducao?: string;
+    secoes?: Array<{ titulo?: string; texto?: string }>;
+    tabela_comparativa?: Array<{
+      descricao?: string;
+      valor_empresa?: string;
+      valor_correto?: string;
+    }>;
+    fecho?: string;
+    erro?: string;
+  };
+}
 

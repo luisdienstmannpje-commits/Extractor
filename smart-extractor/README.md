@@ -42,7 +42,9 @@ smart-extractor/
 1. `.cursorrules` (raiz) — regras críticas e features recentes (já lido automaticamente pelo Cursor).
 2. `backend/docs/AI_NAVIGATION_LAYER.md` — roteiro por tipo de tarefa + mapa do `learning_engine.py`.
 3. `backend/docs/CODE_MAP.md` — localizar arquivo sem abrir código desnecessário.
-4. Somente então abrir 1–3 arquivos de código específicos.
+4. `backend/docs/PIPELINE.md` — passos do processador; secção **Debug do pipeline de texto** para `DEBUG_PIPELINE`.
+5. `backend/docs/AI_AGENT_EXTRACTION_CYCLE.md` — obrigatorio para ciclos incrementais de extracao, upload/status/WS e exportacao.
+6. Somente então abrir 1–3 arquivos de código específicos.
 
 ---
 
@@ -62,17 +64,19 @@ pytest -q
 
 Variáveis de ambiente necessárias em `backend/.env`: `GEMINI_API_KEY`, `FIREBASE_PROJECT_ID`, e opcionais (`MAX_FILE_SIZE_MB`, `SCHEMA_VERSION`, etc.). Ver `backend/config.py`.
 
+**Diagnóstico (raio-X do texto até à IA):** `DEBUG_PIPELINE=1` — logs `[DEBUG-PIPELINE]` com tamanho/hash/snippets após o `sentence_finder` e após dedup/truncagem no `ai_client`. Quando o texto excede o limite do modelo, linhas adicionais `[DEBUG-PIPELINE][truncate]` descrevem a **geometria da janela cirúrgica** (`parte1_chars` / `parte2_chars`, `disp_pos`, `start2`/`end2`) ou avisam **dispositivo não encontrado** → fallback por regex de verbas (sem alterar a lógica de corte). Opcional: `DEBUG_PIPELINE_DUMP=1` grava ficheiros em `backend/pipeline_debug_out/` (processa dados sensíveis só em ambiente controlado); `PIPELINE_DEBUG_OUT` altera a pasta. Ver `backend/services/pipeline_debug.py` e `backend/docs/PIPELINE.md`.
+
 ---
 
 ## Funcionalidades principais
 
 | Funcionalidade | Onde |
 |----------------|------|
-| Extração de sentença trabalhista (PDF → JSON 45+ campos) | `workers/processor.py` + `services/sentence_finder.py`. **Camada híbrida (Regex + IA):** regex em cabeçalho e final do doc extrai `data_ajuizamento`, `valor_causa` e **data_sentenca** (Assinado eletronicamente em / Data do Julgamento / Publicado em); merge pós-Gemini quando IA retorna null ou "não informado". `models.py`: datas aceitam "não informado" → None para não quebrar validação. Cabeçalho preservado; truncagem 40%+60%. **Upload:** FormData com campo exatamente `"files"` (plural) para match com `File(..., alias="files")`; log em `main.py`: `Arquivos recebidos: [nomes]`. |
+| Extração de sentença trabalhista (PDF → JSON 45+ campos) | `workers/processor.py` + `services/sentence_finder.py`. **Camada híbrida (Regex + IA):** `services/pre_extractor.py` gera `pre_fields` HIGH/MEDIUM; MEDIUM vira ancora no prompt Gemini e HIGH sobrescreve campos whitelisted apos `_validate_result` com log `[PRE-HIGH]` quando muda valor. Regex de cabeçalho/final tambem cobre `data_ajuizamento`, `valor_causa` e **data_sentenca**. **Upload async:** `POST /upload` usa FormData `"files"` + `cache_context`, retorna `job_id`; progresso por `/ws/{job_id}` (`partial_update` + terminal) ou fallback `GET /status/{job_id}`. |
 | **Análise de Dossiê (multi-upload na aba Processar)** | **Formatos aceitos:** PDF, Word (.doc/.docx), Excel (.xlsx/.xls), PJC, XML, imagens (JPG/PNG). Um único PDF → fluxo clássico; múltiplos ou não-PDF → `process_lawsuit_dossie`. **Leitura por tipo:** PDF → `sentence_finder`; DOCX → `python-docx` ou `learning_engine._extrair_texto_docx`; DOC → decode latin-1; XLSX/XLS → `openpyxl` (planilhas em texto); PJC/XML → decode iso-8859-1; JPG/PNG → Gemini multimodal (`ai_client.extrair_texto_ou_descricao_imagem`). Super-contexto com separadores `--- INÍCIO DO DOCUMENTO: [nome] ---`; prompt instrui a cruzar textos, tabelas e descrições de imagens para o Raio-X. Cache por hash composto (inclui binário de imagens e planilhas). Frontend: `accept=".pdf,.doc,.docx,.pjc,.xml,.xlsx,.xls,.jpg,.jpeg,.png"`; sem validação por extensão no cliente. |
 | **Painel Raio-X (aba Processar)** | **Única fonte de Identificação:** toda a "capa" do processo está no Raio-X (Bloco 1). **Bloco 1** (`ESTRUTURAL_KEYS` em `extraction_engine.py`; `BLOCO1_KEYS` em `render.js`): número (sticky), vara, juiz, data sentença/ajuizamento, valor_causa, reclamante, reclamada, adv. reclamante/reclamada, rito, justiça gratuita, **prescricao_quinquenal**. **Bloco 2** Parâmetros Estruturais: admissão, demissão, salário, divisor, motivo rescisão. Blocos 3–5: Índices/Juros, Verbas/badges, Dicas Lab. Cópia inteligente. |
 | **UI/UX (Extrator)** | **Sidebar retrátil:** `index.html` `<aside class="sidebar-retractil">` + `main.css`: largura 4rem, hover 16rem, fixa à esquerda; textos dos menus com `opacity-0 group-hover:opacity-100`. **KPI bar removida:** os 3 cards de topo (Verbas, Alertas, Índice) foram retirados para ganho de espaço vertical; indicadores permanecem na aba Estatísticas e no Raio-X. **Main workspace** tem `margin-left: 4rem` (classe `.main-workspace`). |
-| Export Excel + `.pjc` (PJeCalc 2.14.0) | `services/excel_exporter.py`, `services/pjc_exporter.py` |
+| Export Excel + `.pjc` (PJeCalc 2.14.0) | `services/excel_exporter.py`, `services/pjc_exporter.py`, `api/routers/exports.py`. Contratos cobertos: `POST /api/export/excel`, `POST /api/export/pjc` e `GET /export-excel/{job_id}`; peticao/contestacao preservam `memorial_juridico` e usam nomes `Pedidos_Inicial_*` / `Contestacao_*`; sentenca usa `Auditoria_Calculo_*`. |
 | Parecer Técnico Padrão Ouro (IA + templates) | `services/explanation_engine.py` + `services/ai_client.py` + `skills/parecer_pericial.md` |
 | Motor de regras jurídicas (STF → TST → CLT) | `services/legal_engine/` + `services/jurisprudencia/` |
 | Laboratório de Aprendizado (8 cards + Card Provas como hub) | `services/learning_engine.py` + `frontend/src/pages/Laboratory.tsx`, `frontend/src/hooks/useAnalyze.ts`. **Card "Amostragens e Provas Adicionais"** = hub único: o usuário pode anexar aqui **Parecer, Amostragens e Manifestações** em um só upload; o backend autoclassifica por conteúdo (parecer/amostragem/manifestação) e preenche os slots internos; texto completo vai para `<AMOSTRAGENS_DA_PERITA>`. Cards 5, 6 e 8 continuam opcionais para envio explícito. Ver `backend/docs/guia_eficiencia.md`. |

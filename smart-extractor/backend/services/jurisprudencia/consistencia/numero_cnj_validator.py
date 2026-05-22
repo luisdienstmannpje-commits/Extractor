@@ -42,7 +42,7 @@ class NumeroCNJValidator(LegalRule):
             ok, motivo = validar_cnj(numero)
             if not ok:
                 msg = (
-                    f"[ERRO] Dígito verificador CNJ parece atípico: {numero}. "
+                    f"Dígito verificador CNJ parece atípico: {numero}. "
                     f"{motivo} Apenas confira se o número do processo foi extraído corretamente."
                 )
                 self._alerta(contexto, msg, nivel="ERRO")

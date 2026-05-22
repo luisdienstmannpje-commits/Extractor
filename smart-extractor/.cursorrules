@@ -70,6 +70,7 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 | Qual arquivo faz o quê | `backend/docs/CODE_MAP.md` |
 | Adicionar/modificar regra jurídica | README (§ Motor de regras), `legal_engine/rule_base.py`, template em `legal_engine/rules/` |
 | Alterar pipeline ou contrato | `docs/PIPELINE.md`, `workers/processor.py` |
+| Ciclo incremental de extração/upload/export | `docs/AI_AGENT_EXTRACTION_CYCLE.md`, teste focado em `tests/test_extraction_cycle_*.py`, depois mapa relevante (`CODE_MAP.md` / `PIPELINE.md`) |
 | Alterar modelo (campos) | `models.py`, `SCHEMA_VERSION`, `legal_engine/engine.py` |
 | Export (Excel, PJC, memória) | `docs/CODE_INTELLIGENCE_MAP.md` § 5 |
 | Regras de conduta da IA | `backend/docs/AI_RULES.md` |
@@ -103,6 +104,7 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 ## Testes
 
 - `backend/tests/jurisprudencia/` — um arquivo por regra. Padrão: construir `ContextoJuridico` mínimo, aplicar regra, assertar alertas e regras_aplicadas.
+- Ciclos incrementais usam `backend/tests/test_extraction_cycle_*.py`: um alvo por vez, fixture pequena, teste antes do código, suite curta de regressão e atualização de `backend/docs/AI_AGENT_EXTRACTION_CYCLE.md` + `backend/docs/ALTERACOES_VS_DOCUMENTACAO.md`.
 - `cd backend && pytest -q` — manter todos verdes antes de concluir alterações.
 
 ---
@@ -112,4 +114,5 @@ Este projeto segue uma arquitetura definida. Antes de propor código, consulte a
 1. Leia `backend/docs/AI_NAVIGATION_LAYER.md` primeiro — tem roteiros por tarefa e mapa completo do `learning_engine.py`.
 2. Use `docs/CODE_MAP.md` para localizar arquivos sem abrir código desnecessário.
 3. Respeite `docs/AI_RULES.md` e este `.cursorrules` em toda sugestão.
-4. Alterações incrementais sem regressão; documente impacto ao propor mudanças arquiteturais.
+4. Para continuar ciclos aprovados pelo usuário/Codex, leia `docs/AI_AGENT_EXTRACTION_CYCLE.md`, discuta o próximo alvo e encerre com `APROVADO`, `BLOQUEADO` ou `DISCORDO`.
+5. Alterações incrementais sem regressão; documente impacto ao propor mudanças arquiteturais.

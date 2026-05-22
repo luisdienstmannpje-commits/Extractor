@@ -107,6 +107,50 @@ def _extract_first_json_object(text: str) -> str:
     return text
 
 
+def _normalize_alertas(alertas_raw: Any) -> List[str]:
+    """
+    Normaliza alertas jurídicos para uma lista curta de strings legíveis.
+    Aceita entradas em formato string ou dict.
+    """
+    if not isinstance(alertas_raw, list):
+        return []
+    out: List[str] = []
+    for a in alertas_raw:
+        if isinstance(a, str):
+            t = a.strip()
+            if t:
+                out.append(t)
+            continue
+        if isinstance(a, dict):
+            nivel = str(a.get("nivel") or "").strip().upper()
+            msg = str(a.get("texto") or a.get("mensagem") or "").strip()
+            if msg:
+                out.append(f"[{nivel}] {msg}" if nivel else msg)
+    return out
+
+
+def _normalize_quadro_comparativo(quadro_raw: Any) -> List[Dict[str, str]]:
+    """
+    Normaliza quadro comparativo (Pedido x Defesa x Decisão) para o prompt.
+    """
+    if not isinstance(quadro_raw, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for row in quadro_raw:
+        if not isinstance(row, dict):
+            continue
+        norm = {
+            "verba_alvo": str(row.get("verba_alvo") or "").strip(),
+            "resumo_pedido": str(row.get("resumo_pedido") or "").strip(),
+            "resumo_defesa": str(row.get("resumo_defesa") or "").strip(),
+            "resumo_decisao": str(row.get("resumo_decisao") or "").strip(),
+            "status_final": str(row.get("status_final") or "").strip(),
+        }
+        if any(norm.values()):
+            out.append(norm)
+    return out
+
+
 def gerar_texto_manifestacao(
     discrepancias: List[Dict[str, Any]],
     estilo_mapeado: str,
@@ -139,7 +183,10 @@ def gerar_texto_manifestacao(
     vara_trabalho = dados_processo.get("vara_trabalho") or "[Vara]"
     indice_correcao = dados_processo.get("indice_correcao") or ""
     verbas_deferidas = dados_processo.get("verbas_deferidas") or []
-    alertas_juridicos = dados_processo.get("alertas_juridicos") or []
+    alertas_juridicos = _normalize_alertas(dados_processo.get("alertas_juridicos") or [])
+    quadro_comparativo = _normalize_quadro_comparativo(
+        dados_processo.get("quadro_comparativo") or []
+    )
 
     # Limitar tamanho do estilo para não estourar contexto
     estilo_limpo = (estilo_mapeado or "")[:25000].strip() or "Estilo assertivo e técnico; uso de fundamentos legais (CLT, Súmulas TST, ADC 58)."
@@ -159,7 +206,16 @@ def gerar_texto_manifestacao(
 
     verbas_nomes = [v.get("nome") if isinstance(v, dict) else str(v) for v in verbas_deferidas if v]
     contexto_verbas = json.dumps(verbas_nomes, ensure_ascii=False) if verbas_nomes else "[]"
-    contexto_alertas = json.dumps(alertas_juridicos, ensure_ascii=False, indent=2) if alertas_juridicos else "[]"
+    contexto_alertas = (
+        json.dumps(alertas_juridicos, ensure_ascii=False, indent=2)
+        if alertas_juridicos
+        else "[]"
+    )
+    contexto_quadro = (
+        json.dumps(quadro_comparativo, ensure_ascii=False, indent=2)
+        if quadro_comparativo
+        else "[]"
+    )
 
     # Quando não há discrepâncias, a IA gera esqueleto/template (clonador de estilo)
     modo_esqueleto = len(disc_resumo) == 0
@@ -191,6 +247,8 @@ def gerar_texto_manifestacao(
         f"{contexto_verbas}\n\n"
         "ALERTAS JURÍDICOS (se não estiver vazio, crie tópico ESCLARECIMENTOS ADICIONAIS ou PONTOS DE CONTROVÉRSIA e justifique o impacto nos cálculos):\n"
         f"{contexto_alertas}\n\n"
+        "QUADRO COMPARATIVO TRIPLO (quando houver: pedido x defesa x decisão, útil para síntese argumentativa):\n"
+        f"{contexto_quadro}\n\n"
         "DISCREPÂNCIAS DA AUDITORIA (confronto empresa x correção pericial):\n"
         f"{json.dumps(disc_resumo, ensure_ascii=False, indent=2)}\n\n"
         "REGRAS: NÃO use Markdown (sem #, *, **, ```). Texto limpo para Word. Use jargão pericial: apurou-se, escorreita liquidação, rechaça-se, integração salarial, bis in idem, verbas rescisórias.\n\n"
@@ -270,3 +328,55 @@ def gerar_texto_manifestacao(
             "fecho": "",
             "erro": str(e),
         }
+
+
+def render_markdown_manifestacao(resultado: Dict[str, Any]) -> str:
+    """
+    Converte a saída estruturada do ghostwriter em Markdown para preview no frontend.
+    """
+    intro = _strip_markdown(str(resultado.get("introducao") or ""))
+    secoes = resultado.get("secoes") or []
+    tabela = resultado.get("tabela_comparativa") or []
+    fecho = _strip_markdown(str(resultado.get("fecho") or ""))
+
+    blocos: List[str] = []
+    if intro:
+        blocos.append("## Introdução\n\n" + intro)
+
+    if isinstance(secoes, list) and secoes:
+        partes: List[str] = ["## Mérito e Fundamentação"]
+        for sec in secoes:
+            if not isinstance(sec, dict):
+                continue
+            titulo = _strip_markdown(str(sec.get("titulo") or "")).strip()
+            texto = _strip_markdown(str(sec.get("texto") or "")).strip()
+            if titulo:
+                partes.append(f"### {titulo}")
+            if texto:
+                partes.append(texto)
+        blocos.append("\n\n".join(partes).strip())
+
+    if isinstance(tabela, list) and tabela:
+        linhas = [
+            "## Tabela Comparativa",
+            "",
+            "| Descrição | Valor apresentado pela empresa | Valor correto |",
+            "|---|---|---|",
+        ]
+        for row in tabela:
+            if not isinstance(row, dict):
+                continue
+            d = str(row.get("descricao") or "—").replace("|", "\\|")
+            ve = str(row.get("valor_empresa") or "—").replace("|", "\\|")
+            vc = str(row.get("valor_correto") or "—").replace("|", "\\|")
+            linhas.append(f"| {d} | {ve} | {vc} |")
+        blocos.append("\n".join(linhas))
+
+    if fecho:
+        blocos.append("## Fecho\n\n" + fecho)
+
+    erro = _strip_markdown(str(resultado.get("erro") or ""))
+    if erro:
+        blocos.append("> Aviso: houve erro parcial na geração e o texto pode estar incompleto.")
+
+    return "\n\n".join([b for b in blocos if b]).strip()

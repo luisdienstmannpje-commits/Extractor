@@ -8,7 +8,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from typing import List
+from typing import List, Tuple, Optional
 from fastapi.responses import FileResponse
 from workers.processor import process_lawsuit_pdf, process_lawsuit_dossie
 from services.database import get_job_repo
@@ -37,7 +37,64 @@ _ws_queues: dict = {}
 _ws_lock = threading.Lock()
 _logger = logging.getLogger("smart_extractor")
 
+# Loop do Uvicorn (definido no lifespan de main.py). Evita get_event_loop() na thread
+# do worker — em Windows isso falha e gera ws_enqueue_failed.
+_uvicorn_loop: Optional[asyncio.AbstractEventLoop] = None
+
 JOB_TIMEOUT_SECONDS = 300  # 5 minutos
+
+
+def register_worker_event_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Chamado uma vez no startup do FastAPI com asyncio.get_running_loop()."""
+    global _uvicorn_loop
+    _uvicorn_loop = loop
+
+
+def _should_run_process_lawsuit_pdf_upload(
+    collected: List[Tuple[str, bytes]],
+    cache_context: str,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Decide se o upload de um ficheiro deve usar `process_lawsuit_pdf` (job único)
+    em vez de `process_lawsuit_dossie`.
+
+    Retorno
+    -------
+    (True, None)   → `process_lawsuit_pdf` com cache_context / filename.
+    (False, None)  → dossiê (vários ficheiros ou um único não-PDF com contexto auto).
+    (False, "msg") → rejeitar pedido (HTTP 400).
+    """
+    ctx_norm = (cache_context or "auto").strip().lower()
+    n = len(collected)
+    if ctx_norm == "peticao_inicial" and n != 1:
+        return (
+            False,
+            "Para petição inicial envie exatamente um arquivo PDF, DOC ou DOCX.",
+        )
+    if ctx_norm == "contestacao" and n != 1:
+        return (
+            False,
+            "Para contestação envie exatamente um arquivo PDF, DOC ou DOCX.",
+        )
+    if n != 1:
+        return False, None
+    name0, _ = collected[0]
+    fn0 = (name0 or "arquivo").lower()
+    if ctx_norm == "peticao_inicial":
+        if not (
+            fn0.endswith(".pdf") or fn0.endswith(".doc") or fn0.endswith(".docx")
+        ):
+            return False, "Petição inicial: use PDF, DOC ou DOCX."
+    if ctx_norm == "contestacao":
+        if not (
+            fn0.endswith(".pdf") or fn0.endswith(".doc") or fn0.endswith(".docx")
+        ):
+            return False, "Contestação: use PDF, DOC ou DOCX."
+    if fn0.endswith(".pdf"):
+        return True, None
+    if ctx_norm in ("peticao_inicial", "contestacao"):
+        return True, None
+    return False, None
 
 
 # ── Helpers de job ────────────────────────────────────────────────────────────
@@ -61,26 +118,67 @@ def _set_job(job_id: str, user_id: str, data: dict):
         _notify_ws(job_id, data)
 
 
-def _notify_ws(job_id: str, data: dict):
+def _enqueue_ws_message(job_id: str, data: dict) -> None:
     """
-    Coloca o resultado na fila do WebSocket deste job (thread-safe).
-    Usa run_coroutine_threadsafe porque _set_job é chamado de thread worker,
-    não do event loop do asyncio.
+    Enfileira mensagem para o WebSocket deste job (thread-safe).
+    Usado para resultado final e para eventos `partial_update` vindos do worker.
     """
     with _ws_lock:
         queue = _ws_queues.get(job_id)
 
     if queue is None:
-        return  # Nenhum WS conectado para este job — sem ação
+        return
+
+    loop = _uvicorn_loop
+    if loop is None:
+        _logger.warning(
+            "ws_enqueue_failed",
+            extra={
+                "job_id": job_id,
+                "error": "event loop não registrado (register_worker_event_loop no lifespan)",
+            },
+        )
+        return
+    if not loop.is_running():
+        _logger.warning(
+            "ws_enqueue_failed",
+            extra={"job_id": job_id, "error": "event loop do servidor inativo"},
+        )
+        return
 
     try:
-        loop = asyncio.get_event_loop()
         loop.call_soon_threadsafe(queue.put_nowait, data)
     except Exception as e:
         _logger.warning(
-            "ws_notify_failed",
+            "ws_enqueue_failed",
             extra={"job_id": job_id, "error": str(e)},
         )
+
+
+def _notify_ws(job_id: str, data: dict):
+    """Compat: notificação final — delega para a fila comum."""
+    _enqueue_ws_message(job_id, data)
+
+
+def push_ws_partial(job_id: str, payload: dict, message: str = "") -> None:
+    """
+    Envia fatia incremental de `ProcessoTrabalhista` para clientes conectados em /ws/{job_id}.
+    Contrato alinhado ao frontend: type partial_update + payload (merge defensivo).
+    """
+    if not job_id or not str(job_id).strip():
+        return
+    evt: dict = {"type": "partial_update", "payload": payload}
+    if message:
+        evt["message"] = message
+    _enqueue_ws_message(str(job_id).strip(), evt)
+
+
+def _ws_payload_is_terminal(msg: dict) -> bool:
+    """True se a mensagem encerra a conexão (resultado final do job)."""
+    if msg.get("type") == "partial_update":
+        return False
+    st = msg.get("status")
+    return st in ("done", "error", "timeout", "sucesso", "erro")
 
 
 def _get_job(job_id: str) -> dict | None:
@@ -99,7 +197,15 @@ def _get_job(job_id: str) -> dict | None:
 
 # ── Job runner com timeout ────────────────────────────────────────────────────
 
-def _run_job_with_timeout(job_id: str, user_id: str, tenant_id: str, file_bytes: bytes = None, files_list: list = None):
+def _run_job_with_timeout(
+    job_id: str,
+    user_id: str,
+    tenant_id: str,
+    file_bytes: bytes = None,
+    files_list: list = None,
+    cache_context: str = "auto",
+    single_filename: str = "documento.pdf",
+):
     result_container = {}
     done_event = threading.Event()
 
@@ -108,7 +214,13 @@ def _run_job_with_timeout(job_id: str, user_id: str, tenant_id: str, file_bytes:
             if files_list and len(files_list) > 0:
                 result = process_lawsuit_dossie(tenant_id, files_list, job_id=job_id)
             else:
-                result = process_lawsuit_pdf(tenant_id, file_bytes, job_id=job_id)
+                result = process_lawsuit_pdf(
+                    tenant_id,
+                    file_bytes,
+                    job_id=job_id,
+                    cache_context=cache_context or "auto",
+                    filename=single_filename or "documento.pdf",
+                )
         except Exception as e:
             result = {"status": "erro", "msg": f"Exceção não tratada: {str(e)}"}
         result_container["result"] = result
@@ -135,12 +247,25 @@ def _run_job_with_timeout(job_id: str, user_id: str, tenant_id: str, file_bytes:
     _set_job(job_id, user_id, final)  # ← notifica WS aqui
 
 
-def _start_job(job_id: str, user_id: str, tenant_id: str, file_bytes: bytes = None, files_list: list = None):
+def _start_job(
+    job_id: str,
+    user_id: str,
+    tenant_id: str,
+    file_bytes: bytes = None,
+    files_list: list = None,
+    cache_context: str = "auto",
+    single_filename: str = "documento.pdf",
+):
     _set_job(job_id, user_id, {"status": "processing"})
     controller = threading.Thread(
         target=_run_job_with_timeout,
         args=(job_id, user_id, tenant_id),
-        kwargs={"file_bytes": file_bytes, "files_list": files_list},
+        kwargs={
+            "file_bytes": file_bytes,
+            "files_list": files_list,
+            "cache_context": cache_context,
+            "single_filename": single_filename,
+        },
         daemon=True,
     )
     controller.start()
@@ -154,11 +279,14 @@ async def upload_pdf(
     background_tasks: BackgroundTasks,
     user_id: str = Form(...),
     files: List[UploadFile] = File(..., alias="files"),
+    cache_context: str = Form("auto"),
 ):
     """
     Recebe um ou mais arquivos (dossiê): PDF, DOC, DOCX, PJC, XML.
     Um único PDF: fluxo clássico (sentence_finder + IA).
-    Múltiplos arquivos ou não-PDF: extração de texto por arquivo, concatenação e IA sobre o super-contexto.
+    Um único PDF/DOC/DOCX com cache_context=peticao_inicial ou contestacao: fluxo dedicado
+    (pedidos da inicial / teses de defesa — mesmo contrato que POST /api/extract).
+    Múltiplos arquivos ou não-PDF (com contexto auto): extração por arquivo, super-contexto.
     """
     # Sprint 1/2: tenant_id == user_id — vem do header (x-user-id); user_id do form é legado.
     ctx = get_request_context()
@@ -185,14 +313,23 @@ async def upload_pdf(
     set_job_id(job_id)
     _set_job(job_id, effective_user_id, {"status": "queued"})
 
-    if len(collected) == 1 and collected[0][0].lower().endswith(".pdf"):
+    use_single_pdf, err_msg = _should_run_process_lawsuit_pdf_upload(
+        collected, cache_context
+    )
+    if err_msg:
+        raise HTTPException(400, err_msg)
+
+    if use_single_pdf:
+        fname, fbytes = collected[0]
         background_tasks.add_task(
             _start_job,
             job_id,
             effective_user_id,
             tenant_id,
-            file_bytes=collected[0][1],
+            file_bytes=fbytes,
             files_list=None,
+            cache_context=cache_context or "auto",
+            single_filename=fname or "documento.pdf",
         )
     else:
         background_tasks.add_task(
@@ -202,6 +339,8 @@ async def upload_pdf(
             tenant_id,
             file_bytes=None,
             files_list=collected,
+            cache_context="auto",
+            single_filename="documento.pdf",
         )
 
     return {
@@ -217,12 +356,16 @@ async def upload_pdf(
 async def extract_single(
     file: UploadFile = File(...),
     user_id: str = Form("anonimo"),
+    cache_context: str = Form("auto"),
 ):
     """
     Extrator rápido — fluxo síncrono para um único arquivo (Processo/Sentença).
 
     Usa o mesmo pipeline do worker principal (`process_lawsuit_pdf`), mas retorna
     o resultado diretamente sem criar job em background.
+
+    cache_context: "auto" (padrão), "peticao_inicial" ou "contestacao" — chave composta e
+    fluxo dedicado (PDF/DOC/DOCX).
     """
     filename = (file.filename or "").lower()
     if not any(filename.endswith(ext) for ext in _EXT_UPLOAD):
@@ -239,7 +382,13 @@ async def extract_single(
     ctx = get_request_context()
     effective_user_id = ctx.user_id or (user_id or "anonimo")
 
-    result = process_lawsuit_pdf(effective_user_id, content, job_id="")
+    result = process_lawsuit_pdf(
+        effective_user_id,
+        content,
+        job_id="",
+        cache_context=cache_context or "auto",
+        filename=file.filename or "documento.pdf",
+    )
     if not isinstance(result, dict):
         raise HTTPException(500, "Resposta inesperada do motor de extração.")
 
@@ -364,8 +513,9 @@ def export_excel_endpoint(job_id: str):
             detail="Job terminou com erro — não é possível exportar",
         )
 
-    # Mesmo padrão do /export-pjc: resultado pode estar na raiz ou em "result"
-    dados = job.get("result") or job
+    # Mesmo padrão do /export-pjc: resultado pode estar na raiz ou em "result".
+    # Se "result" existe, não faça fallback por falsy: lista vazia/None deve ser inválido.
+    dados = job["result"] if "result" in job else job
 
     if not dados or not isinstance(dados, dict):
         raise HTTPException(
@@ -437,7 +587,7 @@ async def websocket_job(websocket: WebSocket, job_id: str):
     # Race condition: job pode ter terminado antes do WS conectar
     job = _get_job(job_id)
     if job and job.get("status") not in ("queued", "processing"):
-        await websocket.send_text(json.dumps(job))
+        await websocket.send_text(json.dumps(job, ensure_ascii=False, default=str))
         await websocket.close()
         print(f"[WS] Job {job_id} ja estava pronto - enviado imediatamente", flush=True)
         return
@@ -447,21 +597,33 @@ async def websocket_job(websocket: WebSocket, job_id: str):
     with _ws_lock:
         _ws_queues[job_id] = queue
 
+    def _dumps(obj: dict) -> str:
+        try:
+            return json.dumps(obj, ensure_ascii=False, default=str)
+        except TypeError:
+            return json.dumps({"status": "error", "msg": "Falha ao serializar evento WS"})
+
     try:
         while True:
             try:
-                # Aguarda resultado com heartbeat a cada 10s
                 result = await asyncio.wait_for(queue.get(), timeout=10.0)
-                await websocket.send_text(json.dumps(result))
-                print(f"[WS] Resultado enviado: {job_id} -> status={result.get('status')}", flush=True)
-                break  # job terminou — fecha conexão
+                await websocket.send_text(_dumps(result))
+                if result.get("type") == "partial_update":
+                    continue
+                if _ws_payload_is_terminal(result):
+                    print(
+                        f"[WS] Resultado enviado: {job_id} -> status={result.get('status')}",
+                        flush=True,
+                    )
+                    break
+                # Mensagem legada ou formato inesperado: envia uma vez e encerra
+                break
 
             except asyncio.TimeoutError:
-                # Heartbeat — mantém conexão viva no browser
                 try:
-                    await websocket.send_text(json.dumps({"status": "processing"}))
+                    await websocket.send_text(_dumps({"status": "processing"}))
                 except Exception:
-                    break  # browser desconectou
+                    break
 
     except WebSocketDisconnect:
         print(f"[WS] Cliente desconectou: {job_id}", flush=True)
@@ -471,3 +633,24 @@ async def websocket_job(websocket: WebSocket, job_id: str):
             _ws_queues.pop(job_id, None)
         print(f"[WS] Encerrado: {job_id}", flush=True)
 
+
+@router.websocket("/ws/lab-pipeline")
+async def websocket_lab_pipeline(websocket: WebSocket):
+    """
+    Canal do Laboratório (useAnalyze). POST /lab/analisar é síncrono; mantém heartbeat
+    até o cliente encerrar — evita 404. Evolução futura: session_id + fila como /ws/{job_id}.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=25.0)
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_text(
+                        json.dumps({"status": "processing", "channel": "lab-pipeline"})
+                    )
+                except Exception:
+                    break
+    except WebSocketDisconnect:
+        pass

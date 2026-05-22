@@ -492,6 +492,75 @@ def _extrair_texto_arquivo(file_bytes: bytes, filename: str) -> str:
     return ""
 
 
+def _extrair_texto_arquivo_com_marcadores_pagina(
+    file_bytes: bytes,
+    filename: str,
+    max_pages: int = 25,
+) -> str:
+    """
+    Texto com marcadores --- PÁGINA N --- para ancoragem (mesmo contrato que sentence_finder).
+    PDF: uma seção por página (limitado a max_pages). DOC/DOCX/DOC: bloco único como página 1.
+    """
+    fname = (filename or "").lower()
+    if fname.endswith(".pdf"):
+        try:
+            import io
+
+            import pdfplumber
+
+            partes: List[str] = []
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                n = min(len(pdf.pages), max(1, int(max_pages)))
+                for i in range(n):
+                    pg = pdf.pages[i]
+                    t = (pg.extract_text() or "").strip()
+                    partes.append(f"--- PÁGINA {i + 1} ---\n{t}")
+            return "\n".join(partes).strip()
+        except Exception as e:
+            _logger.warning(
+                "learning_pdf_marcadores_error",
+                extra={
+                    "pdf_filename": filename,
+                    "error": str(e),
+                    "tenant_id": current_tenant_id() or "anonimo",
+                },
+            )
+            return ""
+    flat = _extrair_texto_arquivo(file_bytes, filename)
+    if not (flat or "").strip():
+        return ""
+    return f"--- PÁGINA 1 ---\n{flat.strip()}"
+
+
+def _derivar_campos_legados_contestacao(
+    teses_defesa: List[Any],
+) -> tuple[List[Dict[str, Any]], List[str], List[str]]:
+    """Preenche argumentos_exclusao, verbas_negadas e teses_empresa a partir de teses_defesa (Lab)."""
+    argumentos: List[Dict[str, Any]] = []
+    verbas_neg: List[str] = []
+    teses_set: List[str] = []
+    for raw in teses_defesa or []:
+        if not isinstance(raw, dict):
+            continue
+        alvo = str(raw.get("verba_alvo") or raw.get("verba") or "").strip()
+        tese = str(raw.get("tese_principal") or raw.get("argumento") or "").strip()
+        incont = bool(raw.get("incontroversa"))
+        base_legal = str(raw.get("base_legal") or "").strip()
+        if alvo or tese:
+            argumentos.append(
+                {
+                    "verba": alvo or "—",
+                    "argumento": tese or "—",
+                    "base_legal": base_legal or "—",
+                }
+            )
+        if alvo and not incont:
+            verbas_neg.append(alvo)
+        if tese and tese not in teses_set:
+            teses_set.append(tese)
+    return argumentos, verbas_neg, teses_set
+
+
 # ── Dossiê de Amostragens / Provas Adicionais (multi-upload) ─────────────────
 
 # Classificação por conteúdo: Parecer (style_transfer, fundamentos), Amostragem (tabelas, R$), Manifestação
@@ -1009,40 +1078,70 @@ def _extrair_peticao_inicial(file_bytes: bytes, filename: str) -> Dict[str, Any]
 
 def _extrair_contestacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     """
-    Extrai da Contestação (PDF ou DOCX) os argumentos de exclusão de verbas
-    usados pela empresa, teses jurídicas, verbas negadas e súmulas/OJs citadas.
-    Foco: quais argumentos a empresa usa para negar cada verba pedida.
+    Extrai da Contestação (PDF ou DOCX) teses de defesa estruturadas e campos legados
+    para o Lab (argumentos_exclusao, teses_empresa, verbas_negadas, sumulas_citadas).
+
+    O array `teses_defesa` é a fonte principal (Cenário 2); os campos legados são
+    derivados quando a IA não os preenche, para não quebrar relatórios existentes.
     """
     texto = _extrair_texto_arquivo(file_bytes, filename)
     if not texto.strip():
         return {
             "erro": "Documento sem texto legível",
+            "numero_processo": None,
+            "reclamante": None,
+            "reclamada": None,
+            "valor_causa": None,
+            "teses_defesa": [],
             "argumentos_exclusao": [],
             "teses_empresa": [],
             "verbas_negadas": [],
             "sumulas_citadas": [],
         }
 
+    trecho_ia = texto[:8000]
     prompt = (
         "Você é um assistente jurídico especializado em Direito do Trabalho Brasileiro.\n"
-        "Analise o texto abaixo de uma CONTESTAÇÃO trabalhista (resposta do empregador) e extraia em JSON puro.\n\n"
-        "Foco: quais argumentos a empresa usa para NEGAR cada verba pedida pelo reclamante.\n\n"
-        "Extraia EXATAMENTE no formato JSON:\n"
+        "Analise o texto abaixo de uma CONTESTAÇÃO trabalhista (resposta da reclamada) "
+        "e responda em JSON puro.\n\n"
+        "1) Preencha `teses_defesa`: para cada PEDIDO da inicial que a defesa trate, "
+        "uma linha com verba_alvo, tese_principal, trecho_fundamentacao (trecho CURTO, "
+        "máximo 150 caracteres, copiado do texto quando possível), incontroversa "
+        "(true se não impugnar ou admitir/confessar).\n"
+        "2) Opcionalmente preencha argumentos_exclusao, teses_empresa, verbas_negadas, "
+        "sumulas_citadas; se omitir, serão deduzidos de teses_defesa.\n"
+        "3) Se possível, numero_processo, reclamante, reclamada e valor_causa.\n\n"
+        "Formato JSON esperado:\n"
         "{\n"
-        '  "argumentos_exclusao": [\n'
-        '    {"verba": "nome da verba", "argumento": "resumo do argumento de exclusão", "base_legal": "art./súmula citada"}\n'
+        '  "numero_processo": null,\n'
+        '  "reclamante": null,\n'
+        '  "reclamada": null,\n'
+        '  "valor_causa": null,\n'
+        '  "teses_defesa": [\n'
+        "    {\n"
+        '      "verba_alvo": "Horas Extras",\n'
+        '      "tese_principal": "Resumo da tese (ex.: cargo de confiança)",\n'
+        '      "trecho_fundamentacao": "trecho curto literal",\n'
+        '      "incontroversa": false\n'
+        "    }\n"
         "  ],\n"
-        '  "teses_empresa": ["lista de teses jurídicas invocadas, ex: cargo de confiança, atividade externa"],\n'
-        '  "verbas_negadas": ["lista de verbas que a empresa nega dever"],\n'
-        '  "sumulas_citadas": ["súmulas e OJs citadas pela defesa"]\n'
+        '  "argumentos_exclusao": [],\n'
+        '  "teses_empresa": [],\n'
+        '  "verbas_negadas": [],\n'
+        '  "sumulas_citadas": []\n'
         "}\n\n"
-        "IMPORTANTE: Responda APENAS com o JSON válido, sem markdown, sem texto antes ou depois.\n\n"
-        f"TEXTO DA CONTESTAÇÃO (primeiros 5000 caracteres):\n{texto[:5000]}"
+        "IMPORTANTE: Responda APENAS com JSON válido, sem markdown.\n\n"
+        f"TEXTO DA CONTESTAÇÃO (até 8000 caracteres):\n{trecho_ia}"
     )
 
     conteudo, model = _chamar_gemini_para_codify(prompt)
 
     dados: Dict[str, Any] = {
+        "numero_processo": None,
+        "reclamante": None,
+        "reclamada": None,
+        "valor_causa": None,
+        "teses_defesa": [],
         "argumentos_exclusao": [],
         "teses_empresa": [],
         "verbas_negadas": [],
@@ -1051,12 +1150,26 @@ def _extrair_contestacao(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     try:
         conteudo_limpo = re.sub(r"```(?:json)?\s*|\s*```", "", conteudo).strip()
         parsed = json.loads(conteudo_limpo)
+        dados["numero_processo"] = parsed.get("numero_processo")
+        dados["reclamante"] = parsed.get("reclamante")
+        dados["reclamada"] = parsed.get("reclamada")
+        dados["valor_causa"] = parsed.get("valor_causa")
+        dados["teses_defesa"] = parsed.get("teses_defesa") or []
         dados["argumentos_exclusao"] = parsed.get("argumentos_exclusao") or []
         dados["teses_empresa"] = parsed.get("teses_empresa") or []
         dados["verbas_negadas"] = parsed.get("verbas_negadas") or []
         dados["sumulas_citadas"] = parsed.get("sumulas_citadas") or []
     except Exception:
         pass
+
+    teses = dados.get("teses_defesa") or []
+    arg_ded, verbas_ded, teses_ded = _derivar_campos_legados_contestacao(teses)
+    if not (dados.get("argumentos_exclusao") or []):
+        dados["argumentos_exclusao"] = arg_ded
+    if not (dados.get("verbas_negadas") or []):
+        dados["verbas_negadas"] = verbas_ded
+    if not (dados.get("teses_empresa") or []):
+        dados["teses_empresa"] = teses_ded
 
     dados["model_used"] = model
     return dados
@@ -2047,6 +2160,11 @@ def processar_cinco_arquivos(
         )
         dados_contestacao = _extrair_contestacao(contestacao_bytes, contestacao_filename)
         relatorio["contestacao"] = {
+            "teses_defesa":        dados_contestacao.get("teses_defesa") or [],
+            "numero_processo":     dados_contestacao.get("numero_processo"),
+            "reclamante":          dados_contestacao.get("reclamante"),
+            "reclamada":           dados_contestacao.get("reclamada"),
+            "valor_causa":         dados_contestacao.get("valor_causa"),
             "argumentos_exclusao": dados_contestacao.get("argumentos_exclusao") or [],
             "teses_empresa":       dados_contestacao.get("teses_empresa") or [],
             "verbas_negadas":      dados_contestacao.get("verbas_negadas") or [],
@@ -2062,6 +2180,11 @@ def processar_cinco_arquivos(
             _meta = PjeTimelineExtractor.extrair_metadados_peca(CHAVE_CONTESTACAO, _txt, extract_data_with_gemini)
             _d = _meta.get("dados") or {}
             relatorio["contestacao"] = {
+                "teses_defesa":        _d.get("teses_defesa") or [],
+                "numero_processo":     _d.get("numero_processo"),
+                "reclamante":          _d.get("reclamante"),
+                "reclamada":           _d.get("reclamada"),
+                "valor_causa":         _d.get("valor_causa"),
                 "argumentos_exclusao": _d.get("argumentos_exclusao") or [],
                 "teses_empresa":       _d.get("teses_de_merito") or _d.get("teses_empresa") or [],
                 "verbas_negadas":      _d.get("verbas_negadas") or [],

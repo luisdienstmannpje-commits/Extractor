@@ -1,7 +1,7 @@
 # Visão do sistema — PJeCalc Smart Extractor
 
 Documento de referência rápida para agentes de IA.
-Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
+Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`. Para evolução incremental dos extratores regex: `AI_AGENT_EXTRACTION_CYCLE.md`.
 
 ---
 
@@ -18,9 +18,11 @@ Para pipeline detalhado: `PIPELINE.md`. Para mapa de arquivos: `CODE_MAP.md`.
 | Componente | Onde | Função |
 |------------|------|--------|
 | API | `main.py` + `api/routers/` | `main.py` atua como **API Gateway**: inicializa o FastAPI, aplica middleware (CORS, logs) e inclui os roteadores. As rotas vivem em `api/routers/extractor.py` (upload/jobs/WebSocket/export Excel), `api/routers/lab.py` (Laboratório), `api/routers/admin.py` (stats, histórico, biblioteca de regras) e `api/routers/exports.py` (exportação dedicada). |
-| Pipeline | `workers/processor.py` | Orquestra os 10 passos (créditos → cache → texto → IA → validação → persistência → memória). |
+| Pipeline | `workers/processor.py` | Orquestra os 10 passos (créditos → cache → texto → IA → validação → persistência → memória). Regex de cabeçalho/fim do PDF continua no processor para merge pós-IA (ex.: data de autuação, valor da causa). |
 | Extração de texto | `services/sentence_finder.py` | PDF → texto, tipo de doc, OCR híbrido. |
-| IA | `services/ai_client.py` | Gemini (Flash → Pro fallback), playbook, truncagem. |
+| Pré-extração (regex) | `services/pre_extractor.py` | Campos **HIGH/MEDIUM** por padrões estáveis (ex.: CNJ, reclamante/reclamada, vara, datas, salário, nomes de verbas no dispositivo/decisão). `pre_extract` alimenta o processor; MEDIUM vira âncora no prompt via `build_anchor_section` e HIGH sobrescreve campos whitelisted pós-IA com log `[PRE-HIGH]`. Ciclos e critérios em `AI_AGENT_EXTRACTION_CYCLE.md`. |
+| Diagnóstico (opcional) | `services/pipeline_debug.py`, `DEBUG_PIPELINE` em `config` | Logs do texto entre o finder e a truncagem enviada ao modelo. Ver `PIPELINE.md`. |
+| IA | `services/ai_client.py` | Gemini (Flash → Pro fallback), playbook, truncagem; aceita `pre_fields` do pré-extrator para âncoras quando informados. |
 | Validação jurídica | `services/legal_validator.py` → `legal_engine/` | Delega ao Legal Rule Engine; regras em `legal_engine/rules/` e `services/jurisprudencia/`. |
 | Explicações / Parecer | `services/explanation_engine.py` + `services/ai_client.py` | Templates jurídicos (sem LLM) + seção I do Parecer Padrão Ouro via Gemini. |
 | Memória de cálculo | `memoria_calculo/generator.py` | Gera `memoria_{job_id}.json` (trilha de auditoria). |
@@ -62,6 +64,10 @@ PDF(s) → hash → cache? → sentence_finder (texto + doc_type) → playbook �
 → persistência (cache + extração + crédito)
 → memoria_calculo/generator.py
 ```
+
+> **Pré-extração** — O `pre_extractor` concentra extratores testados em ciclos (ver `AI_AGENT_EXTRACTION_CYCLE.md`) e alimenta `extract_data_with_gemini(..., pre_fields=...)` com dicionários `high` / `medium`; `medium` orienta a IA e `high` é aplicado depois de `_validate_result` no processor.
+
+> **Contratos HTTP do Extrator** — `POST /upload` cria job assíncrono (`queued` + `job_id`), `GET /status/{job_id}` é o fallback de polling e `WebSocket /ws/{job_id}` envia `partial_update` e uma mensagem terminal (`done`, `error` ou `timeout`). Exportação dedicada: `POST /api/export/excel`, `POST /api/export/pjc` e `GET /export-excel/{job_id}`.
 
 > **Multi-Tenancy (isolamento por cliente)**  
 > O Cérebro da IA (KnowledgeBase) isola dados de aprendizado por cliente usando padrão **Multiton**: cada tenant é mapeado para um arquivo físico (`knowledge_base_{tenant_id}.json`, ou `knowledge_base.json` para o default). As rotas administrativas (`/api/knowledge-base`, `/api/stats`) recebem `user_id` e instanciam `KnowledgeBase(tenant_id=user_id)`, evitando que regras de um escritório vazem para outro.

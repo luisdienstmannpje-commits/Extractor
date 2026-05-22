@@ -177,6 +177,7 @@ def gerar_memoria(
             "avisos": avisos_dedup,
         },
         "explicacoes": explicacoes or [],
+        "shadow_logs": list(dados.get("shadow_logs") or []),
     }
 
     # ── Persistência ──────────────────────────────────────────────────────────

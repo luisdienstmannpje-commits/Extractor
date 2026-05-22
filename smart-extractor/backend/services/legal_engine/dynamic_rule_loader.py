@@ -104,6 +104,14 @@ class DynamicLegalRule(LegalRule):
             if self._shadow:
                 # Shadow mode: registra internamente mas NÃO adiciona ao contexto de alertas
                 _shadow_log(self.id, contexto.numero_processo or "?", mensagem)
+                contexto.shadow_hits.append(
+                    {
+                        "rule_id": self.id,
+                        "mensagem": mensagem,
+                        "nivel": str(self._acao.get("nivel", "SHADOW")),
+                        "numero_processo": contexto.numero_processo,
+                    }
+                )
                 self._registrar(contexto)
             else:
                 # Modo ativo: alerta real para o usuário
@@ -185,11 +193,10 @@ def carregar_regras_shadow() -> List[DynamicLegalRule]:
 
 def executar_shadow_pipeline(dados: dict) -> List[Dict]:
     """
-    Executa todas as regras shadow silenciosamente sobre os dados do processo.
-    Retorna lista de hits para métricas internas — NÃO incluir no output do usuário.
+    Executa todas as regras shadow (KB) silenciosamente sobre os dados do processo.
 
-    Uso em processor.py após o passo 8 normal:
-        shadow_hits = executar_shadow_pipeline(dados_finais)
+    Retorna lista de dicts (rule_id, mensagem, nivel, numero_processo) por **esta**
+    execução — seguro em paralelo (acumula em ContextoJuridico, não em buffer global).
     """
     from services.legal_engine.engine import LegalRuleEngine
     shadow_rules = carregar_regras_shadow()
@@ -199,12 +206,13 @@ def executar_shadow_pipeline(dados: dict) -> List[Dict]:
     try:
         engine_shadow = LegalRuleEngine(shadow_rules)
         resultado = engine_shadow.executar(dados)
-        hits = resultado.get("regras_aplicadas") or []
+        hits = resultado.get("shadow_hits") or []
         if hits:
-            print(f"[SHADOW] {len(hits)} hit(s) de regras shadow: {hits}")
+            ids = [h.get("rule_id") for h in hits if isinstance(h, dict)]
+            print(f"[SHADOW] {len(hits)} hit(s) shadow: {ids}", flush=True)
         return hits
     except Exception as e:
-        print(f"[SHADOW] Erro ao executar shadow pipeline: {e}")
+        print(f"[SHADOW] Erro ao executar shadow pipeline: {e}", flush=True)
         return []
 
 

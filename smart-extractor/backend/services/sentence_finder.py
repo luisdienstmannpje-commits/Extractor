@@ -7,8 +7,10 @@ Estratégia:
   2. Identifica o documento decisório (sentença/acórdão) como o bloco
      de páginas que compartilha a data de assinatura MAIS RECENTE,
      contém DISPOSITIVO e NÃO é intimação/certidão.
-  3. Retorna apenas as páginas desse bloco (+ janela pequena de contexto),
-     ativando OCR somente nas páginas do recorte final se necessário.
+  3. Retorna as páginas desse bloco (+ janela de contexto) e a capa PJe.
+  4. Anexos fora do recorte: até N páginas com decisão modificativa / liquidação
+     e até M com parâmetros (TRCT, registro), conciliação ou ata — com teto
+     por categoria; OCR só nas páginas efetivamente extraídas.
 
 Por que isso é mais robusto:
   - PDFs de processos PJe sempre têm assinatura digital por documento.
@@ -23,10 +25,9 @@ import re
 import io
 import os
 import sys
-import shutil
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Optional, List, Tuple
+from dataclasses import dataclass
+from typing import Optional, List, Tuple, Set
 
 import pdfplumber
 import pytesseract
@@ -111,20 +112,65 @@ _RE_ACORDAO = re.compile(
 _RE_LIQUIDACAO = re.compile(
     r"(?i)("
     r"fase\s+de\s+liquida[çc][aã]o"
+    r"|senten[çc]a\s+de\s+liquida[çc][aã]o"
     r"|homologa[çc][aã]o\s+de\s+c[aá]lculos"
+    r"|homologo\s+os\s+c[aá]lculos"
     r"|c[aá]lculos\s+apresentados\s+pela\s+contadoria"
     r"|impugna[çc][aã]o\s+aos\s+c[aá]lculos"
+    r"|embargos\s+[àa]\s+execu[çc][aã]o"
     r"|despacho\s+de\s+liquida[çc][aã]o"
     r"|t[ií]tulo\s+executivo\b"
     r")"
 )
 
-# Detecta embargos de declaração
+# Detecta embargos de declaração e trechos típicos de decisão sobre eles
 _RE_EMBARGOS = re.compile(
     r"(?i)("
     r"embargos\s+de\s+declara[çc][aã]o"
+    r"|acolho\s+os\s+embargos"
+    r"|dou\s+provimento\s+aos\s+embargos"
+    r"|erro\s+material"
+    r"|omiss[aã]o\s+sanada"
     r"|efeito\s+infringente"
     r"|embargante\b"
+    r")"
+)
+
+# Frases de acórdão / recurso (páginas soltas fora do bloco principal)
+_RE_ACORDAO_MODIFICADOR = re.compile(
+    r"(?i)("
+    r"conhe[cç]er\s+do\s+recurso"
+    r"|dar\s+parcial\s+provimento"
+    r"|reformar\s+a\s+senten[çc]a"
+    r"|negar\s+provimento\s+ao\s+recurso"
+    r")"
+)
+
+# Documentos de parâmetros salariais / rescisão
+_RE_PARAMETRO_BASE = re.compile(
+    r"(?i)("
+    r"termo\s+de\s+rescis[aã]o\s+do\s+contrato\s+de\s+trabalho"
+    r"|\bTRCT\b"
+    r"|homologa[çc][aã]o\s+da\s+rescis[aã]o"
+    r"|ficha\s+de\s+registro\s+de\s+empregad"
+    r"|livro\s+de\s+registro"
+    r")"
+)
+
+# Acordo / conciliação homologada
+_RE_ACORDO = re.compile(
+    r"(?i)("
+    r"termo\s+de\s+concilia[çc][aã]o"
+    r"|acordo\s+homologado"
+    r"|partes\s+conciliam"
+    r")"
+)
+
+# Ata ou termo de audiência (sinal próprio; pode coincidir com is_envelope)
+_RE_ATA_AUD = re.compile(
+    r"(?i)("
+    r"ata\s+de\s+audi[êe]ncia"
+    r"|termo\s+de\s+audi[êe]ncia"
     r")"
 )
 
@@ -158,6 +204,11 @@ class PageInfo:
     is_liquidacao: bool = False
     is_embargos: bool = False
     is_despacho: bool = False
+    # Sinais para anexos fora do recorte principal (multi-âncora)
+    is_acordao_modificador: bool = False
+    is_parametro_base: bool = False
+    is_acordo: bool = False
+    is_ata_aud: bool = False
     text: str = ""
 
 
@@ -245,6 +296,10 @@ def _analyze_page(page, idx: int) -> PageInfo:
     info.is_liquidacao = bool(_RE_LIQUIDACAO.search(text))
     info.is_embargos   = bool(_RE_EMBARGOS.search(text))
     info.is_despacho   = bool(_RE_DESPACHO.search(text))
+    info.is_acordao_modificador = bool(_RE_ACORDAO_MODIFICADOR.search(text))
+    info.is_parametro_base = bool(_RE_PARAMETRO_BASE.search(text))
+    info.is_acordo     = bool(_RE_ACORDO.search(text))
+    info.is_ata_aud    = bool(_RE_ATA_AUD.search(text))
 
     return info
 
@@ -397,12 +452,94 @@ CONTEXT_AFTER  = 0   # sem margem após — o bloco já está completo pelo clus
 CAPA_PAGES = 2
 
 
+def get_adaptive_capa_pages(total_pages: int, doc_type: str) -> int:
+    """
+    Páginas iniciais (capa PJe) a incluir no recorte, conforme tipo e tamanho do PDF.
+
+    Regras:
+    - liquidação: até 8 páginas (planilhas e cabeçalhos longos);
+    - PDF com mais de 100 páginas: até 5;
+    - demais: 2 (comportamento histórico).
+    """
+    if total_pages < 1:
+        return 1
+    n = total_pages
+    dt = (doc_type or "").strip().lower()
+    if dt == "liquidacao":
+        return min(8, n)
+    if n > 100:
+        return min(5, n)
+    return min(2, n)
+
+
+# Anexos fora do recorte: tetos para não estourar tokens/OCR em PDFs enormes
+MAX_ANNEX_MODIFICADORA = 5
+MAX_ANNEX_BASE = 3
+
+ANNEX_HEADER_MOD = "DECISÃO MODIFICATIVA / LIQUIDAÇÃO / RECURSO"
+ANNEX_HEADER_BASE = "PARÂMETROS DE CÁLCULO / ACORDO / ATA"
+
+
+def _is_annex_modificadora(p: PageInfo) -> bool:
+    return p.is_embargos or p.is_liquidacao or p.is_acordao_modificador
+
+
+def _is_annex_base(p: PageInfo) -> bool:
+    return p.is_parametro_base or p.is_acordo or p.is_ata_aud
+
+
+def _select_annex_pages(
+    page_infos: List[PageInfo],
+    included: Set[int],
+) -> List[Tuple[int, str]]:
+    """
+    Páginas candidatas a anexo, **fora** de `included`, em ordem crescente de índice.
+    Prioriza bucket modificador; páginas que casam só base entram no segundo teto.
+    """
+    n_mod = 0
+    n_base = 0
+    out: List[Tuple[int, str]] = []
+    for p in page_infos:
+        idx = p.idx
+        if idx in included:
+            continue
+        mod = _is_annex_modificadora(p)
+        base = _is_annex_base(p)
+        if mod and n_mod < MAX_ANNEX_MODIFICADORA:
+            n_mod += 1
+            out.append((idx, ANNEX_HEADER_MOD))
+        elif not mod and base and n_base < MAX_ANNEX_BASE:
+            n_base += 1
+            out.append((idx, ANNEX_HEADER_BASE))
+    return out
+
+
+def _extract_page_segment_with_tables(
+    pdf: pdfplumber.PDF,
+    page_infos: List[PageInfo],
+    idx: int,
+    tables_counter: List[int],
+) -> str:
+    """Texto da página `idx` com OCR se necessário + tabelas em Markdown."""
+    cached = page_infos[idx].text
+    text = (
+        cached
+        if len(cached.strip()) >= settings.OCR_CHARS_THRESHOLD
+        else _extract_page_text_with_ocr(pdf.pages[idx], idx + 1)
+    )
+    table_md = _extract_tables_as_markdown(pdf.pages[idx])
+    if table_md:
+        tables_counter[0] += 1
+        text += f"\n\n[TABELA DA PÁGINA {idx+1}]\n{table_md}\n"
+    return text
+
+
 def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
     """
     Extrai apenas o trecho de sentença/acórdão do PDF completo.
 
     Preservação obrigatória do cabeçalho PJe: quando o bloco decisório não começa
-    na página 1, as primeiras CAPA_PAGES páginas são sempre incluídas (dados de
+    na página 1, as primeiras páginas de capa (ver get_adaptive_capa_pages) são incluídas (dados de
     identificação: Data da Autuação, Valor da causa, Partes/RECORRENTE/RECORRIDO/ADVOGADO).
     Nenhuma regra neste módulo remove ou ignora os primeiros caracteres do documento.
 
@@ -434,10 +571,15 @@ def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
 
             # ── Fase 3: extração com OCR apenas nas páginas necessárias ─────
 
-            # Sempre inclui capa (págs 1..CAPA_PAGES) para advogado, ajuizamento etc.
-            capa_indices = list(range(0, min(CAPA_PAGES, real_start)))
+            capa_n = get_adaptive_capa_pages(total, doc_type)
+            # Sempre inclui capa (págs 1..capa_n) para advogado, ajuizamento etc.
+            capa_indices = list(range(0, min(capa_n, real_start)))
+            included_indices: Set[int] = set(capa_indices) | set(
+                range(real_start, real_end + 1)
+            )
 
             extracted = ""
+            tables_found = [0]
 
             # Capa
             if capa_indices:
@@ -449,27 +591,49 @@ def extract_sentence_from_pdf(file_bytes: bytes) -> tuple[str, str]:
                     extracted += f"\n--- PÁGINA {i+1} ---\n{text}"
                 extracted += "\n=== FIM DA CAPA ===\n"
 
-            # Bloco da sentença
-            tables_found = 0
+            # Bloco da sentença (recorte principal contínuo)
             for i in range(real_start, real_end + 1):
-                cached = page_infos[i].text
-                text = cached if len(cached.strip()) >= settings.OCR_CHARS_THRESHOLD \
-                       else _extract_page_text_with_ocr(pdf.pages[i], i + 1)
-
-                # Extrai tabelas da página e anexa em Markdown
-                table_md = _extract_tables_as_markdown(pdf.pages[i])
-                if table_md:
-                    tables_found += 1
-                    text += f"\n\n[TABELA DA PÁGINA {i+1}]\n{table_md}\n"
-
+                text = _extract_page_segment_with_tables(pdf, page_infos, i, tables_found)
                 extracted += f"\n--- PÁGINA {i+1} ---\n{text}"
 
-            if tables_found:
-                print(f"[FINDER] {tables_found} tabela(s) extraida(s) e convertidas para Markdown", flush=True)
+            # Fase 4 — anexos multi-âncora (somente fora do recorte + capa já extraída)
+            annex_plan = _select_annex_pages(page_infos, included_indices)
+            if annex_plan:
+                print(
+                    f"[FINDER] Anexos fora do recorte: {len(annex_plan)} pagina(s) "
+                    f"(mod≤{MAX_ANNEX_MODIFICADORA}, base≤{MAX_ANNEX_BASE})",
+                    flush=True,
+                )
+                extracted += (
+                    "\n\n=== INÍCIO ANEXOS (PÁGINAS RELEVANTES FORA DO "
+                    "RECORTE PRINCIPAL) ===\n"
+                )
+                for idx_pg, header_cat in annex_plan:
+                    text_ax = _extract_page_segment_with_tables(
+                        pdf, page_infos, idx_pg, tables_found
+                    )
+                    extracted += (
+                        f"\n\n=== ANEXO IMPORTANTE: {header_cat} "
+                        f"(PÁG {idx_pg+1}) ===\n"
+                        f"--- PÁGINA {idx_pg+1} ---\n{text_ax}"
+                    )
+                extracted += "\n\n=== FIM ANEXOS ===\n"
+
+            if tables_found[0]:
+                print(
+                    f"[FINDER] {tables_found[0]} tabela(s) extraida(s) "
+                    f"e convertidas para Markdown",
+                    flush=True,
+                )
 
             chars = len(extracted)
-            print(f"[FINDER] Texto extraido: {chars} chars "
-                  f"(capa: {len(capa_indices)} pags + sentenca: {real_end-real_start+1} pags)", flush=True)
+            n_annex = len(annex_plan)
+            print(
+                f"[FINDER] Texto extraido: {chars} chars "
+                f"(capa: {len(capa_indices)} pags + sentenca: "
+                f"{real_end - real_start + 1} pags + anexos: {n_annex} pags)",
+                flush=True,
+            )
             return extracted, doc_type
 
     except Exception as e:

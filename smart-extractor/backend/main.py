@@ -20,10 +20,15 @@ v2.2 — base:
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+import asyncio
 import json
 import logging
 import os
 import time
+
+# --- FILTRO DE LOG: Silencia os avisos de fonte do pdfminer ---
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
+# --------------------------------------------------------------
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -37,11 +42,11 @@ from services.request_context import (
     log_structured,
 )
 
-
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup e shutdown (substitui on_event deprecado)."""
     # Startup
+    extractor.register_worker_event_loop(asyncio.get_running_loop())
     cleanup_old_jobs(days=7)
     _port = os.environ.get("PORT", "8000")
     print(

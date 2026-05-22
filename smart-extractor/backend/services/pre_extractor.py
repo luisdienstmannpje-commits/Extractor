@@ -5,11 +5,13 @@ Roda ANTES da chamada à IA e extrai campos usando só Python puro.
 Zero tokens. Zero latência de rede.
 
 Dois níveis de confiança:
-  HIGH (≥95%): número CNJ, data sentença, justiça gratuita, rito.
+  HIGH (≥95%): número CNJ, reclamante/reclamada, vara do trabalho (capa), data sentença, justiça gratuita, rito.
                → Sobrescreve o resultado da IA diretamente.
-  MEDIUM (~80%): datas contratuais, salário, índices, motivo rescisão,
-                 tipo contrato, divisor, aviso prévio.
-               → Injetados como âncoras no prompt para reduzir alucinação.
+  MEDIUM (~80%): datas contratuais, salário, nomes de verbas (lista fechada no dispositivo),
+                 período (intervalo na mesma linha) e reflexos só com gatilho explícito
+                 (reflexo/incidência) no fragmento ligado à verba,
+                 índices, motivo rescisão, tipo contrato, divisor, aviso prévio.
+                 → Injetados como âncoras no prompt para reduzir alucinação.
 
 Estimativa de impacto:
   - ~10–20% menos tokens de output da IA (campos HIGH não são gerados pela IA)
@@ -23,8 +25,9 @@ Como expandir:
 """
 
 import re
+import unicodedata
 from datetime import datetime, date
-from typing import Optional
+from typing import Any, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +55,25 @@ _RE_ASSINADO = re.compile(
     re.DOTALL,
 )
 
-# Justiça gratuita
+# Data do julgamento (acórdão / sessão) — após assinatura, antes de publicação
+_RE_DATA_JULGAMENTO = re.compile(
+    r"(?i)Data\s+do\s+Julgamento:\s*(\d{2}/\d{2}/\d{4})"
+)
+
+_RE_TRANSITO_JULGADO = re.compile(
+    r"(?i)(?:"
+    r"(?:o\s+processo\s+)?transitou\s+em\s+julgado\s+em|"
+    r"tr[âa]nsito\s+em\s+julgado\s*:?|"
+    r"data\s+do\s+tr[âa]nsito\s+em\s+julgado\s*:?"
+    r")\s*(\d{2}/\d{2}/\d{4})"
+)
+_RE_INTIMACAO_CALCULOS = re.compile(
+    r"(?is)(?:"
+    r"(?:partes\s+)?(?:foram\s+)?intimad[ao]s?\s+em\s+(\d{2}/\d{2}/\d{4}).{0,120}\b(?:c[aá]lculos?|liquida[çc][aã]o)\b|"
+    r"intimem-se\s+as\s+partes\s+em\s+(\d{2}/\d{2}/\d{4}).{0,120}\b(?:c[aá]lculos?|liquida[çc][aã]o)\b|"
+    r"intima[çc][aã]o\s+para\s+(?:apresenta[çc][aã]o\s+de\s+)?c[aá]lculos?\s+em\s+(\d{2}/\d{2}/\d{4})"
+    r")"
+)# Justiça gratuita
 _RE_JG_TRUE = re.compile(
     r"(?i)(\bdefiro\b.*?\bjusti[çc]a\s+gratuita\b"
     r"|\bjusti[çc]a\s+gratuita\b.*?\bdeferida\b"
@@ -60,6 +81,30 @@ _RE_JG_TRUE = re.compile(
     r"|\bbenef[ií]cios\s+da\s+justi[çc]a\s+gratuita\b.*?\bdeferidos?\b"
     r"|\bgratuidade\s+da\s+justi[çc]a\b.*?\bdefiro\b"
     r"|\bdefiro\b.*?\bgratuidade\b)"
+)
+_RE_PRAZO_CALCULOS = re.compile(
+    r"(?is)(?:"
+    r"\b(?:c[aá]lculos?|liquida[çc][aã]o)\b.{0,120}\bprazo\s+de\s+(\d{1,2}|oito)\s+dias?\b|"
+    r"\bprazo\s+de\s+(\d{1,2}|oito)\s+dias?\b.{0,120}\b(?:c[aá]lculos?|liquida[çc][aã]o)\b"
+    r")"
+)
+_RE_PRAZO_OBRIGACAO_DIAS = re.compile(
+    r"(?i)\b(?:no\s+)?prazo\s+de\s+(\d{1,3}|oito)\s+dias?\b"
+)
+_RE_MULTA_DIARIA_OBRIGACAO = re.compile(
+    r"(?is)(?:"
+    r"multa\s+di[aá]ria\s+de\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)|"
+    r"astreintes\s+de\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)\s*(?:por\s+dia|di[aá]rios?)?|"
+    r"multa\s+de\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)\s*(?:por\s+dia|di[aá]rios?)"
+    r")"
+)
+_RE_MULTA_LIMITE_OBRIGACAO = re.compile(
+    r"(?is)(?:"
+    r"limitad[ao]\s+a\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)|"
+    r"at[eé]\s+o\s+limite\s+de\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)|"
+    r"n[aã]o\s+podendo\s+exceder\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)|"
+    r"com\s+teto\s+de\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|R?\$?\s*\d+(?:,\d{2})?)"
+    r")"
 )
 _RE_JG_FALSE = re.compile(
     r"(?i)(\bindeferido\b.*?\bjusti[çc]a\s+gratuita\b"
@@ -77,21 +122,407 @@ _RE_RITO_ORDINARIO = re.compile(
 
 # Datas contratuais (admissão/demissão)
 _RE_ADMISSAO = re.compile(
-    r"(?i)(?:admitid[oa]\s+em|admissão\s+em|a\s+partir\s+de|desde|"
-    r"ingressou\s+em|contratad[oa]\s+em|início\s+do\s+contrato\s+em|"
-    r"data\s+de\s+admissão[:\s]+)"
+    r"(?i)(?:"
+    r"admitid[oa]\s+em|"
+    r"admiss[aã]o\s*:\s*|"
+    r"admiss[aã]o\s+em|"
+    r"data\s+da\s+admiss[aã]o[:\s]+|"
+    r"data\s+de\s+admiss[aã]o[:\s]+|"
+    r"a\s+partir\s+de|desde|"
+    r"ingressou\s+em|contratad[oa]\s+em|início\s+do\s+contrato\s+em"
+    r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 _RE_DEMISSAO = re.compile(
-    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|rescisão\s+em|"
-    r"saiu\s+em|desligad[oa]\s+em|término\s+do\s+contrato\s+em|"
-    r"data\s+de\s+demissão[:\s]+|data\s+da\s+rescisão[:\s]+)"
+    r"(?i)(?:"
+    r"dispensad[oa]\s+em|"
+    r"demitid[oa]\s+em|"
+    r"demiss[aã]o\s*:\s*|"
+    r"demiss[aã]o\s+em|"
+    r"data\s+da\s+demiss[aã]o[:\s]+|"
+    r"data\s+de\s+demiss[aã]o[:\s]+|"
+    r"rescis[aã]o\s*:\s*|"
+    r"rescis[aã]o\s+em|"
+    r"data\s+da\s+rescis[aã]o[:\s]+|"
+    r"data\s+de\s+rescis[aã]o[:\s]+|"
+    r"saiu\s+em|desligad[oa]\s+em|término\s+do\s+contrato\s+em"
+    r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
+_RE_DEMISSAO_DATA_ANTES = re.compile(
+    r"(?i)\bem\s+(\d{2}/\d{2}/\d{4})\s*,?\s*(?:foi\s+)?dispensad[oa]\b"
+)
+_RE_DATA_SAIDA_CTPS = re.compile(
+    r"(?i)(?:"
+    r"(?:data\s+de\s+)?sa[ií]da\s+da\s+CTPS[:\s]+|"
+    r"(?:baixa|anota[çc][aã]o|anote-se|anotar)\s+(?:da\s+|a\s+)?CTPS.{0,80}?\bsa[ií]da\s+(?:em|para)\s+|"
+    r"\bCTPS.{0,80}?\bsa[ií]da\s+(?:em|para)\s+|"
+    r"proje[çc][aã]o\s+da\s+sa[ií]da\s+(?:em|para)\s+|"
+    r"sa[ií]da\s+projetada\s+(?:em|para)\s+|"
+    r"sa[ií]da\s+para\s+"
+    r")"
+    r"(\d{2}/\d{2}/\d{4})"
+)
+_RE_ANOTACAO_CTPS_FRAGMENTO = re.compile(
+    r"(?is)(?:"
+    r"anota[çc][aã]o\s+(?:na|da|em)\s+CTPS|"
+    r"determino\s+a\s+anota[çc][aã]o\s+da\s+CTPS|"
+    r"anote-se\s+a\s+CTPS|"
+    r"anotar\s+(?:a\s+)?CTPS|"
+    r"retificar\s+(?:a\s+)?CTPS|"
+    r"retifica[çc][aã]o\s+(?:na|da|em)\s+CTPS|"
+    r"baixa\s+da\s+CTPS|"
+    r"proceder\s+a\s+baixa\s+da\s+CTPS"
+    r").{0,220}"
+)
+_RE_CTPS_FUNCAO = re.compile(
+    r"(?i)\bfun[çc][aã]o\s+de\s+([A-Za-zÀ-ÿ0-9 .'\-]+?)(?=\s+com\s+sal[aá]rio|[,.;]|$)"
+)
+_RE_FUNCAO_RECLAMANTE = re.compile(
+    r"(?i)\b(?:na\s+)?fun[çc][aã]o\s*(?::|de)\s*([A-Za-zÀ-ÿ0-9 .'\-]+?)(?=\s+com\s+sal[aá]rio|\s+desde|[,.;]|$)"
+    r"|\bcargo\s+de\s+([A-Za-zÀ-ÿ0-9 .'\-]+?)(?=\s+desde|\s+com\s+sal[aá]rio|[,.;]|$)"
+)
+_RE_SEGURO_DESEMPREGO_TERMO = re.compile(r"(?i)seguro[-\s]+desemprego")
+_RE_SEGURO_INDEFERIDO = re.compile(
+    r"(?is)\b(indefer[io]|indefir[io]|julgo\s+improcedente)\b.{0,80}seguro[-\s]+desemprego"
+    r"|seguro[-\s]+desemprego.{0,80}\bindeferid[oa]\b"
+)
+_RE_SEGURO_INDENIZACAO = re.compile(
+    r"(?is)(indeniza[çc][aã]o\s+substitutiva|indenizar).{0,120}seguro[-\s]+desemprego"
+    r"|seguro[-\s]+desemprego.{0,120}(indeniza[çc][aã]o\s+substitutiva|indenizar)"
+)
+_RE_SEGURO_GUIAS_CD_SD = re.compile(
+    r"(?is)(guias?.{0,80}(?:CD\s*/\s*SD|SD\s*/\s*CD).{0,120}seguro[-\s]+desemprego"
+    r"|seguro[-\s]+desemprego.{0,120}guias?.{0,80}(?:CD\s*/\s*SD|SD\s*/\s*CD))"
+)
+_RE_SEGURO_GUIAS_ALVARA = re.compile(
+    r"(?is)\b(entregar|entrega|fornecer|expedir|expe[çc]a-se|liberar|habilita[çc][aã]o)\b"
+    r".{0,120}\b(guias?|alvar[aá])\b.{0,120}seguro[-\s]+desemprego"
+    r"|\b(entregar|entrega|fornecer|expedir|expe[çc]a-se|liberar|habilita[çc][aã]o)\b"
+    r".{0,120}seguro[-\s]+desemprego"
+)
+_RE_PPP_FRAGMENTO = re.compile(
+    r"(?is)"
+    r"\b(determino|condeno|dever[aá]|fornecer|entregar|entrega|expedir|retificar|retifica[çc][aã]o)\b"
+    r".{0,160}\bPPP\b"
+    r"|\bPPP\b.{0,160}"
+    r"\b(determino|condeno|dever[aá]|fornecer|entregar|entrega|expedir|retificar|retifica[çc][aã]o)\b"
+)
+_RE_PPP_AGENTE_NOCIVO = re.compile(
+    r"(?i)\bagente\s+nocivo\s+([\w]+(?:[\s\-][\w]+){0,3})"
+)
+_RE_GUIAS_RESCISORIAS_FRAGMENTO = re.compile(
+    r"(?is)\b(entregar|entrega|fornecer|expedir|expe[çc]a-se|liberar|determino)\b.{0,180}"
+    r"\b(TRCT|chave\s+de\s+conectividade|alvar[aá].{0,40}FGTS|FGTS.{0,40}alvar[aá])\b"
+)
+_RE_GUIAS_RESCISORIAS_TERMO = re.compile(
+    r"(?i)\b(TRCT|chave\s+de\s+conectividade|c[oó]digo\s+SJ2|alvar[aá].{0,40}FGTS|FGTS.{0,40}alvar[aá])\b"
+)
+_RE_MULTA_467_INDEFERIDA = re.compile(
+    r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b.{0,100}\bindeferid[ao]\b"
+)
+_RE_MULTA_467_DEFERIDA = re.compile(
+    r"(?is)\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+    r".{0,140}\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*467\b.{0,140}"
+    r"\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+)
+_RE_CUSTAS_ISENCAO = re.compile(
+    r"(?is)\b(?:isento?|dispensad[ao]|exonerad[ao])\b.{0,80}\bcustas?\b"
+    r"|\bcustas?\b.{0,80}\b(?:isento?|gratuidade|dispensad[ao])\b"
+)
+_RE_CUSTAS_RECLAMANTE = re.compile(
+    r"(?is)custas?\s+(?:processuais?\s+)?(?:pelo?\s+|a\s+cargo\s+d[oa]\s+)"
+    r"(?:reclamante|autor[ao]?\b)"
+)
+_RE_CUSTAS_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: "custas pela/pelo reclamada/réu" — forma nominal direta
+    r"custas?\s+(?:processuais?\s+)?(?:pel[ao]\s+|a\s+cargo\s+d[ao]?\s+)"
+    r"(?:reclamad[ao]|r[eé]u\b|empresa|parte\s+passiva)"
+    r"|"
+    # B: "condeno a reclamada ... custas" — condenação explícita
+    r"\b(?:conden[oa]|condeno)\b.{0,80}\breclamad[ao]\b.{0,120}\bcustas?\b"
+    r"|"
+    # C: "condeno ... custas" — condenação sem payer explícito (réu implícito)
+    r"\b(?:conden[oa]|condeno)\b.{0,80}\bcustas?\s*(?:processuais?)?\b"
+)
+_RE_CUSTAS_SOBRE = re.compile(
+    r"(?is)(?:calculadas?\s+)?sobre\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
+)
+_RE_CUSTAS_VALOR_DIRETO = re.compile(
+    r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
+)
+# ── Horário de trabalho ───────────────────────────────────────────────────────
+# _HORA: captura HH:MM | HHhMM | HHh | HH — consome o 'h' solto sem exigir minutos
+# Grupos: (horas, minutos_ou_None)
+_HORA = r"(\d{1,2})(?:(?:h|:)(\d{2})|h)?"
+_VERBO_JUDICIAL = r"(?:declaro|reconhe[çc]o|considero|julgo)"
+_CARGO_CC = r"(?:cargo\s+de\s+(?:confian[çc]a|fid[úu]cia)|art\.?\s*62[,\s]+II|fun[çc][aã]o\s+de\s+ger[eê]ncia)"
+_RE_CARGO_CONFIANCA_AFASTADO = re.compile(
+    r"(?is)"
+    # "afasto" / "nao reconheco" antes do cargo CC
+    + r"(?:\bafasto\b|\bn[aã]o\s+" + _VERBO_JUDICIAL + r")\b.{0,120}" + _CARGO_CC
+    # cargo CC antes da negacao
+    + r"|" + _CARGO_CC + r".{0,160}\b(?:n[aã]o\s+" + _VERBO_JUDICIAL + r"|n[aã]o\s+restou|n[aã]o\s+foi\s+comprovado)\b"
+    # particípio inicial: "Afastado o cargo de confianca"
+    + r"|\bafastado\b.{0,60}" + _CARGO_CC
+    # cargo CC seguido de adjetivo negativo
+    + r"|" + _CARGO_CC + r".{0,120}\b(?:afastado|n[aã]o\s+comprovado|n[aã]o\s+reconhecido|n[aã]o\s+configurado)\b"
+    + r"|" + _CARGO_CC + r".{0,80}\bn[aã]o\s+restou\s+comprovado\b"
+)
+_RE_CARGO_CONFIANCA_RECONHECIDO = re.compile(
+    r"(?is)"
+    # verbo judicial + cargo CC
+    + _VERBO_JUDICIAL + r".{0,120}" + _CARGO_CC
+    # cargo CC + adjetivo positivo
+    + r"|" + _CARGO_CC + r".{0,80}\b(?:reconhecido|configurado|comprovado|enquadrado)\b"
+    # "exercia/exerceu cargo de confianca"
+    + r"|\b(?:exercia|exerceu|ocupa(?:va)?)\b.{0,60}" + _CARGO_CC
+    # art. 62 II diretamente
+    + r"|\benquadra(?:\s+na\s+excec[aã]o)?\b.{0,80}\bart\.?\s*62\b"
+)
+_ADJ_INVALIDO = r"(?:inv[aá]lid[oa]|nul[oa]|irregular|imprest[aá]vel|ineficaz)"
+_ADJ_VALIDO   = r"(?:v[aá]lid[oa]|regular|l[íi]cito|eficaz)"
+_BANCO_HORAS  = r"\bbanco\s+de\s+horas\b"
+_RE_BANCO_HORAS_INVALIDO = re.compile(
+    r"(?is)" + _VERBO_JUDICIAL + r".{0,60}" + _ADJ_INVALIDO + r".{0,60}" + _BANCO_HORAS
+    + r"|" + _VERBO_JUDICIAL + r".{0,60}" + _BANCO_HORAS + r".{0,80}" + _ADJ_INVALIDO
+    + r"|" + _BANCO_HORAS + r".{0,80}" + _ADJ_INVALIDO
+    + r"|\bn[aã]o\s+" + _VERBO_JUDICIAL + r".{0,80}" + _BANCO_HORAS
+)
+_RE_BANCO_HORAS_VALIDO = re.compile(
+    r"(?is)" + _VERBO_JUDICIAL + r".{0,60}" + _ADJ_VALIDO + r".{0,60}" + _BANCO_HORAS
+    + r"|" + _VERBO_JUDICIAL + r".{0,60}" + _BANCO_HORAS + r".{0,80}" + _ADJ_VALIDO
+    + r"|" + _BANCO_HORAS + r".{0,80}" + _ADJ_VALIDO
+    + r"|\bvalidade\s+do\s+banco\s+de\s+horas\b"
+)
+_RE_HORARIO_DAS_AS = re.compile(
+    r"(?i)"
+    # Padrão A: "das/de/jornada...: HH[h/:]MM às HH[h/:]MM"
+    r"(?:das?\s+|de\s+|jornada\b[^:\n]{0,40}:\s*)"
+    + _HORA
+    + r"\s+[àa]s?\s+"
+    + _HORA
+    + r"(?:\s*h(?:oras?)?)?"
+    + r"(?P<resto>[^\n]{0,80})"
+)
+_RE_HORARIO_ENTRADA_SAIDA = re.compile(
+    r"(?i)"
+    # Padrão B: "Entrada às HH / saída às HH"
+    r"\bentrada\s+[àa]s?\s+" + _HORA
+    + r"[,;]?\s*sa[íi]da\s+[àa]s?\s+" + _HORA
+    + r"(?P<resto2>[^\n]{0,80})"
+)
+_RE_HORARIO_INTERVALO = re.compile(
+    r"(?i)"
+    r"\b(?:com|sem)\s+(?:intervalo\s+(?:de\s+)?)?(\d+)\s*(?:h(?:ora)?s?|min(?:uto)?s?)\b"
+    r"|\bintervalo\s+(?:de\s+)?(\d+)\s*(?:h(?:ora)?s?|min(?:uto)?s?)\b"
+    r"|\bsem\s+intervalo\b"
+)
 
-# Salário base — diversas formas de menção
+# ── Nome de advogado ──────────────────────────────────────────────────────────
+# Nome de advogado: "Dr(a). " opcional + 2-4 palavras capitalizadas
+_NOME_ADV = r"(?:Dr?a?\.\s+)?([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+){1,4})"
+_RE_ADV_RECLAMANTE = re.compile(
+    r"(?i)"
+    r"(?:advogad[oa]s?\s+d[oa]s?\s+(?:reclamante|autor[ao]?)\s*[:\-]\s*"
+    r"|adv\.?\s+reclamante\s*[:\-]\s*"
+    r"|patrono\s+d[oa]s?\s+(?:reclamante|autor[ao]?)\s*[:\-]\s*)"
+    + _NOME_ADV
+)
+_RE_ADV_RECLAMADA = re.compile(
+    r"(?i)"
+    r"(?:advogad[oa]s?\s+d[ao]s?\s+(?:reclamad[ao]|r[eé]u|empresa)\s*[:\-]\s*"
+    r"|adv\.?\s+reclamad[ao]\s*[:\-]\s*"
+    r"|patrono\s+d[ao]s?\s+(?:reclamad[ao]|empresa)\s*[:\-]\s*)"
+    + _NOME_ADV
+)
+_RE_PRESCRICAO_PARCIAL = re.compile(
+    r"(?is)"
+    r"\b(?:acolho|acolhida?|reconhe[çc]o|pronuncio)\s+parcialmente\b.{0,80}"
+    r"\bprescri[çc][aã]o\b"
+    r"|\bprescri[çc][aã]o\b.{0,80}\bparcialmente\s+acolhida?\b"
+)
+_RE_PRESCRICAO_AFASTADA = re.compile(
+    r"(?is)"
+    r"\b(?:afasto|rejeito|indefiro|nao\s+acolho|afastada?|rejeitada?)\b"
+    r".{0,100}\bprescri[çc][aã]o\b"
+    r"|\bprescri[çc][aã]o\b.{0,100}"
+    r"\b(?:afasto|rejeito|indefiro|afastada?|rejeitada?|nao\s+acolhida?)\b"
+)
+_RE_PRESCRICAO_ACOLHIDA = re.compile(
+    r"(?is)"
+    # A: verbo judicial + prescricao
+    r"\b(?:acolho|reconhe[çc]o|pronuncio|declaro)\b.{0,120}"
+    r"\bprescri[çc][aã]o\b"
+    r"|"
+    # B: "declaro prescritos os creditos"
+    r"\bdeclaro\s+prescritos?\b"
+    r"|"
+    # C: "prescricao quinquenal/bienal" com contexto de reconhecimento
+    r"\bprescri[çc][aã]o\s+(?:quinquenal|bienal)\b.{0,80}"
+    r"\b(?:acolhida?|reconhecida?|pronunciada?)\b"
+)
+_RE_VALOR_CAUSA = re.compile(
+    r"(?is)"
+    # A: "Valor da causa[/ação]: R$ X"
+    r"\bvalor\s+da\s+(?:causa|a[çc][aã]o)\s*:\s*(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+    r"|"
+    # B: "Atribuo/Fixo/Dou a causa o valor de R$ X"
+    r"\b(?:atribuo|fixo|dou)\b.{0,40}\b(?:causa|a[çc][aã]o)\b.{0,40}\bvalor\s+de\s+"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+    r"|"
+    # C: "Valor da causa em R$ X"
+    r"\bvalor\s+da\s+(?:causa|a[çc][aã]o)\s+em\s+"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\b"
+)
+_RE_JORNADA_12x36 = re.compile(
+    r"(?i)\b(?:escala\s+(?:de\s+)?|jornada\s+(?:de\s+)?)?12\s*(?:[xX×]|por)\s*36\b"
+)
+_RE_JORNADA_HORAS = re.compile(
+    r"(?is)"
+    # A: "jornada [contratual/prevista/...] [de/era de/...] N h[oras] period"
+    r"\bjornada\b.{0,60}?\b(\d+)\s*h(?:oras?)?\s+(semanais?|di[aá]rias?|mensais?)\b"
+    r"|"
+    # B: "N horas period contrata[da/do]"
+    r"\b(\d+)\s+horas?\s+(semanais?|di[aá]rias?|mensais?)\s+contrata(?:da|do|is)\b"
+    r"|"
+    # C: "N horas period de/da jornada/trabalho"
+    r"\b(\d+)\s+horas?\s+(semanais?|di[aá]rias?|mensais?)\s+(?:de\s+)?(?:jornada|trabalho)\b"
+    r"|"
+    # D: "Nh period" — somente quando acompanhado de contexto claro
+    r"\b(\d+)\s*[hH]\s+(semanais?|di[aá]rias?)\b"
+)
+_RE_IR_SEM_INCIDENCIA = re.compile(
+    r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b.{0,80}\bsem\s+incid[eê]ncia\b"
+    r"|\bnat(?:ureza)?\s+indenizat[oó]ria\b.{0,120}\b(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\bn[aã]o\s+h[aá]\s+incid[eê]ncia\s+de\s+(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\bisento?\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF)\b"
+    r"|\b(?:imposto\s+de\s+renda|IRRF)\b.{0,80}\bisento?\b"
+)
+_RE_IR_TABELA = re.compile(
+    r"(?is)\b(?:imposto\s+de\s+renda|IRRF|IR)\b.{0,120}"
+    r"\b(?:tabela\s+progressiva|tabela\s+(?:do\s+)?IRRF|tabela\s+vigente)\b"
+    r"|\b(?:tabela\s+progressiva|tabela\s+(?:do\s+)?IRRF)\b.{0,80}"
+    r"\b(?:imposto\s+de\s+renda|IRRF|IR)\b"
+    r"|\bconforme\s+(?:a\s+)?tabela\s+progressiva\b"
+    r"|\btabela\s+progressiva\s+vigente\b"
+)
+_RE_IR_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: reclamada + descontar/reter/recolher + IR/IRRF
+    r"\b(?:reclamad[ao]|empresa)\b.{0,120}"
+    r"\b(?:descontar[aá]?|descont[ae]|reter[aá]?|ret[eé]m|recolher[aá]?|recolhe)\b.{0,120}"
+    r"\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|"
+    # B: condeno a reclamada a reter/recolher IR
+    r"\b(?:conden[oa]|condeno|determino)\b.{0,120}"
+    r"\b(?:reclamad[ao])\b.{0,160}"
+    r"\b(?:reter|recolher|descontar)\b.{0,120}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|"
+    # C: desconto do IR na fonte (sujeito implícito = reclamada)
+    r"\bautorizo\b.{0,80}\bdesconto\b.{0,80}\b(?:imposto\s+de\s+renda|IRRF|IR\b)\b"
+    r"|\bdesconto\s+do\s+(?:imposto\s+de\s+renda|IRRF|IR)\s+(?:retido\s+)?na\s+fonte\b"
+)
+_RE_CONTRIB_PREV_SEM_INCIDENCIA = re.compile(
+    r"(?is)\bsem\s+incid[eê]ncia\b.{0,80}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,80}\bsem\s+incid[eê]ncia\b"
+    r"|\bnat(?:ureza)?\s+indenizat[oó]ria\b.{0,120}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,120}\bnat(?:ureza)?\s+indenizat[oó]ria\b"
+    r"|\bn[aã]o\s+h[aá]\s+incid[eê]ncia\s+de\s+(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b"
+)
+_RE_CONTRIB_PREV_AMBAS = re.compile(
+    r"(?is)\b(?:cada\s+(?:uma\s+das?\s+)?parte|ambas\s+as\s+partes)\b"
+    r".{0,140}\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS|cota)\b"
+    r"|\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS)\b.{0,140}"
+    r"\b(?:cada\s+(?:uma\s+das?\s+)?parte|ambas\s+as\s+partes)\b"
+)
+_RE_CONTRIB_PREV_RECLAMADA = re.compile(
+    r"(?is)"
+    # A: condeno/determino + reclamada + INSS/contrib prev
+    r"\b(?:conden[oa]|condeno|determino|dever[aá])\b.{0,120}"
+    r"\b(?:reclamad[ao]|empresa|r[eé]u)\b.{0,160}"
+    r"\b(?:contribui[cç][oõ]es?\s+previdenci[aá]rias?|INSS|cota\s+patronal|encargos?\s+previdenci[aá]rios?)\b"
+    r"|"
+    # B: reclamada + recolher/recolhimento + INSS/contrib (cobre "recolhera as contribuicoes previdenciarias")
+    r"\b(?:reclamad[ao]|empresa)\b.{0,120}"
+    r"\b(?:recolher[aá]?|recolher[aá]|recolhimento|recolhe)\b.{0,120}"
+    r"\b(?:contribui[cç][oõ]es?\s+previdenci[aá]rias?|INSS|cota\s+patronal)\b"
+    r"|"
+    # C: recolhimento da contrib prev + pela reclamada
+    r"\b(?:recolhimento|recolher[aá]?)\b.{0,120}"
+    r"\b(?:contribui[cç][aã]o\s+previdenci[aá]ria|INSS|cota\s+patronal)\b.{0,120}"
+    r"\b(?:pela?\s+reclamad[ao]|a\s+cargo\s+d[ao]?\s+reclamad[ao])\b"
+    r"|"
+    # D: a reclamada devera recolher o INSS
+    r"\b(?:reclamad[ao])\b.{0,80}\bINSS\b"
+)
+_RE_MULTA_477_INDEFERIDA = re.compile(
+    r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,100}\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,100}\bindeferid[ao]\b"
+)
+_RE_MULTA_477_DEFERIDA = re.compile(
+    r"(?is)\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+    r".{0,140}\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b"
+    r"|\b(?:multa\s+(?:do\s+)?)?art\.?\s*477\b.{0,140}"
+    r"\b(defir[io]|deferid[ao]|conden[oa]|condeno|julgo\s+procedente)\b"
+)
+_RE_DANO_MORAL = re.compile(
+    r"(?is)"
+    # A: valor → conector "a título de" → rótulo (conector é discriminante; verbo desnecessário)
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"\s+a\s+t[íi]tulo\s+de\s+dano\s+moral\b"
+    r"|"
+    # B: verbo + rótulo → conector → valor (Fixo o dano moral em / no valor de / no importe de)
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\bdano\s+moral\b\s+"
+    r"(?:em|no\s+valor\s+de|no\s+importe\s+de|no\s+montante\s+de|de|:)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"|"
+    # C: verbo + "indenização por dano moral" → conector → valor
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\bindeniza[çc][aã]o\s+por\s+dano\s+moral\b\s+"
+    r"(?:no\s+valor\s+de|de|em)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+)
+_RE_DANO_MATERIAL = re.compile(
+    r"(?is)"
+    # A: valor → conector "a título de" → rótulo de dano material / lucros cessantes
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+    r"\s+a\s+t[íi]tulo\s+de\s+(?:dano\s+(?:material|emergente)|lucros?\s+cessantes?)\b"
+    r"|"
+    # B: verbo + rótulo → conector → valor
+    r"\b(?:condeno|defiro|fixo|arbitro|determino|julgo\s+procedente)\b"
+    r".{0,80}\b(?:dano\s+(?:material|emergente)|lucros?\s+cessantes?)\b\s+"
+    r"(?:em|no\s+valor\s+de|no\s+importe\s+de|no\s+montante\s+de|de|:)\s*"
+    r"(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*reais?)"
+)
+_RE_FGTS_FRAGMENTO = re.compile(r"(?is)\bFGTS\b.{0,220}")
+_RE_FGTS_TODO_PERIODO = re.compile(
+    r"(?i)\b(todo\s+o\s+(?:per[ií]odo\s+contratual|contrato)|per[ií]odo\s+contratual\s+completo)\b"
+)
+_RE_FGTS_PERIODO_DATAS = re.compile(
+    r"(?i)(?:todo\s+o\s+)?per[ií]odo\s+contratual\s+de\s+(\d{2}/\d{2}/\d{4})\s+(?:a|at[eé])\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_FGTS_MULTA_40 = re.compile(r"(?i)\bmulta\s+(?:de\s+)?40\s*%")
+_RE_FGTS_MULTA_40_INDEFERIDA = re.compile(
+    r"(?is)\b(indefer[io]|indefir[io]|improcedente)\b.{0,120}\bmulta\s+(?:de\s+)?40\s*%.*?\bFGTS\b"
+    r"|\bmulta\s+(?:de\s+)?40\s*%.*?\bFGTS\b.{0,120}\bindeferid[ao]\b"
+)
+_RE_FGTS_MULTA_40_AVISO = re.compile(
+    r"(?is)\bFGTS\b.{0,100}\bmulta\s+(?:de\s+)?40\s*%.{0,100}\baviso\s+pr[eé]vio\b"
+    r"|\bmulta\s+(?:de\s+)?40\s*%.{0,100}\baviso\s+pr[eé]vio\b"
+)
+
+# Salário base — diversas formas de menção (inclui rótulos de capa com dois-pontos)
 _RE_SALARIO = re.compile(
-    r"(?i)(?:sal[aá]rio\s+(?:base\s+)?de|remunera[çc][aã]o\s+de|"
+    r"(?i)(?:"
+    r"sal[aá]rio\s+base\s*:\s*|"
+    r"sal[aá]rio\s*:\s*|"
+    r"sal[aá]rio\s+(?:base\s+)?de|remunera[çc][aã]o\s+de|"
     r"percebia\s+a\s+importância\s+de|piso\s+(?:salarial\s+)?de|"
     r"sal[aá]rio\s+contratual\s+de|sal[aá]rio\s+normativo\s+de|"
     r"vencimento\s+de|sal[aá]rio\s+(?:mensal\s+)?(?:líquido\s+)?de\s+R\$)"
@@ -99,6 +530,54 @@ _RE_SALARIO = re.compile(
     r"([\d.,]+(?:\s*(?:reais|mil))?)(?:\s*(?:mensais?|brutos?|líquidos?))?",
     re.IGNORECASE,
 )
+
+# Nomes de verbas (lista fechada) — mesmo núcleo de padrões de ai_client._RE_VERBAS; só no dispositivo/decisão
+_RE_VERBA_NOME_DISPOSITIVO = re.compile(
+    r"(?i)\b("
+    r"horas extras|adicional noturno|adicional de insalubridade"
+    r"|adicional de periculosidade|f\.?g\.?t\.?s"
+    r"|aviso pr[eé]vio|f[eé]rias|d[eé]cimo|13(?:\s*[º°o])?(?:.{0,18}sal[aá]rio|.{0,18}(?:proporcional|integral))"
+    r"|saldo de sal[aá]rios?|dano moral|dano material"
+    r"|multa|art\.?\s*467|art\.?\s*477|intervalo(?:\s+intrajornada)?"
+    r")\b"
+)
+
+# Início do dispositivo / decisão (texto bruto; evita find_section_hybrid com texto normalizado)
+_RE_TRECHO_DISPOSITIVO_TITULO = re.compile(r"(?im)^\s*DISPOSITIVO\s*(?:\n|$)")
+_RE_TRECHO_ISTO_POSTO = re.compile(r"(?i)\bISTO\s+POSTO\b")
+_RE_TRECHO_JULGO = re.compile(
+    r"(?i)\bJULGO\s+(?:PROCEDENTE|PARCIALMENTE\s+PROCEDENTE|IMPROCEDENTE)\b"
+)
+_TRECHO_DECISAO_MAX_CHARS = 12_000
+_RE_NOVO_DOCUMENTO_PJE = re.compile(r"(?im)^\s*PODER\s+JUDICI[ÁA]RIO\s*$")
+
+# Intervalo de datas na mesma linha da verba (conservador: não cruza quebras de linha)
+_RE_PERIODO_DE_ATE = re.compile(
+    r"(?i)(?:de|desde)\s+(\d{2}/\d{2}/\d{4})\s+(?:a|at[eé])\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_ENTRE_E = re.compile(
+    r"(?i)entre\s+(\d{2}/\d{2}/\d{4})\s+e\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_NO_PERIODO = re.compile(
+    r"(?i)no\s+per[ií]odo\s+(?:de\s+)?(\d{2}/\d{2}/\d{4})\s+(?:a|at[eé])\s+(\d{2}/\d{2}/\d{4})"
+)
+_RE_PERIODO_TRACO = re.compile(
+    r"(?i)(\d{2}/\d{2}/\d{4})\s*[-–—]\s*(\d{2}/\d{2}/\d{4})"
+)
+
+# Reflexos (lista fechada) — só com gatilho explícito no fragmento ligado à verba
+_RE_GATILHO_REFLEXO = re.compile(
+    r"(?i)\breflexos?\b|\bincid[eê]ncia\s+(?:em|sobre|nas?|nos?)\b"
+)
+_RE_ALVO_REFLEXO = re.compile(
+    r"(?i)\b("
+    r"repouso\s+semanal\s+remunerado|rsr|dsr|d\.?s\.?r\.?"
+    r"|f[eé]rias(?:\s+acrescida?s?\s+de\s+1/3)?"
+    r"|d[eé]cimo\s+terceiro|13\s*[º°o]?\s*sal[aá]rio"
+    r"|aviso\s+pr[eé]vio"
+    r")\b"
+)
+_RE_CONTINUA_REFLEXO_LINHA = re.compile(r"(?i)^\s*(?:com|e)\s+reflexos?\b")
 
 # Índice de correção monetária
 _RE_IPCA = re.compile(r"(?i)\bIPCA-?E\b")
@@ -138,10 +617,10 @@ _RE_CONTRATO_AUTONOMO = re.compile(
 
 # Divisor de horas extras
 _RE_DIVISOR = re.compile(
-    r"(?i)(?:divisor\s+(?:de\s+)?)(\b150\b|\b180\b|\b200\b|\b220\b)"
+    r"(?i)(?:divisor\s+(?:de\s+)?(?:horas\s+)?)(\b150\b|\b180\b|\b200\b|\b220\b)"
 )
 _RE_HORAS_SEMANAIS = re.compile(
-    r"(?i)(\b30\b|\b35\b|\b36\b|\b40\b|\b44\b)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
+    r"(?i)\b(30|35|36|40|44)h?\b\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
 )
 
 # Aviso prévio — dias
@@ -149,10 +628,27 @@ _RE_AVISO_DIAS = re.compile(
     r"(?i)aviso\s+pr[eé]vio\s+(?:indenizado\s+)?(?:de\s+)?(\d+)\s*dias?"
 )
 
-# Data de ajuizamento
+# Honorarios sucumbenciais (MEDIUM) - percentual legal 5-15 e pagador no fragmento
+_RE_HONORARIOS_FRAGMENTO = re.compile(
+    r"(?is)(honor[aá]rios(?:\s+advocat[ií]cios)?\s+(?:sucumbenciais|rec[ií]procos?)"
+    r"|honor[aá]rios\s+rec[ií]procos?)"
+    r".{0,220}?(\d{1,2}(?:[,.]\d+)?)\s*%"
+)
+_RE_HONORARIOS_RECIPROCA = re.compile(r"(?i)\b(rec[ií]procos?|sucumb[eê]ncia\s+rec[ií]proca)\b")
+_RE_HONORARIOS_RECLAMADA = re.compile(
+    r"(?i)\b(reclamada|r[eé]|empresa)\b|"
+    r"\bem\s+favor\s+do\s+(?:advogado|patrono)\s+do\s+(?:autor|reclamante)\b"
+)
+
+# Data de ajuizamento (MEDIUM — âncora; processor também lê Data da Autuação no cabeçalho)
 _RE_AJUIZAMENTO = re.compile(
-    r"(?i)(?:data\s+de\s+ajuizamento[:\s]+|protocolo(?:u\s+a\s+presente)?\s+em\s+|"
-    r"proposta\s+em\s+|distribuída\s+em\s+)"
+    r"(?i)(?:"
+    r"data\s+da\s+autua[çc][aã]o[:\s]+|"
+    r"data\s+de\s+ajuizamento[:\s]+|"
+    r"protocolo(?:u(?:\s+a\s+presente)?)?\s+em\s+|"
+    r"proposta\s+em\s+|"
+    r"distribu[ií]da\s+em\s+"
+    r")"
     r"(\d{2}/\d{2}/\d{4})"
 )
 
@@ -161,6 +657,35 @@ _RE_PROCESSO_CABECALHO = re.compile(
     r"(?:Processo|Autos?|N[oº°]\.?|Nº\s+do\s+Processo)[:\s]+"
     r"(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})",
     re.IGNORECASE,
+)
+
+# Reclamante na capa — não incluir "Reclamada" (evita troca de polo)
+_RE_RECLAMANTE_CAPA = re.compile(
+    r"(?im)^\s*(?:Reclamante|Autor(?:a)?|Parte\s+autora)\s*:\s*(.+)$"
+)
+
+# Reclamada na capa — não incluir rótulos de autor/reclamante
+_RE_RECLAMADA_CAPA = re.compile(
+    r"(?im)^\s*(?:Reclamada|Reclamado|Parte\s+reclamada|R[ée]u)\s*:\s*(.+)$"
+)
+
+# Vara do trabalho — rótulo de capa ou linha ordinal no cabeçalho (sem rótulo, só início do texto)
+_RE_VARA_CAPA_LABEL = re.compile(
+    r"(?im)^\s*Vara(?:\s+do\s+Trabalho)?\s*:\s*(.+)$"
+)
+_RE_VARA_ORDINAL_LINE = re.compile(
+    r"(?im)^\s*((?:\d+[º°ª]\s+)?Vara\s+do\s+Trabalho\s+de\s+.+)$"
+)
+_VARA_HEAD_CHARS = 4000
+
+_RE_JUIZ_CARGO_ANTES = re.compile(
+    r"(?im)^\s*(?:Ju[ií]z(?:a)?\s+do\s+Trabalho(?:\s+(?:Titular|Substituto|Substituta))?"
+    r"|Desembargador(?:a)?(?:\s+Relator(?:a)?)?)\s*:\s*([A-ZÀ-ÿ][A-Za-zÀ-ÿ .'\-]{4,})\s*$"
+)
+_RE_JUIZ_NOME_ANTES = re.compile(
+    r"(?im)^\s*([A-ZÀ-Ý][A-ZÀ-Ý .'\-]{6,})\s*\n\s*"
+    r"(?:Ju[ií]z(?:a)?\s+do\s+Trabalho(?:\s+(?:Titular|Substituto|Substituta))?"
+    r"|Desembargador(?:a)?(?:\s+Relator(?:a)?)?)\b"
 )
 
 # ---------------------------------------------------------------------------
@@ -174,6 +699,221 @@ _MESES = {
 
 # Mínimo de salário (para filtrar ruído)
 _SALARIO_MINIMO_VIGENTE = 1_412.00
+
+
+def _par_datas_dd_mm_yyyy_validas(d1: str, d2: str) -> bool:
+    try:
+        datetime.strptime(d1, "%d/%m/%Y")
+        datetime.strptime(d2, "%d/%m/%Y")
+    except ValueError:
+        return False
+    return True
+
+
+def _periodo_intervalo_na_mesma_linha(linha: str) -> Optional[str]:
+    """Retorna 'DD/MM/AAAA a DD/MM/AAAA' se houver intervalo claro na linha; senão None."""
+    for rx in (
+        _RE_PERIODO_DE_ATE,
+        _RE_PERIODO_ENTRE_E,
+        _RE_PERIODO_NO_PERIODO,
+        _RE_PERIODO_TRACO,
+    ):
+        m = rx.search(linha)
+        if not m:
+            continue
+        d1, d2 = m.group(1), m.group(2)
+        if d1 and d2 and _par_datas_dd_mm_yyyy_validas(d1, d2):
+            return f"{d1} a {d2}"
+    return None
+
+
+def _linha_do_span(texto: str, start: int, end: int) -> str:
+    a = texto.rfind("\n", 0, start) + 1
+    b = texto.find("\n", end)
+    if b < 0:
+        b = len(texto)
+    return texto[a:b]
+
+
+def _sem_acentos(texto: str) -> str:
+    return "".join(
+        ch
+        for ch in unicodedata.normalize("NFD", texto or "")
+        if unicodedata.category(ch) != "Mn"
+    )
+
+
+def _detalhe_verba_na_linha(nome: str, linha: str) -> Optional[str]:
+    """Detalhe curto da verba quando a propria linha traz subtipo/avos/dias."""
+    nome_norm = _sem_acentos(nome).lower()
+    linha_limpa = re.sub(r"\s+", " ", (linha or "").strip(" -;\t"))
+    linha_norm = _sem_acentos(linha_limpa).lower()
+
+    if nome_norm.startswith("13") or "decimo" in nome_norm:
+        m = re.search(r"(?i)\b(proporcional|integral)\s+de\s+(\d{4})(?:\s*\((\d{1,2}/\d{1,2})\))?", linha_norm)
+        if m:
+            detalhe = f"{m.group(1)} {m.group(2)}"
+            if m.group(3):
+                detalhe += f" ({m.group(3)})"
+            return detalhe
+
+    if "ferias" in nome_norm:
+        m_pa = re.search(r"(?i)periodo\s+aquisitivo\s+(\d{4}/\d{4})", linha_norm)
+        periodo = f" - periodo aquisitivo {m_pa.group(1)}" if m_pa else ""
+        if "vencidas" in linha_norm and "dobro" in linha_norm:
+            return f"vencidas em dobro{periodo}"
+        if "integrais" in linha_norm and "simples" in linha_norm:
+            return f"integrais simples{periodo}"
+        m_prop = re.search(r"(?i)\bproporcionais?\b(?:\s*\((\d{1,2}/\d{1,2})\))?", linha_norm)
+        if m_prop:
+            detalhe = "proporcionais"
+            if m_prop.group(1):
+                detalhe += f" ({m_prop.group(1)})"
+            return detalhe
+
+    if "saldo de salario" in nome_norm:
+        m = re.search(r"(?i)\b(\d+)\s+dias?\b", linha_norm)
+        mes = re.search(
+            r"(?i)\b(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})\b",
+            linha_norm,
+        )
+        if m:
+            detalhe = f"{m.group(1)} dias"
+            if mes:
+                detalhe += f" - {mes.group(1)} de {mes.group(2)}"
+            return detalhe
+
+    if "aviso" in nome_norm and "previo" in nome_norm:
+        partes: list[str] = []
+        if "indenizado" in linha_norm:
+            partes.append("indenizado")
+        m = re.search(r"(?i)\b(\d+)\s+dias?\b", linha_norm)
+        if m:
+            partes.append(f"{m.group(1)} dias")
+        if partes:
+            return " - ".join(partes)
+
+    return None
+
+
+def _normalizar_nome_pessoa(nome: str) -> Optional[str]:
+    raw = re.sub(r"\s+", " ", (nome or "").strip(" .:-\t"))
+    if not raw or len(raw) < 5:
+        return None
+    if re.search(r"(?i)\b(advogado|oab|reclamante|reclamada|processo|vara)\b", raw):
+        return None
+    partes = []
+    for p in raw.split():
+        if len(p) <= 2 and p.lower() not in {"da", "de", "do", "das", "dos"}:
+            partes.append(p.upper())
+        else:
+            partes.append(p[:1].upper() + p[1:].lower())
+    return " ".join(partes)
+
+
+def _formatar_moeda_br(raw: str) -> Optional[str]:
+    numero_str = re.sub(r"[^\d,.]", "", raw or "").replace(".", "").replace(",", ".")
+    try:
+        valor = float(numero_str)
+    except ValueError:
+        return None
+    if not (1 <= valor <= 1_000_000):
+        return None
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _multa_diaria_obrigacao_no_fragmento(frag: str) -> Optional[str]:
+    """Astreinte/multa diaria vinculada ao mesmo fragmento da obrigacao."""
+    m = _RE_MULTA_DIARIA_OBRIGACAO.search(frag)
+    if not m:
+        return None
+    raw = next((g for g in m.groups() if g), None)
+    if not raw:
+        return None
+    return _formatar_moeda_br(raw)
+
+
+def _multa_limite_obrigacao_no_fragmento(frag: str) -> Optional[str]:
+    """Teto da multa diaria no mesmo fragmento da obrigacao — so extrair se houver multa_diaria."""
+    m = _RE_MULTA_LIMITE_OBRIGACAO.search(frag)
+    if not m:
+        return None
+    raw = next((g for g in m.groups() if g), None)
+    if not raw:
+        return None
+    return _formatar_moeda_br(raw)
+
+
+def _prazo_obrigacao_dias_no_fragmento(frag: str) -> Optional[str]:
+    """Prazo em dias, apenas na mesma frase da obrigação de fazer."""
+    frase = re.split(r"[.\n]", frag, maxsplit=1)[0]
+    m = _RE_PRAZO_OBRIGACAO_DIAS.search(frase)
+    if not m:
+        return None
+    raw = (m.group(1) or "").strip()
+    dias = 8 if raw.casefold() == "oito" else int(raw)
+    if not (1 <= dias <= 120):
+        return None
+    return f"{dias} dias"
+
+
+def _fragmento_reflexo_ligado(trecho: str, m: re.Match) -> str:
+    """Linha da verba + linha seguinte só se continuação explícita (com/e reflexo...)."""
+    ls = trecho.rfind("\n", 0, m.start()) + 1
+    le = trecho.find("\n", m.end())
+    if le < 0:
+        le = len(trecho)
+    linha0 = trecho[ls:le]
+    frag = linha0
+    stripped0 = linha0.rstrip()
+    if le < len(trecho) and not stripped0.endswith((".", ";", ":")):
+        rest = trecho[le + 1 :]
+        ne = rest.find("\n")
+        if ne < 0:
+            ne = len(rest)
+        linha1 = rest[:ne]
+        if _RE_CONTINUA_REFLEXO_LINHA.match(linha1):
+            frag = linha0 + " " + linha1.strip()
+    return frag
+
+
+def _rotulo_reflexo_canonico(span: str) -> str:
+    low = span.strip().lower()
+    compact = low.replace(".", "")
+    if "repouso" in low or low == "rsr" or "dsr" in compact:
+        return "DSR"
+    if "férias" in low or "ferias" in low:
+        if "1/3" in low or "terço" in low or "terco" in low:
+            return "Férias acrescidas de 1/3"
+        return "Férias"
+    if (
+        "décimo" in low
+        or "decimo" in low
+        or re.search(r"13\s*[º°o]", low)
+        or re.search(r"\b13\s+sal", low)
+    ):
+        return "13º salário"
+    if "aviso" in low and ("prévio" in low or "previo" in low):
+        return "Aviso prévio"
+    return span.strip()
+
+
+def _reflexos_no_fragmento(fragmento: str) -> List[str]:
+    if not _RE_GATILHO_REFLEXO.search(fragmento):
+        return []
+    out: List[str] = []
+    seen: set[str] = set()
+    for mx in _RE_ALVO_REFLEXO.finditer(fragmento):
+        raw = (mx.group(1) or "").strip()
+        if not raw:
+            continue
+        lab = _rotulo_reflexo_canonico(mx.group(0))
+        key = lab.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(lab)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -267,13 +1007,88 @@ class PreExtractor:
         if m:
             self._set_high("numero_processo", m.group(1))
 
+    def _extract_reclamante(self):
+        """Nome do reclamante — rótulos típicos de capa (Reclamante, Autor/Autora, Parte autora)."""
+        m = _RE_RECLAMANTE_CAPA.search(self.texto)
+        if not m:
+            return
+        nome = (m.group(1) or "").strip()
+        if not nome:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            nome,
+            re.IGNORECASE,
+        ):
+            return
+        self._set_high("reclamante", nome)
+
+    def _extract_reclamada(self):
+        """Nome da reclamada — rótulos típicos de capa (Reclamada, Reclamado, Parte reclamada)."""
+        m = _RE_RECLAMADA_CAPA.search(self.texto)
+        if not m:
+            return
+        nome = (m.group(1) or "").strip()
+        if not nome:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            nome,
+            re.IGNORECASE,
+        ):
+            return
+        self._set_high("reclamada", nome)
+
+    @staticmethod
+    def _valor_vara_plausivel(texto: str) -> bool:
+        """Exige menção explícita a vara + trabalho (evita TRT-only ou rótulos genéricos)."""
+        t = (texto or "").strip().lower()
+        if len(t) < 8:
+            return False
+        return "vara" in t and "trabalho" in t
+
+    def _extract_vara_trabalho(self):
+        """Identificação da vara — PJe: 'Vara:' / 'Vara do Trabalho:' ou linha 'Nª Vara do Trabalho de ...' no cabeçalho."""
+        m = _RE_VARA_CAPA_LABEL.search(self.texto)
+        raw: Optional[str] = None
+        if m:
+            raw = (m.group(1) or "").strip()
+        else:
+            head = self.texto[:_VARA_HEAD_CHARS]
+            m2 = _RE_VARA_ORDINAL_LINE.search(head)
+            if m2:
+                raw = (m2.group(1) or "").strip()
+            else:
+                for m3 in _RE_VARA_ORDINAL_LINE.finditer(self.texto):
+                    contexto = self.texto[max(0, m3.start() - 800) : m3.start()].upper()
+                    if "PODER JUDICI" in contexto:
+                        raw = (m3.group(1) or "").strip()
+                        break
+        if not raw:
+            return
+        if re.match(
+            r"^(?:N/?A|Não\s+informado|S\.?N\.?|[-–—]+|\.{3,})$",
+            raw,
+            re.IGNORECASE,
+        ):
+            return
+        if not self._valor_vara_plausivel(raw):
+            return
+        self._set_high("vara_trabalho", raw)
+
     def _extract_data_sentenca(self):
-        """Data da sentença — prioriza assinatura digital PJe."""
+        """Data da sentença — assinatura PJe (mais recente), Data do Julgamento, Publicado em, extenso."""
         # Prioridade máxima: assinatura digital (mais recente)
         data_ass = self._ultima_data_assinatura()
         if data_ass:
             self._set_high("data_sentenca", data_ass)
             return
+        m = _RE_DATA_JULGAMENTO.search(self.texto)
+        if m:
+            norm = self._normalizar_data(m.group(1))
+            if norm:
+                self._set_high("data_sentenca", norm)
+                return
         # Fallback: "Publicado em DD/MM/AAAA"
         m = re.search(
             r"(?i)publicad[oa]\s+em\s+(\d{2}/\d{2}/\d{4})", self.texto
@@ -311,14 +1126,71 @@ class PreExtractor:
 
     # ── Extratores MEDIUM ────────────────────────────────────────────────────
 
+    def _extract_juiz_responsavel(self):
+        """Juiz/desembargador signatario — MEDIUM por depender do layout da assinatura."""
+        m = _RE_JUIZ_CARGO_ANTES.search(self.texto) or _RE_JUIZ_NOME_ANTES.search(self.texto)
+        if not m:
+            return
+        nome = _normalizar_nome_pessoa(m.group(1))
+        if nome:
+            self._set_medium("juiz_responsavel", nome)
+
     def _extract_data_ajuizamento(self):
+        """Data de ajuizamento / autuação PJe — primeira ocorrência; saída DD/MM/AAAA."""
         m = _RE_AJUIZAMENTO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
             if norm:
                 self._set_medium("data_ajuizamento", norm)
 
+    def _extract_data_transito_julgado(self):
+        """Data do trânsito em julgado — MEDIUM, apenas quando expressa no texto."""
+        m = _RE_TRANSITO_JULGADO.search(self.texto)
+        if not m:
+            return
+        norm = self._normalizar_data(m.group(1))
+        if not norm:
+            return
+        try:
+            datetime.strptime(norm, "%d/%m/%Y")
+        except ValueError:
+            return
+        self._set_medium("data_transito_julgado", norm)
+
+    def _extract_data_intimacao_calculos(self):
+        """Data de intimação para apresentação de cálculos — MEDIUM e explícita."""
+        m = _RE_INTIMACAO_CALCULOS.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        norm = self._normalizar_data(raw)
+        if not norm:
+            return
+        try:
+            datetime.strptime(norm, "%d/%m/%Y")
+        except ValueError:
+            return
+        self._set_medium("data_intimacao_calculos", norm)
+
+    def _extract_prazo_calculos_dias(self):
+        """Prazo para apresentação de cálculos — MEDIUM e ligado a cálculos/liquidação."""
+        m = _RE_PRAZO_CALCULOS.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        if raw.casefold() == "oito":
+            dias = 8
+        else:
+            dias = int(raw)
+        if not (1 <= dias <= 60):
+            return
+        self._set_medium("prazo_calculos_dias", f"{dias} dias")
     def _extract_data_admissao(self):
+        """Data de admissão — primeira ocorrência; saída DD/MM/AAAA (MEDIUM)."""
         m = _RE_ADMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
@@ -326,14 +1198,517 @@ class PreExtractor:
                 self._set_medium("data_admissao", norm)
 
     def _extract_data_demissao(self):
-        m = _RE_DEMISSAO.search(self.texto)
+        """Data de demissão / rescisão — primeira ocorrência; saída DD/MM/AAAA (MEDIUM)."""
+        m = _RE_DEMISSAO.search(self.texto) or _RE_DEMISSAO_DATA_ANTES.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
             if norm:
                 self._set_medium("data_demissao", norm)
 
+    def _extract_data_saida_ctps(self):
+        """Data de saída projetada para CTPS — apenas quando expressa no texto."""
+        m = _RE_DATA_SAIDA_CTPS.search(self.texto)
+        if not m:
+            return
+        norm = self._normalizar_data(m.group(1))
+        if not norm:
+            return
+        try:
+            datetime.strptime(norm, "%d/%m/%Y")
+        except ValueError:
+            return
+        self._set_medium("data_saida_ctps", norm)
+
+
+    def _extract_funcao_reclamante(self):
+        """Cargo/função do reclamante — MEDIUM em contexto claro de função/cargo."""
+        m = _RE_FUNCAO_RECLAMANTE.search(self.texto)
+        if not m:
+            return
+        contexto = self.texto[max(0, m.start() - 80) : min(len(self.texto), m.end() + 80)]
+        if re.search(r"(?i)\b(advogad[oa]|oab|juiz|ju[ií]za|magistrad[oa]|desembargador|procurador)\b", contexto):
+            return
+        raw = next((g for g in m.groups() if g), "")
+        cargo = re.sub(r"\s+", " ", raw.strip(" .:-\t")).lower()
+        if not cargo or len(cargo) < 3:
+            return
+        if re.search(r"(?i)\b(reclamante|reclamada|autor|parte|sal[aá]rio|ctps)\b", cargo):
+            return
+        self._set_medium("funcao_reclamante", cargo)
+
+
+
+    def _append_obrigacao_fazer(self, item: dict[str, str]):
+        atuais = self._medium.get("obrigacoes_fazer")
+        if not isinstance(atuais, list):
+            atuais = []
+        chave = (item.get("tipo"), item.get("descricao"))
+        for existente in atuais:
+            if isinstance(existente, dict) and (existente.get("tipo"), existente.get("descricao")) == chave:
+                return
+        self._set_medium("obrigacoes_fazer", [*atuais, item])
+    def _obrigacao_ctps_do_fragmento(self, frag: str) -> Optional[dict[str, str]]:
+        low = frag.casefold()
+        if "retificar" in low or "retificação" in low or "retificacao" in low:
+            acao = "Retificar CTPS"
+        elif "baixa" in low:
+            acao = "Baixar CTPS"
+        else:
+            acao = "Anotar CTPS"
+
+        extras: list[str] = []
+        adm = _RE_ADMISSAO.search(frag)
+        if adm:
+            norm = self._normalizar_data(adm.group(1))
+            if norm:
+                extras.append(f"admissao {norm}")
+        saida = _RE_DATA_SAIDA_CTPS.search(frag)
+        if saida:
+            norm = self._normalizar_data(saida.group(1))
+            if norm:
+                extras.append(f"saida {norm}")
+        funcao = _RE_CTPS_FUNCAO.search(frag)
+        if funcao:
+            cargo = re.sub(r"\s+", " ", (funcao.group(1) or "").strip())
+            if cargo:
+                extras.append(f"funcao {cargo}")
+        salario = _RE_SALARIO.search(frag)
+        if salario:
+            raw = (salario.group(1) or "").strip()
+            numero_str = re.sub(r"[^\d,.]", "", raw).replace(".", "").replace(",", ".")
+            try:
+                valor = float(numero_str)
+            except ValueError:
+                valor = 0
+            if 800 <= valor <= 80_000:
+                salario_fmt = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                extras.append(f"salario {salario_fmt}")
+
+        descricao = acao
+        if extras:
+            descricao = f"{acao}: " + "; ".join(extras)
+        item = {"tipo": "CTPS", "descricao": descricao}
+        prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+        if prazo:
+            item["prazo_dias"] = prazo
+        multa = _multa_diaria_obrigacao_no_fragmento(frag)
+        if multa:
+            item["multa_diaria"] = multa
+            limite = _multa_limite_obrigacao_no_fragmento(frag)
+            if limite:
+                item["multa_limite"] = limite
+        return item
+
+    def _extract_obrigacoes_fazer_ctps(self):
+        """Obrigação de fazer estruturada para CTPS — um item conservador."""
+        m = _RE_ANOTACAO_CTPS_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        item = self._obrigacao_ctps_do_fragmento((m.group(0) or "").strip())
+        if item:
+            self._set_medium("obrigacoes_fazer", [item])
+
+    def _extract_anotacao_ctps(self):
+        """Obrigacao de anotar/retificar/baixar CTPS — resumo curto MEDIUM."""
+        m = _RE_ANOTACAO_CTPS_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        frag = (m.group(0) or "").strip()
+        low = frag.casefold()
+        if "retificar" in low or "retificação" in low or "retificacao" in low:
+            acao = "Retificar CTPS"
+        elif "baixa" in low:
+            acao = "Baixar CTPS"
+        else:
+            acao = "Anotar CTPS"
+
+        extras: list[str] = []
+        adm = _RE_ADMISSAO.search(frag)
+        if adm:
+            norm = self._normalizar_data(adm.group(1))
+            if norm:
+                extras.append(f"admissao {norm}")
+        saida = _RE_DATA_SAIDA_CTPS.search(frag)
+        if saida:
+            norm = self._normalizar_data(saida.group(1))
+            if norm:
+                extras.append(f"saida {norm}")
+        funcao = _RE_CTPS_FUNCAO.search(frag)
+        if funcao:
+            cargo = re.sub(r"\s+", " ", (funcao.group(1) or "").strip())
+            if cargo:
+                extras.append(f"funcao {cargo}")
+        salario = _RE_SALARIO.search(frag)
+        if salario:
+            raw = (salario.group(1) or "").strip()
+            numero_str = re.sub(r"[^\d,.]", "", raw).replace(".", "").replace(",", ".")
+            try:
+                valor = float(numero_str)
+            except ValueError:
+                valor = 0
+            if 800 <= valor <= 80_000:
+                salario_fmt = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                extras.append(f"salario {salario_fmt}")
+
+        valor = acao
+        if extras:
+            valor = f"{acao}: " + "; ".join(extras)
+        self._set_medium("anotacao_ctps", valor)
+
+    def _extract_seguro_desemprego(self):
+        """Seguro-desemprego — guias, alvara, indenizacao substitutiva ou indeferimento."""
+        if not _RE_SEGURO_DESEMPREGO_TERMO.search(self.texto):
+            return
+        if _RE_SEGURO_INDEFERIDO.search(self.texto):
+            self._set_medium("seguro_desemprego", "Indeferido")
+        elif _RE_SEGURO_INDENIZACAO.search(self.texto):
+            self._set_medium("seguro_desemprego", "Indenizacao substitutiva")
+        elif m_cd_sd := _RE_SEGURO_GUIAS_CD_SD.search(self.texto):
+            frag = self.texto[m_cd_sd.start(): min(len(self.texto), m_cd_sd.end() + 120)]
+            valor = "Entregar guias CD/SD do seguro-desemprego"
+            self._set_medium("seguro_desemprego", valor)
+            item: dict = {"tipo": "seguro_desemprego", "descricao": valor}
+            prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+            if prazo:
+                item["prazo_dias"] = prazo
+            multa = _multa_diaria_obrigacao_no_fragmento(frag)
+            if multa:
+                item["multa_diaria"] = multa
+                limite = _multa_limite_obrigacao_no_fragmento(frag)
+                if limite:
+                    item["multa_limite"] = limite
+            self._append_obrigacao_fazer(item)
+        elif m_alvara := _RE_SEGURO_GUIAS_ALVARA.search(self.texto):
+            frag = self.texto[m_alvara.start(): min(len(self.texto), m_alvara.end() + 120)]
+            self._set_medium("seguro_desemprego", "Entregar guias/alvara para seguro-desemprego")
+            item = {"tipo": "seguro_desemprego", "descricao": "Entregar guias/alvará para seguro-desemprego"}
+            prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+            if prazo:
+                item["prazo_dias"] = prazo
+            multa = _multa_diaria_obrigacao_no_fragmento(frag)
+            if multa:
+                item["multa_diaria"] = multa
+                limite = _multa_limite_obrigacao_no_fragmento(frag)
+                if limite:
+                    item["multa_limite"] = limite
+            self._append_obrigacao_fazer(item)
+
+    def _extract_obrigacoes_fazer_ppp(self):
+        """Obrigacao de fazer — entrega ou retificacao do PPP, com prazo/multa opcionais.
+
+        Exige verbo de ordem judicial antes ou depois de 'PPP' para nao capturar
+        mencoes narrativas ('alega que o PPP nao foi entregue').
+        """
+        m = _RE_PPP_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        frag = self.texto[m.start(): min(len(self.texto), m.end() + 200)]
+        descricao = "Entregar/retificar PPP"
+        m_an = _RE_PPP_AGENTE_NOCIVO.search(frag)
+        if m_an:
+            agente = m_an.group(1).strip()
+            descricao = f"Entregar/retificar PPP — agente nocivo: {agente}"
+        item: dict = {"tipo": "PPP", "descricao": descricao}
+        prazo = _prazo_obrigacao_dias_no_fragmento(frag)
+        if prazo:
+            item["prazo_dias"] = prazo
+        multa = _multa_diaria_obrigacao_no_fragmento(frag)
+        if multa:
+            item["multa_diaria"] = multa
+            limite = _multa_limite_obrigacao_no_fragmento(frag)
+            if limite:
+                item["multa_limite"] = limite
+        self._append_obrigacao_fazer(item)
+
+    def _extract_guias_rescisorias(self):
+        """Guias rescisórias/FGTS — TRCT, código SJ2, chave e alvará em contexto de entrega."""
+        m = _RE_GUIAS_RESCISORIAS_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        frag = self.texto[m.start() : min(len(self.texto), m.end() + 120)]
+        itens: list[str] = []
+        low = frag.casefold()
+        if "trct" in low:
+            itens.append("TRCT")
+        if re.search(r"(?i)c[oó]digo\s+SJ2", frag):
+            itens.append("código SJ2")
+        if re.search(r"(?i)chave\s+de\s+conectividade", frag):
+            itens.append("chave de conectividade")
+        if re.search(r"(?i)alvar[aá].{0,50}FGTS|FGTS.{0,50}alvar[aá]", frag):
+            itens.append("alvará FGTS")
+        if not itens:
+            return
+        ordenados = []
+        for item in ("TRCT", "código SJ2", "alvará FGTS", "chave de conectividade"):
+            if item in itens and item not in ordenados:
+                ordenados.append(item)
+        valor = "; ".join(ordenados)
+        self._set_medium("guias_rescisorias", valor)
+        item = {
+            "tipo": "guias_rescisorias",
+            "descricao": f"Entregar guias rescisórias: {valor}",
+        }
+        multa = _multa_diaria_obrigacao_no_fragmento(frag)
+        if multa:
+            item["multa_diaria"] = multa
+            limite = _multa_limite_obrigacao_no_fragmento(frag)
+            if limite:
+                item["multa_limite"] = limite
+        self._append_obrigacao_fazer(item)
+
+    def _extract_cargo_confianca(self):
+        """Cargo de confianca reconhecido (True) ou afastado (False) — afastado tem prioridade."""
+        texto = self.texto
+        if _RE_CARGO_CONFIANCA_AFASTADO.search(texto):
+            self._set_medium("cargo_confianca", False)
+        elif _RE_CARGO_CONFIANCA_RECONHECIDO.search(texto):
+            self._set_medium("cargo_confianca", True)
+
+    def _extract_banco_horas_valido(self):
+        """Banco de horas valido (True) ou invalido (False) — invalido tem prioridade."""
+        texto = self.texto
+        if _RE_BANCO_HORAS_INVALIDO.search(texto):
+            self._set_medium("banco_horas_valido", False)
+        elif _RE_BANCO_HORAS_VALIDO.search(texto):
+            self._set_medium("banco_horas_valido", True)
+
+    def _extract_horario_trabalho(self):
+        """Horario de entrada/saida/intervalo reconhecido — normalizado para 'XHh as YYh [com Zh de intervalo]'."""
+        def fmt_hora(h, mn):
+            s = f"{int(h):02d}h"
+            if mn and mn != "00":
+                s += mn
+            return s
+
+        def _parse(m, g_h_ent, g_m_ent, g_h_sai, g_m_sai, resto_key):
+            h_ent = m.group(g_h_ent)
+            min_ent = m.group(g_m_ent)
+            h_sai = m.group(g_h_sai)
+            min_sai = m.group(g_m_sai)
+            try:
+                if not (0 <= int(h_ent) <= 23 and 0 <= int(h_sai) <= 23):
+                    return None
+            except (TypeError, ValueError):
+                return None
+            entrada = fmt_hora(h_ent, min_ent)
+            saida   = fmt_hora(h_sai, min_sai)
+            resultado = f"{entrada} as {saida}"
+            resto = m.group(resto_key)
+            m_int = _RE_HORARIO_INTERVALO.search(resto)
+            if m_int:
+                txt = m_int.group(0).strip()
+                if "sem intervalo" in txt.lower():
+                    resultado += " sem intervalo"
+                else:
+                    qtd = m_int.group(1) or m_int.group(2)
+                    unid = "min" if "min" in txt.lower() else "h"
+                    resultado += f" com {qtd}{unid} de intervalo"
+            return resultado
+
+        # Padrão A: "das/de/jornada: HH às HH"
+        m = _RE_HORARIO_DAS_AS.search(self.texto)
+        if m:
+            r = _parse(m, 1, 2, 3, 4, "resto")
+            if r:
+                self._set_medium("horario_trabalho", r)
+                return
+        # Padrão B: "Entrada às HH / saída às HH"
+        m = _RE_HORARIO_ENTRADA_SAIDA.search(self.texto)
+        if m:
+            r = _parse(m, 1, 2, 3, 4, "resto2")
+            if r:
+                self._set_medium("horario_trabalho", r)
+
+    def _extract_advogados(self):
+        """Advogado do reclamante e da reclamada a partir do cabecalho da sentenca."""
+        texto = self.texto
+        m = _RE_ADV_RECLAMANTE.search(texto)
+        if m:
+            self._set_medium("advogado_reclamante", m.group(1).strip())
+        m = _RE_ADV_RECLAMADA.search(texto)
+        if m:
+            self._set_medium("advogado_reclamada", m.group(1).strip())
+
+    def _extract_prescricao_quinquenal(self):
+        """Resultado da prescricao quinquenal/bienal — Parcial > Afastada > Acolhida."""
+        texto = self.texto
+        # 1. Parcial — prioridade maxima (evita falso "Acolhida" em "acolho parcialmente")
+        if _RE_PRESCRICAO_PARCIAL.search(texto):
+            self._set_medium("prescricao_quinquenal", "Parcial")
+            return
+        # 2. Afastada
+        if _RE_PRESCRICAO_AFASTADA.search(texto):
+            self._set_medium("prescricao_quinquenal", "Afastada")
+            return
+        # 3. Acolhida
+        if _RE_PRESCRICAO_ACOLHIDA.search(texto):
+            self._set_medium("prescricao_quinquenal", "Acolhida")
+
+    def _extract_valor_causa(self):
+        """Valor da causa declarado no cabecalho ou dispositivo — normalizado para 'R$ X.XXX,XX'."""
+        m = _RE_VALOR_CAUSA.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("valor_causa", valor)
+
+    def _extract_jornada_contratual(self):
+        """Jornada contratual padrao reconhecida — normalizada para '44h semanais', '12x36', etc."""
+        texto = self.texto
+        # 1. Escala 12x36 — tem prioridade (padrão muito específico)
+        if _RE_JORNADA_12x36.search(texto):
+            self._set_medium("jornada_contratual", "12x36")
+            return
+        # 2. Horas + periodicidade (semanais/diárias/mensais)
+        m = _RE_JORNADA_HORAS.search(texto)
+        if m:
+            horas = next((g for g in m.groups()[::2] if g), None)   # grupos ímpares = número
+            periodo = next((g for g in m.groups()[1::2] if g), None) # grupos pares = período
+            if horas and periodo:
+                p = periodo.lower()
+                if "seman" in p:
+                    per_norm = "semanais"
+                elif "di" in p:
+                    per_norm = "diárias"
+                else:
+                    per_norm = "mensais"
+                self._set_medium("jornada_contratual", f"{horas}h {per_norm}")
+                return
+        # 3. (mensais ja cobertos pelo grupo "mensais?" de _RE_JORNADA_HORAS — nada a fazer)
+
+    def _extract_ir_retido_fonte(self):
+        """IR retido na fonte — Reclamada desconta / Sem incidencia / Conforme tabela IRRF."""
+        texto = self.texto
+        # 1. Sem incidência (natureza indenizatória ou isenção) — prioridade máxima
+        if _RE_IR_SEM_INCIDENCIA.search(texto):
+            self._set_medium("ir_retido_fonte", "Sem incidencia")
+            return
+        # 2. Remissão genérica à tabela progressiva (antes de verificar reclamada,
+        #    pois pode coexistir com menção à empresa)
+        if _RE_IR_TABELA.search(texto):
+            self._set_medium("ir_retido_fonte", "Conforme tabela IRRF")
+            return
+        # 3. Reclamada desconta / retém / recolhe
+        if _RE_IR_RECLAMADA.search(texto):
+            self._set_medium("ir_retido_fonte", "Reclamada desconta")
+
+    def _extract_contribuicao_previdenciaria(self):
+        """Responsavel pelo recolhimento do INSS (Reclamada / Ambas as partes / Sem incidencia)."""
+        texto = self.texto
+        # 1. Sem incidencia (natureza indenizatoria) — prioridade maxima
+        if _RE_CONTRIB_PREV_SEM_INCIDENCIA.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Sem incidencia")
+            return
+        # 2. Ambas as partes — cada qual sua cota
+        if _RE_CONTRIB_PREV_AMBAS.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Ambas as partes")
+            return
+        # 3. Reclamada recolhe (patronal ou com desconto do empregado)
+        if _RE_CONTRIB_PREV_RECLAMADA.search(texto):
+            self._set_medium("contribuicao_previdenciaria", "Reclamada")
+
+    def _extract_custas_processuais(self):
+        """Custas processuais — pagador (Reclamada/Reclamante/Isencao) e valor base opcional."""
+        texto = self.texto
+        # 1. Isenção tem prioridade sobre tudo
+        if _RE_CUSTAS_ISENCAO.search(texto):
+            self._set_medium("custas_processuais", "Isencao reclamante")
+            return
+        # 2. Identifica pagador pela ordem: reclamante (explícito) > reclamada (implícito/explícito)
+        m_reclamante = _RE_CUSTAS_RECLAMANTE.search(texto)
+        m_reclamada  = _RE_CUSTAS_RECLAMADA.search(texto)
+        if m_reclamante and (not m_reclamada or m_reclamante.start() <= m_reclamada.start()):
+            pagador   = "Reclamante"
+            m_anchor  = m_reclamante
+        elif m_reclamada:
+            pagador   = "Reclamada"
+            m_anchor  = m_reclamada
+        else:
+            return
+        # 3. Extrai valor base do fragmento (120 chars após o match)
+        frag = texto[m_anchor.start(): min(len(texto), m_anchor.end() + 120)]
+        valor_str = ""
+        m_sobre = _RE_CUSTAS_SOBRE.search(frag)
+        if m_sobre:
+            v = _formatar_moeda_br(m_sobre.group(1))
+            if v:
+                valor_str = f", sobre {v}"
+        else:
+            m_val = _RE_CUSTAS_VALOR_DIRETO.search(frag)
+            if m_val:
+                v = _formatar_moeda_br(m_val.group(1))
+                if v:
+                    valor_str = f", {v}"
+        self._set_medium("custas_processuais", f"{pagador}{valor_str}")
+
+    def _extract_multa_art_467(self):
+        """Multa do art. 467 da CLT — deferida/indeferida quando o texto e claro."""
+        if _RE_MULTA_467_INDEFERIDA.search(self.texto):
+            self._set_medium("multa_art_467", "Indeferida")
+        elif _RE_MULTA_467_DEFERIDA.search(self.texto):
+            self._set_medium("multa_art_467", "Deferida")
+
+    def _extract_multa_art_477(self):
+        """Multa do art. 477 da CLT — deferida/indeferida quando o texto e claro."""
+        if _RE_MULTA_477_INDEFERIDA.search(self.texto):
+            self._set_medium("multa_art_477", "Indeferida")
+        elif _RE_MULTA_477_DEFERIDA.search(self.texto):
+            self._set_medium("multa_art_477", "Deferida")
+
+    def _extract_dano_moral(self):
+        """Valor fixado a título de dano moral — MEDIUM quando condenação judicial expressa."""
+        m = _RE_DANO_MORAL.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("dano_moral", valor)
+
+    def _extract_dano_material(self):
+        """Valor fixado a título de dano material/emergente ou lucros cessantes — MEDIUM."""
+        m = _RE_DANO_MATERIAL.search(self.texto)
+        if not m:
+            return
+        raw = next((g for g in m.groups() if g), None)
+        if not raw:
+            return
+        valor = _formatar_moeda_br(raw)
+        if valor:
+            self._set_medium("dano_material", valor)
+
+    def _extract_fgts(self):
+        """FGTS — periodo completo e multa de 40% apenas quando expressos."""
+        if not re.search(r"(?i)\bFGTS\b", self.texto):
+            return
+        fragmentos = [m.group(0) for m in _RE_FGTS_FRAGMENTO.finditer(self.texto)]
+        texto_fgts = "\n".join(fragmentos) or self.texto
+
+        m_datas = _RE_FGTS_PERIODO_DATAS.search(texto_fgts)
+        if m_datas and _par_datas_dd_mm_yyyy_validas(m_datas.group(1), m_datas.group(2)):
+            self._set_medium(
+                "fgts_periodo_completo",
+                f"Todo o periodo contratual - {m_datas.group(1)} a {m_datas.group(2)}",
+            )
+        elif _RE_FGTS_TODO_PERIODO.search(texto_fgts):
+            self._set_medium("fgts_periodo_completo", "Todo o periodo contratual")
+
+        if _RE_FGTS_MULTA_40_INDEFERIDA.search(self.texto):
+            self._set_medium("fgts_observacoes", "Multa de 40% indeferida")
+        elif _RE_FGTS_MULTA_40.search(texto_fgts):
+            self._set_medium("fgts_observacoes", "Multa de 40% deferida")
+
+        if _RE_FGTS_MULTA_40_AVISO.search(self.texto):
+            self._set_medium("fgts_multa_40_aviso_previo", "Incide")
+
     def _extract_salario_base(self):
-        """Extrai salário — filtra valores implausíveis."""
+        """Extrai salário (MEDIUM) — moda entre menções plausíveis; inclui `Salário base:` / `Salário:`."""
         matches = list(_RE_SALARIO.finditer(self.texto))
         candidatos = []
         for m in matches:
@@ -359,6 +1734,62 @@ class PreExtractor:
         # Formata como valor monetário BR
         salario_fmt = f"R$ {valor_mais_freq:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         self._set_medium("salario_base", salario_fmt)
+
+    def _trecho_dispositivo_ou_decisao(self) -> Optional[str]:
+        """Recorte aproximado do dispositivo ou linha de decisão (texto original)."""
+        t = self.texto
+        m = _RE_TRECHO_DISPOSITIVO_TITULO.search(t)
+        if m:
+            return self._limitar_trecho_decisao(t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS])
+        m = _RE_TRECHO_ISTO_POSTO.search(t)
+        if m:
+            return self._limitar_trecho_decisao(t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS])
+        m = _RE_TRECHO_JULGO.search(t)
+        if m:
+            return self._limitar_trecho_decisao(t[m.start() : m.start() + _TRECHO_DECISAO_MAX_CHARS])
+        return None
+
+    @staticmethod
+    def _limitar_trecho_decisao(trecho: str) -> str:
+        """Evita que o recorte do dispositivo atravesse para nova intimação/documento PJe."""
+        m = _RE_NOVO_DOCUMENTO_PJE.search(trecho, 120)
+        if m:
+            return trecho[: m.start()]
+        return trecho
+
+    def _extract_verbas_deferidas_nomes(self):
+        """Nomes de verbas (lista fechada) só no dispositivo / trecho de decisão — MEDIUM."""
+        trecho = self._trecho_dispositivo_ou_decisao()
+        if not trecho:
+            return
+        nomes: list[str] = []
+        itens: list[dict[str, Any]] = []
+        visto: set[str] = set()
+        for m in _RE_VERBA_NOME_DISPOSITIVO.finditer(trecho):
+            n = (m.group(1) or "").strip()
+            if not n:
+                continue
+            chave = n.casefold()
+            if chave in visto:
+                continue
+            visto.add(chave)
+            nomes.append(n)
+            linha = _linha_do_span(trecho, m.start(), m.end())
+            periodo = _periodo_intervalo_na_mesma_linha(linha)
+            frag_ref = _fragmento_reflexo_ligado(trecho, m)
+            reflexos = _reflexos_no_fragmento(frag_ref)
+            detalhe = _detalhe_verba_na_linha(n, linha)
+            item: dict[str, Any] = {"nome": n}
+            if detalhe:
+                item["detalhe"] = detalhe
+            if periodo:
+                item["periodo"] = periodo
+            if reflexos:
+                item["reflexos"] = reflexos
+            itens.append(item)
+        if nomes:
+            self._set_medium("verbas_deferidas_nomes", nomes)
+            self._set_medium("verbas_deferidas_itens", itens)
 
     def _extract_indice_correcao(self):
         """Detecta IPCA-E, SELIC, TR — prioriza ADC 58."""
@@ -429,6 +1860,31 @@ class PreExtractor:
             if 20 <= dias <= 90:  # plausibilidade
                 self._set_medium("aviso_previo_dias", f"{dias} dias")
 
+    def _extract_honorarios_sucumbenciais(self):
+        """Honorarios sucumbenciais - pagador e percentual como ancoras MEDIUM."""
+        m = _RE_HONORARIOS_FRAGMENTO.search(self.texto)
+        if not m:
+            return
+        raw_pct = (m.group(2) or "").strip()
+        try:
+            pct = float(raw_pct.replace(",", "."))
+        except ValueError:
+            return
+        if not (5 <= pct <= 15):
+            return
+
+        fragmento = self.texto[m.start() : min(len(self.texto), m.end() + 180)]
+        if _RE_HONORARIOS_RECIPROCA.search(fragmento):
+            self._set_medium("honorarios_sucumbenciais", "Reciproca")
+        elif _RE_HONORARIOS_RECLAMADA.search(fragmento):
+            self._set_medium("honorarios_sucumbenciais", "Reclamada")
+        elif re.search(r"(?i)\bconden[oa]\b", fragmento):
+            self._set_medium("honorarios_sucumbenciais", "Reclamada")
+        else:
+            return
+
+        self._set_medium("percentual_honorarios", f"{raw_pct}%")
+
     # ── Interface pública ─────────────────────────────────────────────────────
 
     def run(self) -> dict:
@@ -443,6 +1899,9 @@ class PreExtractor:
         # HIGH
         high_extractors = [
             self._extract_numero_processo,
+            self._extract_reclamante,
+            self._extract_reclamada,
+            self._extract_vara_trabalho,
             self._extract_data_sentenca,
             self._extract_justica_gratuita,
             self._extract_tipo_rito,
@@ -455,16 +1914,44 @@ class PreExtractor:
 
         # MEDIUM
         medium_extractors = [
+            self._extract_juiz_responsavel,
             self._extract_data_ajuizamento,
+            self._extract_data_transito_julgado,
+            self._extract_data_intimacao_calculos,
+            self._extract_prazo_calculos_dias,
             self._extract_data_admissao,
             self._extract_data_demissao,
+            self._extract_data_saida_ctps,
+            self._extract_funcao_reclamante,
+            self._extract_anotacao_ctps,
+            self._extract_obrigacoes_fazer_ctps,
+            self._extract_seguro_desemprego,
+            self._extract_obrigacoes_fazer_ppp,
+            self._extract_guias_rescisorias,
+            self._extract_cargo_confianca,
+            self._extract_banco_horas_valido,
+            self._extract_horario_trabalho,
+            self._extract_advogados,
+            self._extract_prescricao_quinquenal,
+            self._extract_valor_causa,
+            self._extract_jornada_contratual,
+            self._extract_ir_retido_fonte,
+            self._extract_contribuicao_previdenciaria,
+            self._extract_custas_processuais,
+            self._extract_multa_art_467,
+            self._extract_multa_art_477,
+            self._extract_fgts,
             self._extract_salario_base,
+            self._extract_verbas_deferidas_nomes,
             self._extract_indice_correcao,
             self._extract_juros_mora,
             self._extract_motivo_rescisao,
             self._extract_tipo_contrato,
             self._extract_divisor_horas,
             self._extract_aviso_previo_dias,
+            self._extract_honorarios_sucumbenciais,
+            self._extract_dano_moral,
+            self._extract_dano_material,
         ]
         for fn in medium_extractors:
             try:
@@ -515,7 +2002,21 @@ def build_anchor_section(medium_fields: dict) -> str:
     ROTULOS = {
         "data_admissao":     "Data de admissão",
         "data_demissao":     "Data de demissão",
+        "data_saida_ctps":   "Data de saída da CTPS",
+        "anotacao_ctps":     "Anotação/retificação da CTPS",
+        "obrigacoes_fazer":  "Obrigações de fazer",
+        "juiz_responsavel":  "Juiz responsavel",
+        "funcao_reclamante": "Função do reclamante",
+        "seguro_desemprego": "Seguro-desemprego",
+        "guias_rescisorias": "Guias rescisórias",
+        "multa_art_477":     "Multa do art. 477 da CLT",
+        "fgts_periodo_completo": "FGTS - periodo",
+        "fgts_observacoes": "FGTS - observacoes",
+        "fgts_multa_40_aviso_previo": "FGTS/multa 40% sobre aviso previo",
         "data_ajuizamento":  "Data de ajuizamento",
+        "data_transito_julgado": "Data do trânsito em julgado",
+        "data_intimacao_calculos": "Data de intimação para cálculos",
+        "prazo_calculos_dias": "Prazo para cálculos",
         "salario_base":      "Salário base",
         "indice_correcao":   "Índice de correção monetária",
         "juros_mora":        "Juros de mora",
@@ -523,12 +2024,88 @@ def build_anchor_section(medium_fields: dict) -> str:
         "tipo_contrato":     "Tipo de contrato",
         "divisor_horas":     "Divisor de horas extras",
         "aviso_previo_dias": "Aviso prévio (dias)",
+        "honorarios_sucumbenciais": "Honorários sucumbenciais",
+        "percentual_honorarios": "Percentual de honorários",
+        "dano_moral":            "Dano moral",
+        "dano_material":         "Dano material",
+        "multa_art_467":         "Multa art. 467 CLT",
+        "custas_processuais":    "Custas processuais",
+        "contribuicao_previdenciaria": "Contribuição previdenciária (INSS)",
+        "ir_retido_fonte":             "IR retido na fonte",
+        "jornada_contratual":          "Jornada contratual",
+        "valor_causa":                 "Valor da causa",
+        "prescricao_quinquenal":       "Prescrição quinquenal",
+        "cargo_confianca":             "Cargo de confiança (art. 62 II CLT)",
+        "banco_horas_valido":          "Banco de horas válido",
+        "horario_trabalho":            "Horário de trabalho",
+        "advogado_reclamante":         "Advogado do reclamante",
+        "advogado_reclamada":          "Advogado da reclamada",
     }
 
     linhas = [
         "VALORES PRÉ-EXTRAÍDOS (média confiança — confirme no texto antes de usar):",
     ]
     for campo, valor in medium_fields.items():
+        if campo == "verbas_deferidas_nomes":
+            if "verbas_deferidas_itens" in medium_fields:
+                continue
+            if not isinstance(valor, list) or not valor:
+                continue
+            linhas.append("  • Verbas (padrões detectados no dispositivo/decisão):")
+            for nome in valor:
+                linhas.append(f"      - {nome}")
+            continue
+        if campo == "obrigacoes_fazer":
+            if not isinstance(valor, list) or not valor:
+                continue
+            linhas.append("  • Obrigações de fazer:")
+            for item in valor:
+                if not isinstance(item, dict):
+                    continue
+                tipo = (item.get("tipo") or "outro").strip()
+                descricao = (item.get("descricao") or "").strip()
+                extras: list[str] = []
+                prazo = (item.get("prazo_dias") or "").strip()
+                multa = (item.get("multa_diaria") or "").strip()
+                limite = (item.get("multa_limite") or "").strip()
+                if prazo:
+                    extras.append(f"prazo: {prazo}")
+                if multa:
+                    extras.append(f"multa diaria: {multa}")
+                if limite:
+                    extras.append(f"limite: {limite}")
+                base = f"      - {tipo}"
+                if descricao:
+                    base += f": {descricao}"
+                if extras:
+                    base += " — " + " — ".join(extras)
+                linhas.append(base)
+            continue
+        if campo == "verbas_deferidas_itens":
+            if not isinstance(valor, list) or not valor:
+                continue
+            linhas.append("  • Verbas (padrões detectados no dispositivo/decisão):")
+            for it in valor:
+                if not isinstance(it, dict):
+                    continue
+                nome = (it.get("nome") or "").strip()
+                if not nome:
+                    continue
+                per = (it.get("periodo") or "").strip()
+                detalhe = (it.get("detalhe") or "").strip()
+                refs = it.get("reflexos")
+                extras: list[str] = []
+                if detalhe:
+                    extras.append(f"detalhe: {detalhe}")
+                if per:
+                    extras.append(f"período: {per}")
+                if isinstance(refs, list) and refs:
+                    extras.append(f"reflexos: {', '.join(str(x) for x in refs)}")
+                if extras:
+                    linhas.append(f"      - {nome} — " + " — ".join(extras))
+                else:
+                    linhas.append(f"      - {nome}")
+            continue
         rotulo = ROTULOS.get(campo, campo)
         linhas.append(f"  • {rotulo}: {valor}")
 

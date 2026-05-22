@@ -10,11 +10,15 @@ import {
   Pencil,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useAnalyze } from "../hooks/useAnalyze";
 import { AnalysisReport } from "../components/features/AnalysisReport";
+import { PdfViewer, isPdfFile } from "../components/features/PdfViewer";
 import type { ProcessoTrabalhista } from "../types/api";
 import { api } from "../services/api";
+import type { LabManifestacaoResponse } from "../services/api";
 import type { AnalyzePayload } from "../hooks/useAnalyze";
 
 // ─── Cards do Laboratório ─────────────────────────────────────────────────────
@@ -216,8 +220,28 @@ export const Laboratory: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string>("");
   const [currentLog, setCurrentLog] = useState("");
+  const [manifestacaoMarkdown, setManifestacaoMarkdown] = useState("");
+  const [isGeneratingManifestacao, setIsGeneratingManifestacao] = useState(false);
+  const [manifestacaoErro, setManifestacaoErro] = useState<string | null>(null);
+  const [showManifestacaoPreview, setShowManifestacaoPreview] = useState(false);
+  const [manifestacaoPreviewModo, setManifestacaoPreviewModo] = useState<
+    "renderizado" | "raw"
+  >(() => {
+    if (typeof window === "undefined") return "renderizado";
+    const saved = window.localStorage.getItem("lab_manifestacao_preview_mode");
+    return saved === "raw" ? "raw" : "renderizado";
+  });
+  const [pdfNav, setPdfNav] = useState<{ page: number; seq: number }>({
+    page: 1,
+    seq: 0,
+  });
   const logIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { mutate, isLoading, data } = useAnalyze();
+  const { mutate, isLoading, data, progressMessages, partialData } = useAnalyze();
+
+  const primarySentencaPdf = useMemo(
+    () => files.sentenca.find((f) => isPdfFile(f)) ?? null,
+    [files.sentenca],
+  );
 
   const hasAmostragens = amostragens.length > 0;
 
@@ -309,6 +333,14 @@ export const Laboratory: React.FC = () => {
     prevLoadingRef.current = isLoading;
   }, [isLoading]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "lab_manifestacao_preview_mode",
+      manifestacaoPreviewModo,
+    );
+  }, [manifestacaoPreviewModo]);
+
   // ── Arquivo ──────────────────────────────────────────────────────────────
   const setFile = useCallback((id: FileTypeId, value: File | File[] | null) => {
     setFiles((prev) => {
@@ -352,9 +384,13 @@ export const Laboratory: React.FC = () => {
   }, [files, mutate, amostragens]);
 
   // ── Downloads ────────────────────────────────────────────────────────────
-  const processoTrabalhista = (data || null) as unknown as
+  const processoFinal = (data || null) as unknown as
     | ProcessoTrabalhista
     | null;
+  const processoTrabalhista = (processoFinal || partialData || null) as
+    | ProcessoTrabalhista
+    | null;
+  const terminalMsgs = progressMessages.slice(-3);
 
   const handleDownload = async (url: string, fallback: string) => {
     try {
@@ -392,6 +428,29 @@ export const Laboratory: React.FC = () => {
       a.remove();
     } catch {
       /* silent */
+    }
+  };
+
+  const handleGenerateManifestacaoPreview = async () => {
+    if (!data) return;
+    setIsGeneratingManifestacao(true);
+    setManifestacaoErro(null);
+    try {
+      const r = await api.post<LabManifestacaoResponse>(
+        "/lab/gerar-manifestacao",
+        data,
+      );
+      const md = (r.data?.markdown || "").trim();
+      setManifestacaoMarkdown(md);
+      setShowManifestacaoPreview(true);
+    } catch (e: any) {
+      setManifestacaoErro(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Erro ao gerar preview da manifestação.",
+      );
+    } finally {
+      setIsGeneratingManifestacao(false);
     }
   };
 
@@ -998,7 +1057,7 @@ export const Laboratory: React.FC = () => {
       )}
 
       {/* Relatório inline */}
-      {processoTrabalhista && (
+      {(processoTrabalhista || isLoading) && (
         <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-slate-50">
@@ -1014,7 +1073,7 @@ export const Laboratory: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={!processoTrabalhista}
+                disabled={!processoFinal}
                 className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700 disabled:opacity-50"
                 onClick={handleGeneratePjc}
               >
@@ -1022,7 +1081,7 @@ export const Laboratory: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={!processoTrabalhista}
+                disabled={!processoFinal}
                 className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700 disabled:opacity-50"
                 onClick={handleGenerateExcel}
               >
@@ -1030,17 +1089,161 @@ export const Laboratory: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={!processoTrabalhista}
+                disabled={!processoFinal}
                 className="rounded-md bg-emerald-700 px-2 py-1 text-[11px] text-white hover:bg-emerald-600 disabled:opacity-50"
                 onClick={handleGenerateDocx}
               >
                 Gerar Parecer (Word)
               </button>
+              <button
+                type="button"
+                disabled={!processoFinal || isGeneratingManifestacao}
+                className="rounded-md bg-indigo-700 px-2 py-1 text-[11px] text-white hover:bg-indigo-600 disabled:opacity-50"
+                onClick={handleGenerateManifestacaoPreview}
+              >
+                {isGeneratingManifestacao
+                  ? "Gerando preview..."
+                  : "Preview Manifestação"}
+              </button>
             </div>
           </div>
-          <div className="max-h-[480px] overflow-y-auto rounded-lg bg-slate-950/60 p-3">
-            <AnalysisReport processo={processoTrabalhista} raw={data} />
+          {isLoading && (
+            <div className="mb-3 rounded-lg border border-slate-800 bg-black/50 p-3 font-mono text-xs text-slate-300">
+              {terminalMsgs.map((msg, idx) => {
+                const isLast = idx === terminalMsgs.length - 1;
+                return (
+                  <div key={`${msg}-${idx}`} className="mb-1 flex items-center gap-2 last:mb-0">
+                    {isLast ? <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" /> : null}
+                    <span>{msg}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div
+            className={
+              primarySentencaPdf
+                ? "grid gap-4 lg:grid-cols-2 lg:items-start"
+                : ""
+            }
+          >
+            {primarySentencaPdf ? (
+              <PdfViewer
+                file={primarySentencaPdf}
+                jumpToPage={pdfNav.page}
+                jumpSeq={pdfNav.seq}
+                className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+              />
+            ) : null}
+            <div className="max-h-[480px] overflow-y-auto rounded-lg bg-slate-950/60 p-3 min-h-0">
+              <AnalysisReport
+                processo={processoTrabalhista}
+                raw={data}
+                onNavegar={(p) =>
+                  setPdfNav({ page: p, seq: Date.now() })
+                }
+                isLoading={isLoading}
+              />
+            </div>
           </div>
+        </section>
+      )}
+
+      {showManifestacaoPreview && (
+        <section className="mt-4 rounded-xl border border-indigo-700/40 bg-slate-900/60 p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-indigo-200">
+              Preview da Manifestação (Markdown)
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
+                onClick={() =>
+                  navigator.clipboard?.writeText(manifestacaoMarkdown || "")
+                }
+              >
+                Copiar
+              </button>
+              <div className="flex items-center rounded-md border border-slate-700 overflow-hidden">
+                <button
+                  type="button"
+                  className={`px-2 py-1 text-[11px] ${
+                    manifestacaoPreviewModo === "renderizado"
+                      ? "bg-indigo-700 text-white"
+                      : "bg-slate-900 text-slate-200 hover:bg-slate-800"
+                  }`}
+                  onClick={() => setManifestacaoPreviewModo("renderizado")}
+                >
+                  Renderizado
+                </button>
+                <button
+                  type="button"
+                  className={`px-2 py-1 text-[11px] border-l border-slate-700 ${
+                    manifestacaoPreviewModo === "raw"
+                      ? "bg-indigo-700 text-white"
+                      : "bg-slate-900 text-slate-200 hover:bg-slate-800"
+                  }`}
+                  onClick={() => setManifestacaoPreviewModo("raw")}
+                >
+                  Raw
+                </button>
+              </div>
+              <button
+                type="button"
+                className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
+                onClick={() => setShowManifestacaoPreview(false)}
+              >
+                Fechar preview
+              </button>
+            </div>
+          </div>
+          {manifestacaoErro ? (
+            <p className="text-xs text-rose-300">{manifestacaoErro}</p>
+          ) : (
+            <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-700 bg-slate-950/70 p-3">
+              {manifestacaoMarkdown ? (
+                manifestacaoPreviewModo === "renderizado" ? (
+                  <div className="prose prose-invert prose-sm max-w-none prose-headings:text-slate-100 prose-p:text-slate-200 prose-strong:text-slate-100 prose-li:text-slate-200">
+                    <ReactMarkdown
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border-collapse text-xs">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        th: ({ children }) => (
+                          <th className="border border-slate-700 bg-slate-900 px-2 py-1 text-left text-slate-100">
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="border border-slate-700 px-2 py-1 text-slate-200">
+                            {children}
+                          </td>
+                        ),
+                        code: ({ children }) => (
+                          <code className="rounded bg-slate-900 px-1 py-0.5 text-[11px] text-indigo-200">
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {manifestacaoMarkdown}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap text-xs leading-relaxed text-slate-100">
+                    {manifestacaoMarkdown}
+                  </pre>
+                )
+              ) : (
+                <p className="text-xs text-slate-300">Sem conteúdo gerado.</p>
+              )}
+            </div>
+          )}
         </section>
       )}
 
@@ -1059,8 +1262,26 @@ export const Laboratory: React.FC = () => {
               Fechar
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <AnalysisReport processo={processoTrabalhista} raw={data} />
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
+            {primarySentencaPdf ? (
+              <div className="flex min-h-[36vh] shrink-0 flex-col lg:w-[42%] lg:max-w-[520px]">
+                <PdfViewer
+                  file={primarySentencaPdf}
+                  jumpToPage={pdfNav.page}
+                  jumpSeq={pdfNav.seq}
+                  className="min-h-0 flex-1 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                />
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <AnalysisReport
+                processo={processoTrabalhista}
+                raw={data}
+                onNavegar={(p) =>
+                  setPdfNav({ page: p, seq: Date.now() })
+                }
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1108,7 +1329,7 @@ export const Laboratory: React.FC = () => {
             <button
               type="button"
               onClick={handleGeneratePjc}
-              disabled={!processoTrabalhista}
+              disabled={!processoFinal}
               className="rounded-lg bg-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Gerar PJC
@@ -1116,7 +1337,7 @@ export const Laboratory: React.FC = () => {
             <button
               type="button"
               onClick={handleGenerateExcel}
-              disabled={!processoTrabalhista}
+              disabled={!processoFinal}
               className="rounded-lg bg-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Gerar Excel
@@ -1128,6 +1349,14 @@ export const Laboratory: React.FC = () => {
               className="rounded-lg bg-emerald-700 px-3 py-2.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Gerar Parecer (Word)
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateManifestacaoPreview}
+              disabled={!data || isGeneratingManifestacao}
+              className="rounded-lg bg-indigo-700 px-3 py-2.5 text-xs font-semibold text-white hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isGeneratingManifestacao ? "Gerando..." : "Preview Manifestação"}
             </button>
           </div>
         </div>

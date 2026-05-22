@@ -14,11 +14,17 @@ Estratégia de truncamento:
   1. Remove duplicatas de intimação.
   2. Janela cirúrgica: 40% início (página 1 / identificação PJe: valor da causa, Data da Autuação, Partes) + 60% dispositivo. Nunca ignorar os primeiros caracteres do documento na extração.
   Flash usa MAX_CHARS_CONTEXT; Pro usa o dobro.
+
+Observabilidade: com DEBUG_PIPELINE=1 (config), _call_model loga tamanho/hash/snippets
+em ai_pre_remove_duplicatas, ai_pos_remove_duplicatas, ai_pos_smart_truncate; _smart_truncate_after_dedup
+emite [DEBUG-PIPELINE][truncate] com geometria da janela quando len(texto) > max_chars (ver pipeline_debug.py).
 """
 
 import json
 import time
 import re
+from typing import Any, Dict, List, Mapping, Optional, cast
+
 from google import genai
 from google.genai.types import Content, Part, Blob
 from config import settings
@@ -92,15 +98,33 @@ def _remove_duplicatas(text: str) -> str:
     return text
 
 
-def _smart_truncate(text: str, max_chars: int) -> str:
-    text = _remove_duplicatas(text)
-    if len(text) <= max_chars:
-        print(f"   [TRUNCATE] Texto cabe inteiro: {len(text)} chars", flush=True)
+def _smart_truncate_after_dedup(
+    text: str,
+    max_chars: int,
+    pipeline_debug_meta: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """
+    Aplica só limite de caracteres + janela cirúrgica.
+    Presume que intimação/2º dispositivo já foram tratados em _remove_duplicatas.
+    """
+    meta = dict(pipeline_debug_meta or {})
+    n = len(text)
+    if n <= max_chars:
+        print(f"   [TRUNCATE] Texto cabe inteiro: {n} chars", flush=True)
+        if settings.DEBUG_PIPELINE:
+            from services.pipeline_debug import log_truncate_cabe_inteiro
+
+            log_truncate_cabe_inteiro(n, max_chars, meta=meta)
         return text
 
     parte1_chars = int(max_chars * 0.40)  # 40% início (cabeçalho, valor da causa, advogados); 60% dispositivo
     parte2_chars = max_chars - parte1_chars
     parte1 = text[:parte1_chars]
+
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import log_truncate_inicio_cirurgico
+
+        log_truncate_inicio_cirurgico(n, max_chars, parte1_chars, parte2_chars, meta=meta)
 
     match_disp = _RE_DISPOSITIVO.search(text)
     if match_disp:
@@ -109,6 +133,10 @@ def _smart_truncate(text: str, max_chars: int) -> str:
         end2   = min(len(text), start2 + parte2_chars)
         parte2 = text[start2:end2]
         print(f"   [TRUNCATE] Janela cirúrgica: início={parte1_chars} + disp={start2}-{end2}", flush=True)
+        if settings.DEBUG_PIPELINE:
+            from services.pipeline_debug import log_truncate_com_dispositivo
+
+            log_truncate_com_dispositivo(disp_pos, start2, end2, meta=meta)
     else:
         matches = list(_RE_VERBAS.finditer(text))
         start2 = max(parte1_chars, matches[-1].start() - 500) if matches \
@@ -116,10 +144,21 @@ def _smart_truncate(text: str, max_chars: int) -> str:
         end2   = min(len(text), start2 + parte2_chars)
         parte2 = text[start2:end2]
         print(f"   [TRUNCATE] Fallback verbas: {start2}–{end2}", flush=True)
+        if settings.DEBUG_PIPELINE:
+            from services.pipeline_debug import log_truncate_sem_dispositivo_fallback
+
+            log_truncate_sem_dispositivo_fallback(
+                start2, end2, len(matches), meta=meta
+            )
 
     truncated = parte1 + "\n\n[...FUNDAMENTAÇÃO INTERMEDIÁRIA OMITIDA...]\n\n" + parte2
     print(f"   [TRUNCATE] Total enviado: {len(truncated)} chars (original: {len(text)})", flush=True)
     return truncated
+
+
+def _smart_truncate(text: str, max_chars: int) -> str:
+    """Remove duplicatas de intimação/decisão colada, depois aplica janela cirúrgica se necessário."""
+    return _smart_truncate_after_dedup(_remove_duplicatas(text), max_chars)
 
 
 # ── Prompt principal ──────────────────────────────────────────────────────────
@@ -146,6 +185,8 @@ REGRAS OBRIGATÓRIAS:
 - Priorize sempre o DISPOSITIVO sobre a fundamentação em caso de conflito
 - NÃO copie os valores de exemplo do template — extraia do texto
 - status_final de cada verba: use "deferida" para sentença de 1ª instância, "mantida"/"reformada"/"excluída"/"acrescida" para acórdão/embargos — NUNCA deixar null ou "não informado"
+- **verbas_deferidas[].trecho_fundamentacao**: para CADA verba, copie um trecho CURTO (máximo 150 caracteres) do DISPOSITIVO ou da fundamentação imediatamente anterior que DEFERE essa verba. Texto literal do documento, sem inventar. Não use null — se não houver trecho identificável, use string vazia "". A frase de exemplo na estrutura JSON abaixo é só ilustrativa; NÃO copie esse texto se não existir no documento.
+- **verbas_deferidas[].pagina_origem**: sempre null na resposta da IA (preenchimento é feito no pós-processamento do sistema).
 
 INSTRUÇÕES ESPECÍFICAS PARA CAMPOS DIFÍCEIS:
 - jornada_contratual: buscar "jornada de X horas", "44h semanais", "horário de X às X" e calcular horas semanais. Se encontrar horário mas não jornada explícita, calcule: (saída - entrada - intervalo) × dias da semana
@@ -222,7 +263,9 @@ ESTRUTURA ESPERADA (retorne exatamente estas chaves, com null para não encontra
       "valor_fixado": null,
       "integracao_salarial": null,
       "reflexos": [],
-      "observacoes": null
+      "observacoes": null,
+      "trecho_fundamentacao": "Defiro o pagamento de horas extras excedentes à 8ª diária, nos termos da fundamentação.",
+      "pagina_origem": null
     }}
   ]
 }}
@@ -277,10 +320,54 @@ def _call_model(
     text: str,
     playbook: str = "",
     anchor_section: str = "",
-    retries: int = 2
+    retries: int = 2,
+    pipeline_debug_meta: Optional[Mapping[str, str]] = None,
 ) -> dict:
     max_chars = CHARS_LIMIT.get(model_name, 15_000)
-    truncated = _smart_truncate(text, max_chars)
+    meta = dict(pipeline_debug_meta or {})
+
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import (
+            alert_large_delta,
+            log_etapa,
+            maybe_write_dump,
+        )
+
+        log_etapa("ai_pre_remove_duplicatas", text, meta=meta)
+        maybe_write_dump("ai_pre_remove_duplicatas", text, meta=meta)
+
+    after_dedup = _remove_duplicatas(text)
+
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import (
+            alert_large_delta,
+            log_etapa,
+            maybe_write_dump,
+        )
+
+        log_etapa("ai_pos_remove_duplicatas", after_dedup, meta=meta)
+        alert_large_delta("remove_duplicatas", text, after_dedup, meta=meta)
+        maybe_write_dump("ai_pos_remove_duplicatas", after_dedup, meta=meta)
+
+    truncated = _smart_truncate_after_dedup(
+        after_dedup, max_chars, pipeline_debug_meta=meta
+    )
+
+    if settings.DEBUG_PIPELINE:
+        from services.pipeline_debug import (
+            alert_large_delta,
+            log_etapa,
+            maybe_write_dump,
+        )
+
+        log_etapa("ai_pos_smart_truncate", truncated, meta=meta)
+        alert_large_delta("smart_truncate", after_dedup, truncated, meta=meta)
+        maybe_write_dump("ai_pos_smart_truncate", truncated, meta=meta)
+        print(
+            f"   [DEBUG-PIPELINE] Corpo do documento enviado ao prompt: {len(truncated)} chars",
+            flush=True,
+        )
+
     prompt = _build_prompt(truncated, playbook, anchor_section)
 
     prompt_chars = len(prompt)
@@ -333,6 +420,197 @@ def _call_model(
     )
 
 
+# ── Quadro comparativo (dossiê: pedido × defesa × decisão) ─────────────────────
+
+_DOSSIE_DOC_MARKER = "--- INÍCIO DO DOCUMENTO:"
+
+_QUADRO_COMPARATIVO_INSTRUCTIONS = """Você é um perito calculista (direito do trabalho, Brasil).
+
+O texto abaixo agrupa VÁRIOS documentos de um mesmo processo (seções começam com "{marker}").
+
+TAREFA: cruzamento TRIPLO. Para cada verba ou pedido relevante:
+1. resumo_pedido — o que o autor pleiteia na inicial (ou trecho indicado).
+2. resumo_defesa — tese da reclamada na contestação; se não houver impugnação desse ponto, use algo como "Não impugnado / incontroverso".
+3. resumo_decisao — o que o juiz decidiu (dispositivo/sentença).
+4. status_final — em poucas palavras (ex.: "Deferida", "Indeferida", "Parcialmente deferida", "Não conhecida") com base na decisão.
+
+REGRAS:
+- Retorne APENAS JSON válido, sem markdown, sem ```json
+- quadro_comparativo: lista de objetos com chaves exatas: verba_alvo, resumo_pedido, resumo_defesa, resumo_decisao, status_final (todas strings; use "" se desconhecido)
+- Não invente fatos: baseie-se só no texto. Frases curtas (1–3 por campo).
+- Priorize verbas trabalhistas (HE, adicionais, FGTS, aviso, férias, 13º, danos, multas etc.).
+
+ESTRUTURA OBRIGATÓRIA:
+{{
+  "quadro_comparativo": [
+    {{
+      "verba_alvo": "",
+      "resumo_pedido": "",
+      "resumo_defesa": "",
+      "resumo_decisao": "",
+      "status_final": ""
+    }}
+  ]
+}}
+
+TEXTO DO DOSSIÊ:
+"""
+
+
+def _truncate_texto_dossie_para_quadro(texto: str, max_chars: int) -> str:
+    """
+    Preserva trecho de cada documento do dossiê (marcadores INÍCIO DO DOCUMENTO).
+    Se não houver marcadores, reutiliza truncamento cirúrgico padrão.
+    """
+    if max_chars < 500:
+        max_chars = 500
+    if not texto:
+        return ""
+    if len(texto) <= max_chars:
+        return texto
+    if _DOSSIE_DOC_MARKER not in texto:
+        return _smart_truncate(texto, max_chars)
+
+    idxs: List[int] = []
+    pos = 0
+    while True:
+        found = texto.find(_DOSSIE_DOC_MARKER, pos)
+        if found < 0:
+            break
+        idxs.append(found)
+        pos = found + 1
+    if len(idxs) < 2:
+        return _smart_truncate(texto, max_chars)
+
+    segments: List[str] = []
+    if idxs[0] > 0:
+        head = texto[: idxs[0]].strip()
+        if head:
+            segments.append(head)
+    for i, start in enumerate(idxs):
+        end = idxs[i + 1] if i + 1 < len(idxs) else len(texto)
+        segments.append(texto[start:end])
+
+    n = len(segments)
+    per = max(1, max_chars // n)
+    out_chunks: List[str] = []
+    for seg in segments:
+        if len(seg) <= per:
+            out_chunks.append(seg)
+        else:
+            omit = "\n[... trecho omitido por limite de contexto ...]\n"
+            head = max(1, (per - len(omit)) // 2)
+            tail = per - head - len(omit)
+            if tail < 100:
+                out_chunks.append(seg[:per])
+            else:
+                out_chunks.append(seg[:head] + omit + seg[-tail:])
+    joined = "\n".join(out_chunks)
+    if len(joined) > max_chars:
+        return joined[:max_chars]
+    return joined
+
+
+def _normalize_quadro_comparativo_rows(raw: Any) -> List[Dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        row = {
+            "verba_alvo": str(it.get("verba_alvo") or "").strip(),
+            "resumo_pedido": str(it.get("resumo_pedido") or "").strip(),
+            "resumo_defesa": str(it.get("resumo_defesa") or "").strip(),
+            "resumo_decisao": str(it.get("resumo_decisao") or "").strip(),
+            "status_final": str(it.get("status_final") or "").strip(),
+        }
+        if not any(row.values()):
+            continue
+        if not row["verba_alvo"]:
+            row["verba_alvo"] = "Pedido não identificado"
+        out.append(row)
+    return out
+
+
+def extrair_quadro_comparativo_dossie(texto_dossie: str) -> Dict[str, Any]:
+    """
+    Segunda passagem opcional no dossiê multi-arquivo: quadro pedido × defesa × decisão.
+
+    Falha segura: em erro retorna quadro_comparativo vazio (sem exceção ao caller).
+
+    Returns:
+        {"quadro_comparativo": list[dict], "model_used": str | None, "error": str | None}
+    """
+    empty: Dict[str, Any] = {
+        "quadro_comparativo": [],
+        "model_used": None,
+        "error": None,
+    }
+    if not texto_dossie or not texto_dossie.strip():
+        return empty
+
+    last_error: str | None = None
+    for model_name in MODELS_CASCADE:
+        max_chars = CHARS_LIMIT.get(model_name, 15_000)
+        # texto + instruções — reserva para o envelope do prompt
+        body_budget = max(4000, max_chars - 6000)
+        truncated = _truncate_texto_dossie_para_quadro(texto_dossie, body_budget)
+        prompt = (
+            _QUADRO_COMPARATIVO_INSTRUCTIONS.format(marker=_DOSSIE_DOC_MARKER)
+            + truncated
+        )
+        print(
+            f"[AI][QUADRO] modelo={model_name} | texto dossie: {len(texto_dossie)} | "
+            f"após truncar: {len(truncated)} | prompt: {len(prompt)} chars",
+            flush=True,
+        )
+        for attempt in range(1, 4):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                raw_text = response.text.strip() if response.text else ""
+                if not raw_text:
+                    raise ValueError("Resposta vazia da IA")
+                parsed = cast(
+                    Dict[str, Any],
+                    json.loads(_strip_markdown(raw_text)),
+                )
+                rows = _normalize_quadro_comparativo_rows(
+                    parsed.get("quadro_comparativo")
+                )
+                print(f"[AI][QUADRO] OK — {len(rows)} linha(s)", flush=True)
+                return {
+                    "quadro_comparativo": rows,
+                    "model_used": model_name,
+                    "error": None,
+                }
+            except json.JSONDecodeError as e:
+                last_error = f"JSON inválido: {e}"
+                print(
+                    f"[AI][QUADRO] {model_name} JSON inválido: {e}",
+                    flush=True,
+                )
+                break
+            except Exception as e:
+                last_error = str(e)
+                err_str = str(e).lower()
+                if "429" in err_str or "quota" in err_str or "rate" in err_str:
+                    time.sleep(8 * attempt)
+                    continue
+                if "timeout" in err_str or "deadline" in err_str or "503" in err_str:
+                    time.sleep(3 * attempt)
+                    continue
+                print(f"[AI][QUADRO] Erro {model_name}: {e}", flush=True)
+                break
+
+    print(f"[AI][QUADRO] Falha total — {last_error}", flush=True)
+    empty["error"] = last_error
+    return empty
+
+
 # ── Extração de texto/OCR de imagem (dossiê multimodal) ───────────────────────
 
 def extrair_texto_ou_descricao_imagem(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
@@ -373,6 +651,8 @@ def extract_data_with_gemini(
     text: str,
     playbook: str = "",
     pre_fields: dict = None,
+    *,
+    pipeline_debug_meta: Optional[Mapping[str, str]] = None,
 ) -> dict:
     """
     Extrai dados do texto com cascata de modelos Flash → Pro.
@@ -383,6 +663,8 @@ def extract_data_with_gemini(
         pre_fields: Dict {"high": {...}, "medium": {...}} do pre_extractor.
                     medium fields → injetados como âncoras no prompt.
                     high fields → não enviados (aplicados diretamente no processor).
+        pipeline_debug_meta: Opcional — se DEBUG_PIPELINE=1, chaves job_id, user_id, label
+                    para logs/dumps em services/pipeline_debug.py.
 
     Returns:
         {"data": dict, "model_used": str, "error": str|None}
@@ -406,9 +688,11 @@ def extract_data_with_gemini(
     for model_name in MODELS_CASCADE:
         try:
             result = _call_model(
-                model_name, text,
+                model_name,
+                text,
                 playbook=playbook,
-                anchor_section=anchor_section
+                anchor_section=anchor_section,
+                pipeline_debug_meta=pipeline_debug_meta,
             )
             print(f"[AI] OK Sucesso com {model_name}", flush=True)
             return {"data": result, "model_used": model_name, "error": None}
