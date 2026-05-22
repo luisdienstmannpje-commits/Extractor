@@ -254,6 +254,35 @@ _RE_CUSTAS_SOBRE = re.compile(
 _RE_CUSTAS_VALOR_DIRETO = re.compile(
     r"(?is)(?:no\s+valor\s+de|no\s+importe\s+de)\s+(R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})"
 )
+# ── Horário de trabalho ───────────────────────────────────────────────────────
+# _HORA: captura HH:MM | HHhMM | HHh | HH — consome o 'h' solto sem exigir minutos
+# Grupos: (horas, minutos_ou_None)
+_HORA = r"(\d{1,2})(?:(?:h|:)(\d{2})|h)?"
+_RE_HORARIO_DAS_AS = re.compile(
+    r"(?i)"
+    # Padrão A: "das/de/jornada...: HH[h/:]MM às HH[h/:]MM"
+    r"(?:das?\s+|de\s+|jornada\b[^:\n]{0,40}:\s*)"
+    + _HORA
+    + r"\s+[àa]s?\s+"
+    + _HORA
+    + r"(?:\s*h(?:oras?)?)?"
+    + r"(?P<resto>[^\n]{0,80})"
+)
+_RE_HORARIO_ENTRADA_SAIDA = re.compile(
+    r"(?i)"
+    # Padrão B: "Entrada às HH / saída às HH"
+    r"\bentrada\s+[àa]s?\s+" + _HORA
+    + r"[,;]?\s*sa[íi]da\s+[àa]s?\s+" + _HORA
+    + r"(?P<resto2>[^\n]{0,80})"
+)
+_RE_HORARIO_INTERVALO = re.compile(
+    r"(?i)"
+    r"\b(?:com|sem)\s+(?:intervalo\s+(?:de\s+)?)?(\d+)\s*(?:h(?:ora)?s?|min(?:uto)?s?)\b"
+    r"|\bintervalo\s+(?:de\s+)?(\d+)\s*(?:h(?:ora)?s?|min(?:uto)?s?)\b"
+    r"|\bsem\s+intervalo\b"
+)
+
+# ── Nome de advogado ──────────────────────────────────────────────────────────
 # Nome de advogado: "Dr(a). " opcional + 2-4 palavras capitalizadas
 _NOME_ADV = r"(?:Dr?a?\.\s+)?([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+(?:\s+(?:d[aeo]s?\s+)?[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][a-záéíóúàâêôãõç]+){1,4})"
 _RE_ADV_RECLAMANTE = re.compile(
@@ -1387,6 +1416,53 @@ class PreExtractor:
                 item["multa_limite"] = limite
         self._append_obrigacao_fazer(item)
 
+    def _extract_horario_trabalho(self):
+        """Horario de entrada/saida/intervalo reconhecido — normalizado para 'XHh as YYh [com Zh de intervalo]'."""
+        def fmt_hora(h, mn):
+            s = f"{int(h):02d}h"
+            if mn and mn != "00":
+                s += mn
+            return s
+
+        def _parse(m, g_h_ent, g_m_ent, g_h_sai, g_m_sai, resto_key):
+            h_ent = m.group(g_h_ent)
+            min_ent = m.group(g_m_ent)
+            h_sai = m.group(g_h_sai)
+            min_sai = m.group(g_m_sai)
+            try:
+                if not (0 <= int(h_ent) <= 23 and 0 <= int(h_sai) <= 23):
+                    return None
+            except (TypeError, ValueError):
+                return None
+            entrada = fmt_hora(h_ent, min_ent)
+            saida   = fmt_hora(h_sai, min_sai)
+            resultado = f"{entrada} as {saida}"
+            resto = m.group(resto_key)
+            m_int = _RE_HORARIO_INTERVALO.search(resto)
+            if m_int:
+                txt = m_int.group(0).strip()
+                if "sem intervalo" in txt.lower():
+                    resultado += " sem intervalo"
+                else:
+                    qtd = m_int.group(1) or m_int.group(2)
+                    unid = "min" if "min" in txt.lower() else "h"
+                    resultado += f" com {qtd}{unid} de intervalo"
+            return resultado
+
+        # Padrão A: "das/de/jornada: HH às HH"
+        m = _RE_HORARIO_DAS_AS.search(self.texto)
+        if m:
+            r = _parse(m, 1, 2, 3, 4, "resto")
+            if r:
+                self._set_medium("horario_trabalho", r)
+                return
+        # Padrão B: "Entrada às HH / saída às HH"
+        m = _RE_HORARIO_ENTRADA_SAIDA.search(self.texto)
+        if m:
+            r = _parse(m, 1, 2, 3, 4, "resto2")
+            if r:
+                self._set_medium("horario_trabalho", r)
+
     def _extract_advogados(self):
         """Advogado do reclamante e da reclamada a partir do cabecalho da sentenca."""
         texto = self.texto
@@ -1796,6 +1872,7 @@ class PreExtractor:
             self._extract_seguro_desemprego,
             self._extract_obrigacoes_fazer_ppp,
             self._extract_guias_rescisorias,
+            self._extract_horario_trabalho,
             self._extract_advogados,
             self._extract_prescricao_quinquenal,
             self._extract_valor_causa,
@@ -1900,6 +1977,7 @@ def build_anchor_section(medium_fields: dict) -> str:
         "jornada_contratual":          "Jornada contratual",
         "valor_causa":                 "Valor da causa",
         "prescricao_quinquenal":       "Prescrição quinquenal",
+        "horario_trabalho":            "Horário de trabalho",
         "advogado_reclamante":         "Advogado do reclamante",
         "advogado_reclamada":          "Advogado da reclamada",
     }
