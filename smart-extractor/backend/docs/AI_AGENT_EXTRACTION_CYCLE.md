@@ -63,13 +63,13 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **banco_horas_valido** (MEDIUM bool).
-- Diagnostico: invalido tem prioridade sobre valido. 4 sub-padroes por sentido: verbo+adj+banco, verbo+banco+adj, banco+adj, negacao. Fix sintaxe critico: variaveis Python interpoladas em `re.compile()` exigem `+` explicito — nao se pode misturar concatenacao implicita de literais com expressao de variavel.
+- Dado-alvo concluido: **cargo_confianca** (MEDIUM bool).
+- Diagnostico: afastado > reconhecido. 3 fixes: (1) "exercia/exerceu" como verbo de reconhecimento; (2) particípio "Afastado o cargo" no inicio da frase; (3) cargo antes da negacao (busca bidirecional); (4) removido "poderes de mando" que causava falso positivo com "ausencia de poderes". Constante _VERBO_JUDICIAL reordenada para antes de _CARGO_CC.
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_banco_horas_valido.py` -> `10 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_cargo_confianca.py` -> `11 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `492 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `503 passed`.
 - Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
@@ -79,11 +79,12 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`cargo_confianca`** — cargo de confianca reconhecido/afastado (bool MEDIUM).
-- Alternativa: **`natureza_reclamada`** — pessoa fisica/juridica/grupo economico.
+- Dado-alvo: **`natureza_reclamada`** — pessoa fisica / juridica / grupo economico / MEI.
+- Alternativa: **`gratificacao_funcao_percentual`** — percentual da gratificacao de funcao reconhecida.
 
 ## Ciclos anteriores (referencia)
 
+- **cargo_confianca** — bool; afastado > reconhecido; busca bidirecional cargo+negacao; fix particípio inicial "Afastado o cargo"; remove falso positivo "poderes de mando"; 11 testes focados; suite `503 passed`.
 - **banco_horas_valido** — bool; invalido > valido; 4 sub-padroes por sentido; fix: variaveis Python em `re.compile()` exigem `+` explicito; 10 testes focados; suite `492 passed`.
 - **horario_trabalho** — 2 padroes (das/de vs Entrada/saida); fix `_HORA` consome 'h' solto; intervalo em h ou min; normalizacao 07:30→07h30; 10 testes focados; suite `tests/test_extraction_cycle_*.py` `482 passed`.
 - **advogado_reclamante + advogado_reclamada** — `_NOME_ADV` reutilizavel; prefixos Advogado/Adv./Patrono; Dr(a). opcional; unico metodo para ambos; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `472 passed`.
