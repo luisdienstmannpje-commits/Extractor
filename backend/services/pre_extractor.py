@@ -138,7 +138,10 @@ _RE_TR = re.compile(r"(?i)\b(atualização\s+pela\s+)?TR\b")
 _RE_ADC58 = re.compile(r"(?i)\bADC\s*58\b|\bADC[-\s]*58\b")
 
 # Juros de mora
-_RE_JUROS_1 = re.compile(r"(?i)juros\s+de\s+(?:mora\s+de\s+)?1%\s+(?:ao|a\.o\.)\s+m[eê]s")
+_RE_JUROS_1 = re.compile(
+    r"(?i)juros\s+(?:de\s+)?(?:mora\s+(?:de\s+)?)?:?\s*1%\s+(?:ao|a\.o\.)\s+m[eê]s"
+    r"|juros\s*:\s*1%\s+(?:ao|a\.o\.)\s+m[eê]s"
+)
 _RE_JUROS_SELIC = re.compile(r"(?i)juros\s+(?:de\s+mora\s+)?(?:pela\s+)?SELIC")
 _RE_JUROS_LEGAIS = re.compile(r"(?i)juros\s+legais")
 
