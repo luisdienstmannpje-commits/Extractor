@@ -264,6 +264,41 @@ _RE_PROCESSO_CABECALHO = re.compile(
 )
 
 # ---------------------------------------------------------------------------
+# natureza_reclamada — "fazenda_publica" | "privada"
+# ---------------------------------------------------------------------------
+# Fazenda pública: entidades de direito público, autarquias, empresas públicas,
+# precatórios (têm prioridade sobre indicadores de privada)
+_RE_NATUREZA_FAZENDA = re.compile(
+    r"(?i)"
+    r"\bmunic[íi]pio\b"
+    r"|\bprefeitura\b"
+    r"|\bestado\s+de\b"
+    r"|\buni[aã]o\s+federal\b"
+    r"|\bdistrito\s+federal\b"
+    r"|\bautarquia\b"
+    r"|\bINSS\b"
+    r"|\bfunda[çc][aã]o\s+p[úu]blica\b"
+    r"|\bente\s+p[úu]blico\b"
+    r"|\bempresa\s+p[úu]blica\b"
+    r"|\bsociedade\s+de\s+economia\s+mista\b"
+    r"|\bprecat[oó]rio\b"
+    r"|\bdireito\s+p[úu]blico\b"
+)
+# Privada: LTDA, S/A, empresa privada
+_RE_NATUREZA_PRIVADA = re.compile(
+    r"(?i)"
+    r"\bLTDA\.?\b"
+    r"|\bS/?A\.?\b"
+    r"|\bSA\.?\b"
+    r"|\bempresa\s+privada\b"
+    r"|\binstitui[çc][aã]o\s+(?:financeira\s+)?privada\b"
+    r"|\bpessoa\s+jur[íi]dica\s+de\s+direito\s+privado\b"
+    r"|\bEIRELI\b"
+    r"|\bEPP\b"
+    r"|\bME\.?\b"
+)
+
+# ---------------------------------------------------------------------------
 # Mapa de meses (para converter data por extenso)
 # ---------------------------------------------------------------------------
 _MESES = {
@@ -597,6 +632,16 @@ class PreExtractor:
             jornada = m.group(1).strip()
             self._set_medium("jornada_contratual", jornada)
 
+    def _extract_natureza_reclamada(self):
+        """
+        Detecta se a reclamada é da fazenda pública ou empresa privada.
+        Fazenda pública tem prioridade — basta um indicador para prevalecer.
+        """
+        if _RE_NATUREZA_FAZENDA.search(self.texto):
+            self._set_medium("natureza_reclamada", "fazenda_publica")
+        elif _RE_NATUREZA_PRIVADA.search(self.texto):
+            self._set_medium("natureza_reclamada", "privada")
+
     def _extract_aviso_previo_dias(self):
         m = _RE_AVISO_DIAS.search(self.texto) or _RE_AVISO_DIAS_INV.search(self.texto)
         if m:
@@ -655,6 +700,7 @@ class PreExtractor:
             self._extract_funcao_reclamante,
             self._extract_horario_trabalho,
             self._extract_jornada_contratual,
+            self._extract_natureza_reclamada,
         ]
         for fn in medium_extractors:
             try:
@@ -709,8 +755,9 @@ _ROTULOS_MEDIUM = {
     "divisor_horas":      "Divisor de horas extras",
     "aviso_previo_dias":  "Aviso prévio (dias)",
     "funcao_reclamante":  "Função/cargo do reclamante",
-    "horario_trabalho":   "Horário de trabalho",
-    "jornada_contratual": "Jornada contratual",
+    "horario_trabalho":    "Horário de trabalho",
+    "jornada_contratual":  "Jornada contratual",
+    "natureza_reclamada":  "Natureza da reclamada",
 }
 
 
