@@ -63,21 +63,22 @@ Quando o Cursor Agent assumir uma tarefa, ele deve:
 ## Ciclo atual
 
 - Status: `APROVADO` (Claude Code).
-- Dado-alvo concluido: **contribuicao_previdenciaria** (MEDIUM).
-- Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria ou "nao ha incidencia de INSS") — maxima prioridade; (2) ambas as partes (cada parte recolhe sua cota); (3) reclamada (4 sub-padroes: A condeno+reclamada+INSS, B reclamada+recolher+contrib, C recolhimento+contrib+pela reclamada, D reclamada+INSS direto). Correcao: plural `contribuicoes previdenciarias` exige `s?` no final do regex.
+- Dado-alvo concluido: **ir_retido_fonte** (MEDIUM).
+- Diagnostico: tres branches por prioridade — (1) sem incidencia (natureza indenizatoria, "nao ha incidencia", isencao) — maxima prioridade; (2) tabela progressiva ("conforme tabela progressiva", "tabela IRRF vigente"); (3) reclamada desconta (3 sub-padroes: A reclamada+descontar/reter/recolher+IR, B condeno+reclamada+reter+IR, C desconto do IR na fonte generico).
 - Camada: `backend/services/pre_extractor.py`.
 - Teste focado:
-  - `python -m pytest -q tests/test_extraction_cycle_contribuicao_previdenciaria.py` -> `11 passed`.
+  - `python -m pytest -q tests/test_extraction_cycle_ir_retido_fonte.py` -> `11 passed`.
 - Regressao:
-  - `tests/test_extraction_cycle_*.py` -> `416 passed`.
+  - `tests/test_extraction_cycle_*.py` -> `427 passed`.
 
 ## Proximo ciclo sugerido
 
-- Dado-alvo: **`ir_retido_fonte`** — campo complementar de contribuicao_previdenciaria; responsavel pelo desconto do IR na fonte.
-- Alternativa: **`reclamante` / `reclamada`** HIGH regex (melhoria de cobertura).
+- Dado-alvo: **`motivo_rescisao`** — motivo da rescisao contratual (pedido de demissao / dispensa sem justa causa / justa causa / rescisao indireta / comum acordo).
+- Alternativa: **`tipo_contrato`** — determinado / indeterminado / temporario.
 
 ## Ciclos anteriores (referencia)
 
+- **ir_retido_fonte** — prioridade: sem incidencia > tabela progressiva > reclamada desconta; 3 sub-padroes reclamada; cobre IRRF, IR e "imposto de renda"; 11 testes focados; suite `tests/test_extraction_cycle_*.py` `427 passed`.
 - **contribuicao_previdenciaria** — prioridade: sem incidencia > ambas as partes > reclamada; 4 sub-padroes reclamada; fix plural `contribuicoes previdenciarias` (`s?`); 11 testes focados; suite `tests/test_extraction_cycle_*.py` `416 passed`.
 - **custas_processuais** — 3 sub-padroes reclamada (nominal/explicito/implicito); prioridade isencao > reclamante > reclamada; valor base "sobre R$" e "no valor de"; `pel[ao]` handle "pelo reu"; 9 testes focados; suite `tests/test_extraction_cycle_*.py` `405 passed`.
 - **multa_art_467** — regex espelhada da 477 com numero de artigo trocado; guard por diferenca de digitos; 8 testes focados (inclui independencia 467+477); suite `tests/test_extraction_cycle_*.py` `396 passed`.
