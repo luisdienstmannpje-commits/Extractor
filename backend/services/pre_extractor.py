@@ -181,10 +181,13 @@ _RE_CONTRATO_AUTONOMO = re.compile(
 
 # Divisor de horas extras
 _RE_DIVISOR = re.compile(
-    r"(?i)(?:divisor\s+(?:de\s+)?)(\b150\b|\b180\b|\b200\b|\b220\b)"
+    r"(?i)\bdivisor\b(?:\s+de\s+horas?)?\s*(?:de\s+)?:?\s*"
+    r"(\b150\b|\b175\b|\b180\b|\b200\b|\b220\b)"
 )
+# (?<!\d) e (?!\d) evitam casamento dentro de números maiores (ex: "440")
+# sem \b...\b no número: "44h" tem h logo após, não haveria word boundary
 _RE_HORAS_SEMANAIS = re.compile(
-    r"(?i)(\b30\b|\b35\b|\b36\b|\b40\b|\b44\b)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
+    r"(?i)(?<!\d)(30|35|36|40|44)(?!\d)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
 )
 
 # Aviso prévio — dias (forma direta e invertida)
