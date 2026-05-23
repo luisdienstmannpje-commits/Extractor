@@ -46,6 +46,17 @@ _RE_DATA_EXTENSO = re.compile(
 _RE_DATA_SLASH = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
 _RE_DATA_HIFEN = re.compile(r"\b(\d{2}-\d{2}-\d{4})\b")
 
+# Data da sentença — marcadores diretos + dd/mm/aaaa
+_RE_DATA_SENTENCA = re.compile(
+    r"(?i)(?:senten[çc]a\s+(?:proferida\s+(?:em\s+)?|datada\s+de\s+|de\s+)|"
+    r"data\s+d[ao]\s+senten[çc]a\s*[:\s]+|"
+    r"julgad[oa]\s+em\s+|"
+    r"decis[aã]o\s+proferida\s+em\s+|"
+    r"prola[çc][aã]o\s+d[ao]\s+senten[çc]a\s+em\s+|"
+    r"sentenciad[oa]\s+em\s+)"
+    r"(\d{2}/\d{2}/\d{4})"
+)
+
 # Assinatura digital PJe (alta confiança para data_sentença)
 _RE_ASSINADO = re.compile(
     r"(?i)assinado\s+(?:eletronicamente|digitalmente)(?:.*?)em\s+(\d{2}/\d{2}/\d{4})",
@@ -521,10 +532,15 @@ class PreExtractor:
         if data_ass:
             self._set_high("data_sentenca", data_ass)
             return
-        # Fallback: "Publicado em DD/MM/AAAA"
+        # Fallback 1: "Publicado em DD/MM/AAAA"
         m = re.search(
             r"(?i)publicad[oa]\s+em\s+(\d{2}/\d{2}/\d{4})", self.texto
         )
+        if m:
+            self._set_high("data_sentenca", m.group(1))
+            return
+        # Fallback 2: marcadores diretos de sentença + dd/mm/aaaa
+        m = _RE_DATA_SENTENCA.search(self.texto)
         if m:
             self._set_high("data_sentenca", m.group(1))
             return
