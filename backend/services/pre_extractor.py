@@ -185,6 +185,23 @@ _RE_CONTRATO_PRAZO_DET = re.compile(
     r"|\bprazo\s+determinado\b.{0,40}\bcontrato\b"
     r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+)?prazo\s+determinado\b"
 )
+_RE_CONTRATO_INTERMITENTE = re.compile(
+    r"(?i)\bcontrato\s+intermitente\b"
+    r"|\btrabalho\s+intermitente\b"
+    r"|\bmodalidade\s+(?:de\s+)?intermitente\b"
+)
+_RE_CONTRATO_APRENDIZ = re.compile(
+    r"(?i)\bcontrato\s+de\s+aprendizagem\b"
+    r"|\bmenor\s+aprendiz\b"
+    r"|\bna\s+qualidade\s+de\s+aprendiz\b"
+    r"|\baprendiz\b"
+)
+_RE_CONTRATO_TEMPORARIO = re.compile(
+    r"(?i)\bcontrato\s+tempor[aá]rio\b"
+    r"|\btrabalho\s+tempor[aá]rio\b"
+    r"|\btrabalhador\s+tempor[aá]rio\b"
+    r"|\bLei\s+6\.019\b"
+)
 
 # Tipo de contrato — natureza jurídica (MEDIUM: dependem de contexto)
 _RE_CONTRATO_CLT = re.compile(r"(?i)\bv[íi]nculo\s+(?:de\s+)?emprego\b|\bCLT\b")
@@ -675,11 +692,17 @@ class PreExtractor:
             self._set_medium("motivo_rescisao", "Falecimento")
 
     def _extract_tipo_contrato(self):
-        # HIGH: terminologia de duração — inequívoca
+        # HIGH: terminologia de duração — inequívoca (ordem importa: específico antes de CLT)
         if _RE_CONTRATO_EXPERIENCIA.search(self.texto):
             self._set_high("tipo_contrato", "Experiência")
         elif _RE_CONTRATO_PRAZO_DET.search(self.texto):
             self._set_high("tipo_contrato", "Prazo determinado")
+        elif _RE_CONTRATO_INTERMITENTE.search(self.texto):
+            self._set_high("tipo_contrato", "Intermitente")
+        elif _RE_CONTRATO_APRENDIZ.search(self.texto):
+            self._set_high("tipo_contrato", "Aprendiz")
+        elif _RE_CONTRATO_TEMPORARIO.search(self.texto):
+            self._set_high("tipo_contrato", "Temporário")
         # MEDIUM: natureza jurídica — depende de contexto circundante
         elif _RE_CONTRATO_PEJOTA.search(self.texto):
             self._set_medium("tipo_contrato", "Pejotização reconhecida")
