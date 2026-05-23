@@ -116,3 +116,47 @@ def test_multiplos_escolhe_mais_frequente():
     )
     v = _med(texto)
     assert v == "R$ 3.500,00"
+
+
+# ---------------------------------------------------------------------------
+# GAP 1 — 'recebia a quantia/importância de R$ X'
+# ---------------------------------------------------------------------------
+
+def test_recebia_a_quantia():
+    v = _med("recebia a quantia de R$ 1.800,00 mensais")
+    assert v == "R$ 1.800,00"
+
+
+def test_recebia_a_importancia():
+    """'recebia a importância de' — só 'percebia' é coberto, não 'recebia'."""
+    v = _med("recebia a importância de R$ 2.200,00")
+    assert v == "R$ 2.200,00"
+
+
+# ---------------------------------------------------------------------------
+# GAP 2 — 'vencimentos de R$ X' (plural)
+# ---------------------------------------------------------------------------
+
+def test_vencimentos_plural():
+    v = _med("vencimentos de R$ 4.500,00 mensais")
+    assert v == "R$ 4.500,00"
+
+
+def test_vencimentos_servidor():
+    """Contexto servidor público — vencimentos mensais."""
+    v = _med("percebia vencimentos de R$ 6.000,00 mensais")
+    assert v == "R$ 6.000,00"
+
+
+# ---------------------------------------------------------------------------
+# GAP 3 — 'recebia mensalmente R$ X' (sem substantivo)
+# ---------------------------------------------------------------------------
+
+def test_recebia_mensalmente():
+    v = _med("recebia mensalmente R$ 2.000,00")
+    assert v == "R$ 2.000,00"
+
+
+def test_recebia_mensalmente_valor():
+    v = _med("recebia mensalmente o valor de R$ 3.200,00 brutos")
+    assert v == "R$ 3.200,00"
