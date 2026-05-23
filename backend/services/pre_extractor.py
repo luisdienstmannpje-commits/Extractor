@@ -336,13 +336,22 @@ _RE_FUNCAO_RECLAMANTE = re.compile(
     re.IGNORECASE,
 )
 
-# Jornada contratual — "X horas diárias [e Y horas semanais]" ou "Y horas semanais"
+# Jornada contratual — "X horas diárias/semanais/por dia [e Y horas semanais]"
+# Triggers: jornada, carga horária, trabalha*/trabalhou
 _RE_JORNADA_CONTRATUAL = re.compile(
     r"(?i)"
-    r"(?:jornada\s+(?:de\s+trabalho\s+)?(?:de\s+)?|carga\s+hor[aá]ria\s+(?:de\s+)?)"
-    r"(\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:di[aá]rias?|semanais?)"
-    r"(?:\s*[e,]\s*\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*semanais?)?)",
+    r"(?:jornada\s+(?:de\s+trabalho\s+)?(?:de\s+)?"
+    r"|carga\s+hor[aá]ria\s+(?:de\s+)?"
+    r"|trabalh(?:ou|a(?:va|ndo|r)?)\s+)"
+    r"(\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:di[aá]rias?|semanais?|por\s+dia[s]?)"
+    r"(?:\s*[e,]\s*\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:semanais?|por\s+semana))?)",
     re.IGNORECASE,
+)
+
+# Jornada semanal implícita — "jornada/carga [horária] semanal de Xh[oras]"
+# 'semanal' antes do número torna o qualificador implícito (não repete 'semanais' após).
+_RE_JORNADA_SEMANAL = re.compile(
+    r"(?i)(?:jornada|carga)\s+(?:hor[aá]ria\s+)?semanal\s+(?:de\s+)?(\d+\s*h(?:oras?)?)\b"
 )
 
 # Data de ajuizamento
@@ -798,11 +807,18 @@ class PreExtractor:
             self._set_medium("horario_trabalho", horario)
 
     def _extract_jornada_contratual(self):
-        """Extrai jornada contratual — 'X horas diárias [e Y horas semanais]'."""
+        """Extrai jornada contratual — 'X horas diárias/por dia [e Y semanais]'.
+        Fallback: padrão 'jornada/carga semanal de Xh' (qualificador implícito).
+        """
         m = _RE_JORNADA_CONTRATUAL.search(self.texto)
         if m:
             jornada = m.group(1).strip()
             self._set_medium("jornada_contratual", jornada)
+            return
+        # Fallback: "jornada semanal de 44h" — qualificador implícito no trigger
+        m2 = _RE_JORNADA_SEMANAL.search(self.texto)
+        if m2:
+            self._set_medium("jornada_contratual", m2.group(1).strip())
 
     def _extract_natureza_reclamada(self):
         """
