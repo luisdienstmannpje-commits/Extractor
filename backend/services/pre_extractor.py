@@ -97,9 +97,10 @@ _RE_RITO_ORDINARIO = re.compile(
 
 # Datas contratuais (admissão/demissão)
 _RE_ADMISSAO = re.compile(
-    r"(?i)(?:admitid[oa]\s+em|admiss[aã]o\s+em|"
+    r"(?i)(?:admitid[oa](?:\s+n[ao]\s+\w+)?\s+em|"
+    r"admiss[aã]o\s+em|admiss[aã]o\s*[:\-]\s*|"
     r"empregad[oa]\s+em|com\s+in[íi]cio\s+em|"
-    r"ingressou\s+em|iniciou\s+em|"
+    r"ingressou\s+em|iniciou\s+(?:atividades?\s+|o\s+trabalho\s+)?em|"
     r"contratad[oa]\s+em|"
     r"contrata[çc][aã]o\s+em|"
     r"in[íi]cio\s+do\s+(?:contrato|v[íi]nculo)\s+(?:empregatício\s+)?em|"
