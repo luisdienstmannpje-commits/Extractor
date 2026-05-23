@@ -326,12 +326,17 @@ _RE_JUIZ_LABEL = re.compile(
 # Função/cargo do reclamante — frases-gatilho específicas (texto livre: captura até stop char)
 _RE_FUNCAO_RECLAMANTE = re.compile(
     r"(?i)"
-    r"(?:exercia\s+(?:a\s+)?fun[çc][aã]o\s+de\s+|"
+    r"(?:exercia\s+(?:(?:a\s+)?fun[çc][aã]o|(?:o\s+)?cargo)\s+de\s+|"
+    r"desempenh(?:ava|a)\s+(?:a\s+)?fun[çc][aã]o\s+de\s+|"
     r"(?:foi\s+)?contratad[oa]\s+como\s+|"
     r"admitid[oa]\s+como\s+|"
-    r"trabalha(?:va)?\s+como\s+|"
+    r"trabalh(?:ou|a(?:va)?)\s+como\s+|"
+    r"labora(?:va)?\s+como\s+|"
+    r"atua(?:va)?\s+como\s+|"
     r"ocupa(?:va)?\s+(?:o\s+)?cargo\s+de\s+|"
-    r"na\s+fun[çc][aã]o\s+de\s+)"
+    r"na\s+fun[çc][aã]o\s+de\s+|"
+    r"cargo\s*[:\-]\s*|"
+    r"fun[çc][aã]o\s*[:\-]\s*)"
     r"([^,\.;\n\(\)]{3,40}?)(?=[,\.;\n\(\)]|$)",
     re.IGNORECASE,
 )
