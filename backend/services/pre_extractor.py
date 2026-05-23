@@ -554,8 +554,10 @@ class PreExtractor:
         m = _RE_VARA_TRABALHO.search(self.texto)
         if m:
             vara = m.group(1).strip()
-            # Rejeita captura sem cidade (ex: "Vara do Trabalho de" sozinho)
-            partes = vara.split("de", maxsplit=1)
+            # Apara sufixos de UF: '/MG', '-PR', ' - SP', etc.
+            vara = re.sub(r"\s*[-/]\s*[A-Z]{2}$", "", vara).strip()
+            # Rejeita captura sem cidade — split case-insensitive em "de"
+            partes = re.split(r"\bde\b", vara, maxsplit=1, flags=re.IGNORECASE)
             if len(partes) == 2 and partes[1].strip():
                 self._set_high("vara_trabalho", vara)
 
