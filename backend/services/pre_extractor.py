@@ -56,15 +56,21 @@ _RE_ASSINADO = re.compile(
 _RE_JG_TRUE = re.compile(
     r"(?i)(\bdefiro\b.*?\bjusti[çc]a\s+gratuita\b"
     r"|\bjusti[çc]a\s+gratuita\b.*?\bdeferida\b"
-    r"|\bbenef[ií]cios\s+da\s+assistência\s+judiciária\b"
+    r"|\bbenef[ií]cios\s+da\s+assist[eê]ncia\s+judici[aá]ria\b"
     r"|\bbenef[ií]cios\s+da\s+justi[çc]a\s+gratuita\b.*?\bdeferidos?\b"
-    r"|\bgratuidade\s+da\s+justi[çc]a\b.*?\bdefiro\b"
-    r"|\bdefiro\b.*?\bgratuidade\b)"
+    r"|\bgratuidade\s+d[ae]\s+justi[çc]a\b.*?\bdefiro\b"
+    r"|\bdefiro\b.*?\bgratuidade\b"
+    r"|\bconcedo\b.*?\bgratuidade\b"
+    r"|\bgratuidade\s+de\s+justi[çc]a\b.*?\bdeferida?\b"
+    r"|\bbenefici[aá]rio\b.*?\bjusti[çc]a\s+gratuita\b)"
 )
 _RE_JG_FALSE = re.compile(
     r"(?i)(\bindeferido\b.*?\bjusti[çc]a\s+gratuita\b"
     r"|\bjusti[çc]a\s+gratuita\b.*?\bindeferida\b"
-    r"|\bnão\s+faz\s+jus\s+à\s+justi[çc]a\s+gratuita\b)"
+    r"|\bnão\s+faz\s+jus\s+[aà]\s+justi[çc]a\s+gratuita\b"
+    r"|\bindefiro\b.*?\b(?:gratuidade|justi[çc]a\s+gratuita)\b"
+    r"|\bgratuidade\s+de\s+justi[çc]a\b.*?\bindeferida?\b"
+    r"|\brevogo\b.*?\bjusti[çc]a\s+gratuita\b)"
 )
 
 # Rito processual
