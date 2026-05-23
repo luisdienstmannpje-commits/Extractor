@@ -253,7 +253,10 @@ _RE_AVISO_TRABALHADO = re.compile(
 _RE_AVISO_INDENIZADO = re.compile(
     r"(?i)\b(?:aviso\s+pr[eé]vio\s+indenizado"
     r"|indeniza[çc][aã]o\s+substitutiva\s+do\s+aviso\s+pr[eé]vio"
-    r"|aviso\s+pr[eé]vio\s+convertido\s+em\s+indeniza[çc][aã]o)\b"
+    r"|aviso\s+pr[eé]vio\s+convertido\s+em\s+indeniza[çc][aã]o"
+    r"|aviso\s+pr[eé]vio\s*:\s*indenizado"
+    r"|aviso\s+pr[eé]vio.{0,40}pago\s+em\s+dinheiro"
+    r"|aviso\s+pr[eé]vio.{0,40}dispensado\s+de\s+cumprir)\b"
 )
 
 # Horário de trabalho — "das HH[h:mm] às HH[h:mm] [com X h de intervalo]"
@@ -321,7 +324,8 @@ _RE_JORNADA_CONTRATUAL = re.compile(
 # Data de ajuizamento
 _RE_AJUIZAMENTO = re.compile(
     r"(?i)(?:data\s+de\s+ajuizamento[:\s]+|protocolo(?:u\s+a\s+presente)?\s+em\s+|"
-    r"proposta\s+em\s+|distribuída\s+em\s+)"
+    r"proposta\s+em\s+|distribu[íi]da\s+em\s+|"
+    r"ajuizad[oa]\s+em\s+|recebida\s+em\s+)"
     r"(\d{2}/\d{2}/\d{4})"
 )
 
