@@ -294,7 +294,14 @@ _RE_ADV_RECLAMADA = re.compile(
 # Juiz responsável — rótulo explícito no cabeçalho da peça (HIGH: campo labelado)
 _RE_JUIZ_LABEL = re.compile(
     r"(?i)"
-    r"(?:MM\.?\s*)?Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho|Titular|Substitut[ao])?\s*[:\-]\s*"
+    r"(?:"
+    # Forma 1: rótulo com separador — Juiz(a)/Magistrado(a) + Trabalho/Titular/Substituto + : ou -
+    r"(?:MM\.?\s*)?(?:Ju[íi]z(?:\([ao]\))?[ao]?|Magistrad[ao])"
+    r"\s*(?:(?:do|da)\s+Trabalho|Titular|Substitut[ao])?\s*[:\-]\s*"
+    r"|"
+    # Forma 2: 'pelo/pela Juiz(a) Dr(a).' — sem separador
+    r"pel[ao]\s+Ju[íi]z[ao]?\s+"
+    r")"
     r"(?:Dr(?:a)?\.?\s*)?"
     r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;(]{3,60}?)(?=[,;\n(]|$)"
 )
@@ -566,6 +573,10 @@ class PreExtractor:
         m = _RE_JUIZ_LABEL.search(self.texto)
         if m:
             nome = m.group(1).strip().rstrip(".")
+            # Apara continuação de frase: para na primeira palavra puramente minúscula ≥4 chars
+            # (ex: "nesta", "desta", "pelo") que não seria parte de um nome próprio.
+            # Partículas de nome ("de", "da", "do") têm ≤3 chars → não são afetadas.
+            nome = re.sub(r"\s+[a-záéíóúâêîôûãõàü]{4,}.*$", "", nome)
             # Rejeita capturas com menos de dois tokens (evita capturar só "Dr." ou artigos)
             if len(nome.split()) >= 2:
                 self._set_high("juiz_responsavel", nome)
