@@ -75,10 +75,13 @@ _RE_JG_FALSE = re.compile(
 
 # Rito processual
 _RE_RITO_SUMARIO = re.compile(
-    r"(?i)\b(rito\s+sumar[ií]ssimo|procedimento\s+sumar[ií]ssimo|sumar[ií]ssimo)\b"
+    r"(?i)\b(rito\s+sumar[ií]ssimo|procedimento\s+sumar[ií]ssimo|sumar[ií]ssimo"
+    r"|rito\s+sum[aá]r[ií]o|procedimento\s+sum[aá]r[ií]o)\b"
 )
 _RE_RITO_ORDINARIO = re.compile(
-    r"(?i)\b(rito\s+ordin[aá]rio|procedimento\s+ordin[aá]rio)\b"
+    r"(?i)\b(rito\s+(?:comum\s+)?ordin[aá]rio"
+    r"|procedimento\s+ordin[aá]rio"
+    r"|processo\s+ordin[aá]rio)\b"
 )
 
 # Datas contratuais (admissão/demissão)
