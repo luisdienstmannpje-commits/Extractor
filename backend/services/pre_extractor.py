@@ -270,16 +270,22 @@ _RE_AVISO_INDENIZADO = re.compile(
     r"|aviso\s+pr[eé]vio.{0,40}dispensado\s+de\s+cumprir)\b"
 )
 
-# Horário de trabalho — "das HH[h:mm] às HH[h:mm] [com X h de intervalo]"
+# Horário de trabalho — "[das/de] HH[h:mm] às HH[h:mm] [com X h de intervalo]"
+# Artigo (das/de) é opcional: aceita "das 08h", "de 08h" e "08h" direto.
 # Nota: \s* (não \s+) após "trabalho" para aceitar "trabalho:" sem espaço intermediário.
 _RE_HORARIO_TRABALHO = re.compile(
     r"(?i)"
     r"(?:hor[aá]rio\s+(?:de\s+trabalho\s*)?(?:\s*[:\-]\s*)?|"
     r"trabalha(?:va|ndo|r)?\s+|labora(?:va|ndo|r)?\s+|"
     r"jornada\s+(?:de\s+trabalho\s*)?)"
-    r"(das?\s+\d{1,2}[h:]\d{0,2}\s*[àa][s]?\s*\d{1,2}[h:]\d{0,2}"
+    r"((?:das?\s+|de\s+)?\d{1,2}[h:]\d{0,2}\s*[àa][s]?\s*\d{1,2}[h:]\d{0,2}"
     r"(?:[^.;:\n]{0,60}(?:intervalo|almo[çc]o|refei[çc][aã]o)[^.;:\n]{0,20})?)",
     re.IGNORECASE,
+)
+
+# Horário de trabalho — formato "Entrada: HHhMM Saída: HHhMM"
+_RE_HORARIO_ENTRADA_SAIDA = re.compile(
+    r"(?i)entrada\s*:?\s*(\d{1,2}[h:]\d{2})\s+sa[íi]da\s*:?\s*(\d{1,2}[h:]\d{2})"
 )
 
 # Vara do Trabalho — "NNª Vara do Trabalho de [Cidade]" (HIGH: padrão jurídico muito específico)
@@ -777,10 +783,18 @@ class PreExtractor:
                 self._set_medium("funcao_reclamante", funcao)
 
     def _extract_horario_trabalho(self):
-        """Extrai horário de trabalho — 'das HHh às HHh [com X h de intervalo]'."""
+        """Extrai horário de trabalho — '[das/de] HHh às HHh [com X h de intervalo]'.
+        Fallback: formato 'Entrada: HHhMM Saída: HHhMM'.
+        """
         m = _RE_HORARIO_TRABALHO.search(self.texto)
         if m:
             horario = m.group(1).strip().rstrip(",;")
+            self._set_medium("horario_trabalho", horario)
+            return
+        # Fallback: formato Entrada/Saída
+        m2 = _RE_HORARIO_ENTRADA_SAIDA.search(self.texto)
+        if m2:
+            horario = f"{m2.group(1)} às {m2.group(2)}"
             self._set_medium("horario_trabalho", horario)
 
     def _extract_jornada_contratual(self):
