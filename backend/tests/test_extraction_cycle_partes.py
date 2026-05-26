@@ -152,3 +152,34 @@ def test_empregadora_label():
     txt = 'Empregadora: Banco ABC S.A.'
     r = PreExtractor(txt).run()
     assert r['high'].get('reclamada') == 'Banco ABC S.A'  # rstrip remove ponto final
+
+
+# ---------------------------------------------------------------------------
+# GAP — Polo Ativo / Polo Passivo
+# ---------------------------------------------------------------------------
+
+def test_polo_ativo_reclamante():
+    """'Polo Ativo:' é o reclamante em ações trabalhistas."""
+    txt = 'Polo Ativo: Carlos Lima'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamante') == 'Carlos Lima'
+
+def test_polo_passivo_reclamada():
+    txt = 'Polo Passivo: Banco ABC S/A'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamada') == 'Banco ABC S/A'
+
+
+# ---------------------------------------------------------------------------
+# GAP — Demandante / Demandada
+# ---------------------------------------------------------------------------
+
+def test_demandante_reclamante():
+    txt = 'DEMANDANTE: Paulo Ferreira'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamante') == 'Paulo Ferreira'
+
+def test_demandada_reclamada():
+    txt = 'DEMANDADA: Industrias ABC LTDA'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamada') == 'Industrias ABC LTDA'

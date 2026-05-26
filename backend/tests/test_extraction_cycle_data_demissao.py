@@ -121,3 +121,21 @@ class TestDataDemissaoGap4NovoTrigger:
     def test_dispensado_sem_justa_causa_em(self):
         """dispensado sem justa causa em DD/MM/AAAA"""
         assert _run("foi dispensado sem justa causa em 30/09/2024") == "30/09/2024"
+
+
+# ── GAP 5: término do vínculo / data de saída ───────────────────────────────
+
+class TestDataDemissaoGap5NovosTriggers:
+    def test_termino_vinculo_em(self):
+        """'término do vínculo em' — não coberto (só 'término do contrato em')."""
+        assert _run("término do vínculo em 15/03/2023") == "15/03/2023"
+
+    def test_termino_vinculo_empregatorio_em(self):
+        assert _run("término do vínculo empregatício em 30/06/2023") == "30/06/2023"
+
+    def test_data_saida_label(self):
+        """'data de saída: DD/MM/AAAA' — label de saída."""
+        assert _run("data de saída: 30/06/2023") == "30/06/2023"
+
+    def test_data_saida_sem_acento(self):
+        assert _run("data de saida: 01/07/2022") == "01/07/2022"

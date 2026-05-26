@@ -131,7 +131,7 @@ _RE_DEMISSAO = re.compile(
     r"rescis[aã]o\s+(?:contratual\s+)?em|rescindid[oa]\s+em|"
     r"saiu\s+em|desligad[oa](?:\s+(?!em\b)\S+){0,3}\s+em|desligamento\s+em|"
     r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
-    r"término\s+do\s+contrato\s+em|"
+    r"término\s+do\s+(?:contrato|v[íi]nculo(?:\s+empregatício)?)\s+em|"
     # GAP 4: novos triggers
     r"encerrou\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
     r"rompeu\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
@@ -139,7 +139,9 @@ _RE_DEMISSAO = re.compile(
     # Labels com data (GAP 1: dois-pontos/hífen)
     r"(?:demiss[aã]o|rescis[aã]o|desligamento)\s*[:\-]|"
     # Labels clássicos
-    r"data\s+de\s+demiss[aã]o[:\s]+|data\s+d[ao]\s+rescis[aã]o[:\s]+"
+    r"data\s+de\s+demiss[aã]o[:\s]+|data\s+d[ao]\s+rescis[aã]o[:\s]+|"
+    # GAP 5: 'data de saída'
+    r"data\s+de\s+sa[íi]da[:\s]+"
     r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
@@ -509,10 +511,12 @@ _RE_PROCESSO_CABECALHO = re.compile(
 # ^ com re.MULTILINE âncora ao início da linha — evita capturar
 # "Advogado do Reclamante:" como rótulo de parte.
 _RE_NOME_RECLAMANTE = re.compile(
-    r"(?im)^\s*(?:Reclamante|Autor[ao]?|Exequente|Parte\s+[Aa]utora|Empregad[oa])\s*:\s*([^\n\r]{3,100})"
+    r"(?im)^\s*(?:Reclamante|Autor[ao]?|Exequente|Parte\s+[Aa]utora|Empregad[oa]"
+    r"|Polo\s+Ativo|Demandante)\s*:\s*([^\n\r]{3,100})"
 )
 _RE_NOME_RECLAMADA = re.compile(
-    r"(?im)^\s*(?:Reclamad[ao]|R[eé](?:u|a)?|Executad[ao]|RE|Parte\s+[Pp]assiva|Empregadora?)\s*:\s*([^\n\r]{3,100})"
+    r"(?im)^\s*(?:Reclamad[ao]|R[eé](?:u|a)?|Executad[ao]|RE|Parte\s+[Pp]assiva|Empregadora?"
+    r"|Polo\s+Passivo|Demandad[ao])\s*:\s*([^\n\r]{3,100})"
 )
 # Remove sufixo "CPF/RG/CNPJ: ..." que aparece após vírgula na mesma linha
 _RE_SUFIXO_DOCUMENTO = re.compile(
