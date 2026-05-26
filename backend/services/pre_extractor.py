@@ -396,7 +396,7 @@ _RE_VARA_TRABALHO = re.compile(
     r"VT|"                             # sigla VT
     r"J[uú][íi]zo\s+Trabalhista"      # "Juízo Trabalhista" sem "da/do"
     r")"
-    r"\s+de\s+[^,\.;\n\(\)]{3,50}?"
+    r"\s+de\s+[^,\.;\n\(\)]{2,50}?"
     r")"
     r"(?=[,\.;\n\(\)/\-]|$)",
     re.IGNORECASE,
@@ -444,10 +444,10 @@ _RE_JUIZ_LABEL = re.compile(
     r"(?:"
     # Forma 1: rótulo com separador — Juiz(a)/Magistrado(a) + Trabalho/Titular/Substituto + : ou -
     r"(?:MM\.?\s*)?(?:Ju[íi]z(?:\([ao]\))?[ao]?|Magistrad[ao])"
-    r"\s*(?:(?:do|da)\s+Trabalho|Titular|Substitut[ao])?\s*[:\-]\s*"
+    r"\s*(?:(?:do|da)\s+Trabalho)?\s*(?:Titular|Substitut[ao])?\s*[:\-]\s*"
     r"|"
     # Forma 2: 'pelo/pela Juiz(a) Dr(a).' / 'perante o/a Juiz Dr.' — sem separador
-    r"(?:pel[ao]|perante\s+[oa])\s+Ju[íi]z[ao]?\s+"
+    r"(?:pel[ao]|perante\s+[oa])\s+(?:MM\.?\s*)?Ju[íi]z[ao]?\s+"
     r"|"
     # Forma 3: 'Exmo. Sr. Juiz do Trabalho Dr.' — prefixo de tratamento
     r"Exm[oa]\.\s*Sr[ao]?\.?\s*Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho\s*)?"

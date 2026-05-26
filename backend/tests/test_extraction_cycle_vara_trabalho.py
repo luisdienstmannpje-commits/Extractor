@@ -118,3 +118,17 @@ def test_vara_trabalhista_com_juizo():
 def test_juizo_trabalhista_de_cidade():
     """Juizo Trabalhista de Sao Paulo"""
     assert _vara("Juizo Trabalhista de Sao Paulo") == "Juizo Trabalhista de Sao Paulo"
+
+
+# ---------------------------------------------------------------------------
+# GAP 6 — cidade com apenas 2 caracteres (sigla como 'BH')
+# ---------------------------------------------------------------------------
+
+def test_vara_cidade_bh():
+    """'5ª Vara do Trabalho de BH' — cidade com 2 chars (mínimo era 3)."""
+    assert _vara("5a Vara do Trabalho de BH") == "5a Vara do Trabalho de BH"
+
+def test_vara_cidade_bh_no_contexto():
+    """Contexto completo com 'Central de Mandados da'."""
+    v = _vara("Central de Mandados da 5a Vara do Trabalho de BH")
+    assert v == "5a Vara do Trabalho de BH"

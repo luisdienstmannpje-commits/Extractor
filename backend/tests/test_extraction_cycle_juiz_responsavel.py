@@ -109,3 +109,27 @@ def test_perante_o_juiz_dr():
 
 def test_perante_a_juiza():
     assert _juiz("perante a Juiza Dra. Ana Lima") == "Ana Lima"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'pelo MM Juiz' (MM entre 'pelo' e 'Juiz' em forma narrativa)
+# ---------------------------------------------------------------------------
+
+def test_pelo_mm_juiz_narrativo():
+    """'subscrita pelo MM Juiz Carlos Pinto' — MM entre 'pelo' e 'Juiz'."""
+    assert _juiz("subscrita pelo MM Juiz Carlos Pinto") == "Carlos Pinto"
+
+def test_subscrito_pelo_mm_juiz_dr():
+    assert _juiz("despacho subscrito pelo MM. Juiz Dr. Ricardo Neves") == "Ricardo Neves"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'Juiz do Trabalho Substituto:' (qualificadores encadeados)
+# ---------------------------------------------------------------------------
+
+def test_juiz_trabalho_substituto_label():
+    """'Juiz do Trabalho Substituto: Marcos Silva' — 'do Trabalho' + 'Substituto' juntos."""
+    assert _juiz("Juiz do Trabalho Substituto: Marcos Silva") == "Marcos Silva"
+
+def test_juiza_trabalho_substituta_label():
+    assert _juiz("Juíza do Trabalho Substituta: Dra. Fernanda Souza") == "Fernanda Souza"
