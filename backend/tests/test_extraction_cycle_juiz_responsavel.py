@@ -87,3 +87,25 @@ def test_assinado_pela_juiza():
 
 def test_sem_contexto_nao_extrai():
     assert _juiz("O processo foi distribuído em 2023.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — Exmo. Sr. Juiz do Trabalho Dr. Nome
+# ---------------------------------------------------------------------------
+
+def test_exmo_sr_juiz_dr():
+    assert _juiz("Exmo. Sr. Juiz do Trabalho Dr. Roberto Mendes") == "Roberto Mendes"
+
+def test_exmo_sr_juiza_dra():
+    assert _juiz("Exma. Sra. Juiza do Trabalho Dra. Carla Nogueira") == "Carla Nogueira"
+
+
+# ---------------------------------------------------------------------------
+# GAP — perante o Juiz Dr. Nome
+# ---------------------------------------------------------------------------
+
+def test_perante_o_juiz_dr():
+    assert _juiz("perante o Juiz Dr. Marcos Braga") == "Marcos Braga"
+
+def test_perante_a_juiza():
+    assert _juiz("perante a Juiza Dra. Ana Lima") == "Ana Lima"

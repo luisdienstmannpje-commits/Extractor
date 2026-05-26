@@ -63,6 +63,48 @@ def test_aviso_colon_indenizado():
 
 
 # ---------------------------------------------------------------------------
+# GAP — meses (1 mês = 30 dias, 2 meses = 60 dias)
+# ---------------------------------------------------------------------------
+
+def test_aviso_1_mes():
+    """aviso prévio de 1 mês → converte para '30 dias'"""
+    assert _med("aviso prévio de 1 mês") == "30 dias"
+
+def test_aviso_2_meses():
+    """aviso prévio de 2 meses → '60 dias'"""
+    assert _med("aviso prévio de 2 meses") == "60 dias"
+
+def test_aviso_3_meses():
+    """aviso prévio de 3 meses → '90 dias'"""
+    assert _med("aviso prévio de 3 meses") == "90 dias"
+
+def test_aviso_1_mes_extenso():
+    """aviso prévio de 1 (um) mês"""
+    assert _med("aviso prévio de 1 (um) mês") == "30 dias"
+
+def test_aviso_projecao_1_mes():
+    """projeção de aviso prévio de 1 mês"""
+    assert _med("projeção de aviso prévio de 1 mês") == "30 dias"
+
+def test_aviso_indenizado_2_meses():
+    """aviso prévio indenizado de 2 meses"""
+    assert _med("aviso prévio indenizado de 2 meses") == "60 dias"
+
+
+# ---------------------------------------------------------------------------
+# GAP — "correspondente a N dias" (separador diferente)
+# ---------------------------------------------------------------------------
+
+def test_aviso_correspondente_a_30():
+    """aviso prévio indenizado correspondente a 30 dias"""
+    assert _med("aviso prévio indenizado correspondente a 30 dias") == "30 dias"
+
+def test_aviso_equivalente_a_45():
+    """aviso prévio equivalente a 45 dias"""
+    assert _med("aviso prévio equivalente a 45 dias") == "45 dias"
+
+
+# ---------------------------------------------------------------------------
 # Plausibilidade — fora do range 20-90 deve ser ignorado
 # ---------------------------------------------------------------------------
 

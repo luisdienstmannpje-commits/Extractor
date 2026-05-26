@@ -88,3 +88,17 @@ def test_rito_comum_ordinario_sem_acento():
 
 def test_sem_contexto_nao_extrai():
     assert _rito("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — label com colon "Rito: Ordinário" / "Rito: Sumaríssimo"
+# ---------------------------------------------------------------------------
+
+def test_rito_label_colon_ordinario():
+    assert _rito("Rito: Ordinario") == "Ordinário"
+
+def test_rito_label_colon_sumarissimo():
+    assert _rito("Rito: Sumarissimo") == "Sumaríssimo"
+
+def test_rito_label_hifen_ordinario():
+    assert _rito("Rito - Ordinario") == "Ordinário"

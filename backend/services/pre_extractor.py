@@ -86,13 +86,15 @@ _RE_JG_FALSE = re.compile(
 
 # Rito processual
 _RE_RITO_SUMARIO = re.compile(
-    r"(?i)\b(rito\s+sumar[ií]ssimo|procedimento\s+sumar[ií]ssimo|sumar[ií]ssimo"
-    r"|rito\s+sum[aá]r[ií]o|procedimento\s+sum[aá]r[ií]o)\b"
+    r"(?i)\b(?:rito\s+sumar[ií]ssimo|procedimento\s+sumar[ií]ssimo|sumar[ií]ssimo"
+    r"|rito\s+sum[aá]r[ií]o|procedimento\s+sum[aá]r[ií]o"
+    r"|rito\s*[:\-]\s*sumar[ií]ssimo|rito\s*[:\-]\s*sum[aá]r[ií]o)\b"
 )
 _RE_RITO_ORDINARIO = re.compile(
-    r"(?i)\b(rito\s+(?:comum\s+)?ordin[aá]rio"
+    r"(?i)\b(?:rito\s+(?:comum\s+)?ordin[aá]rio"
     r"|procedimento\s+ordin[aá]rio"
-    r"|processo\s+ordin[aá]rio)\b"
+    r"|processo\s+ordin[aá]rio"
+    r"|rito\s*[:\-]\s*(?:comum\s+)?ordin[aá]rio)\b"
 )
 
 # Datas contratuais (admissão/demissão)
@@ -296,13 +298,20 @@ _RE_HORAS_SEMANAIS = re.compile(
 # Aviso prévio — dias (forma direta e invertida)
 _RE_AVISO_DIAS = re.compile(
     r"(?i)aviso\s+pr[eé]vio"
-    r"(?:\s+(?:indenizado|trabalhado|proporcional|integral))?"  # adjetivo opcional
-    r"\s*(?:de\s+|:\s*)?"                                        # "de " ou ": "
-    r"(?:(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?"                   # N (extenso) dias
-    r"|\((\d+)\s*dias?\))"                                       # (N dias)
+    r"(?:\s+(?:indenizado|trabalhado|proporcional|integral))?"           # adjetivo opcional
+    r"\s*(?:de\s+|:\s*|correspondente\s+a\s+|equivalente\s+a\s+)?"     # "de", ":", "correspondente a", "equivalente a"
+    r"(?:(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?"                           # N (extenso) dias
+    r"|\((\d+)\s*dias?\))"                                               # (N dias)
 )
 _RE_AVISO_DIAS_INV = re.compile(
     r"(?i)(\d+)\s*(?:\([^)]{1,20}\)\s*)?dias?\s+de\s+aviso\s+pr[eé]vio"
+)
+# Aviso prévio em meses — converte para dias (1 mês=30, 2=60, 3=90)
+_RE_AVISO_MESES = re.compile(
+    r"(?i)aviso\s+pr[eé]vio"
+    r"(?:\s+(?:indenizado|trabalhado|proporcional|integral))?"
+    r"\s*(?:de\s+|:\s*)?"
+    r"(\d+)\s*(?:\([^)]{1,20}\)\s*)?m[eê]s(?:es)?\b"
 )
 
 # Aviso prévio — tipo (trabalhado vs indenizado)
@@ -394,8 +403,11 @@ _RE_JUIZ_LABEL = re.compile(
     r"(?:MM\.?\s*)?(?:Ju[íi]z(?:\([ao]\))?[ao]?|Magistrad[ao])"
     r"\s*(?:(?:do|da)\s+Trabalho|Titular|Substitut[ao])?\s*[:\-]\s*"
     r"|"
-    # Forma 2: 'pelo/pela Juiz(a) Dr(a).' — sem separador
-    r"pel[ao]\s+Ju[íi]z[ao]?\s+"
+    # Forma 2: 'pelo/pela Juiz(a) Dr(a).' / 'perante o/a Juiz Dr.' — sem separador
+    r"(?:pel[ao]|perante\s+[oa])\s+Ju[íi]z[ao]?\s+"
+    r"|"
+    # Forma 3: 'Exmo. Sr. Juiz do Trabalho Dr.' — prefixo de tratamento
+    r"Exm[oa]\.\s*Sr[ao]?\.?\s*Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho\s*)?"
     r")"
     r"(?:Dr(?:a)?\.?\s*)?"
     r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;(]{3,60}?)(?=[,;\n(]|$)"
@@ -935,6 +947,14 @@ class PreExtractor:
             self._set_medium("natureza_reclamada", "privada")
 
     def _extract_aviso_previo_dias(self):
+        # Tenta meses primeiro (mais específico que dias)
+        m_meses = _RE_AVISO_MESES.search(self.texto)
+        if m_meses:
+            meses = int(m_meses.group(1))
+            if 1 <= meses <= 3:  # plausibilidade: 1-3 meses (30-90 dias)
+                self._set_medium("aviso_previo_dias", f"{meses * 30} dias")
+                return
+        # Forma direta ou invertida em dias
         m = _RE_AVISO_DIAS.search(self.texto) or _RE_AVISO_DIAS_INV.search(self.texto)
         if m:
             # _RE_AVISO_DIAS tem grupo 1 (número fora de parênteses)
