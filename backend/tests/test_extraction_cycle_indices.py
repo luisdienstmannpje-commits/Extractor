@@ -95,3 +95,24 @@ def test_ic_ipca_simples():
 
 def test_ic_ipca_label():
     assert _med("indice: IPCA", "indice_correcao") == "IPCA-E"
+
+
+# ---------------------------------------------------------------------------
+# juros_mora — GAP novos
+# ---------------------------------------------------------------------------
+
+def test_jm_moratorios():
+    """'juros moratórios de 1% ao mês' — adjetivo moratórios não coberto."""
+    assert _med("juros moratórios de 1% ao mês", "juros_mora") == "1% ao mês"
+
+def test_jm_moratorios_sem_acento():
+    """'juros moratorios de 1% ao mes' — sem acento (OCR)."""
+    assert _med("juros moratorios de 1% ao mes", "juros_mora") == "1% ao mês"
+
+def test_jm_am_abreviacao():
+    """'juros de mora: 1% a.m.' — abreviação 'a.m.' para 'ao mês'."""
+    assert _med("juros de mora: 1% a.m.", "juros_mora") == "1% ao mês"
+
+def test_jm_moratorios_am():
+    """'juros moratórios de 1% a.m.' — combinação de ambos os gaps."""
+    assert _med("juros moratórios de 1% a.m.", "juros_mora") == "1% ao mês"
