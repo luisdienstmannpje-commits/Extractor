@@ -159,6 +159,20 @@ _RE_DEMISSAO_INVERTIDA = re.compile(
     r"\bem\s+(\d{2}/\d{2}/\d{4})\s*,?\s*ocorreu\s+a?\s*rescis[aã]o\b"
 )
 
+# Valor da causa — labels e fórmulas de pedido (MEDIUM)
+_RE_VALOR_CAUSA = re.compile(
+    r"(?i)"
+    r"(?:"
+    r"valor\s+(?:total\s+)?d[ao]\s+causa\s*[-:]?\s*|"
+    r"valor\s+atribu[ií]do\s+[aà]\s+causa\s*[-:]?\s*|"
+    r"causa\s+no\s+valor\s+de\s+|"
+    r"dou\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+|"
+    r"atribuo\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+"
+    r")"
+    r"R?\$?\s*([\d.,]+(?:\s*(?:reais|mil))?)",
+    re.IGNORECASE,
+)
+
 # Salário base — diversas formas de menção
 _RE_SALARIO = re.compile(
     r"(?i)(?:sal[aá]rio\s+(?:(?:base|fixo|contratual|normativo)\s+)?de|"
@@ -733,6 +747,15 @@ class PreExtractor:
             if norm:
                 self._set_medium("data_demissao", norm)
 
+    def _extract_valor_causa(self):
+        """Valor da causa — labels, fórmulas petição e forma narrativa (MEDIUM)."""
+        m = _RE_VALOR_CAUSA.search(self.texto)
+        if m:
+            raw = m.group(1).strip().rstrip(".,")
+            # Normaliza para "R$ X.XXX,XX"
+            valor = f"R$ {raw}"
+            self._set_medium("valor_causa", valor)
+
     def _extract_salario_base(self):
         """Extrai salário — filtra valores implausíveis."""
         matches = list(_RE_SALARIO.finditer(self.texto))
@@ -943,6 +966,7 @@ class PreExtractor:
             self._extract_data_admissao,
             self._extract_data_demissao,
             self._extract_salario_base,
+            self._extract_valor_causa,
             self._extract_indice_correcao,
             self._extract_juros_mora,
             self._extract_motivo_rescisao,
@@ -1002,6 +1026,7 @@ _ROTULOS_MEDIUM = {
     "data_demissao":      "Data de demissão",
     "data_ajuizamento":   "Data de ajuizamento",
     "salario_base":       "Salário base",
+    "valor_causa":        "Valor da causa",
     "indice_correcao":    "Índice de correção monetária",
     "juros_mora":         "Juros de mora",
     "motivo_rescisao":    "Motivo da rescisão",
