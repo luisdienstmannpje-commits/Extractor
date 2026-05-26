@@ -116,3 +116,34 @@ def test_intermitente_prevalece_sobre_clt():
 
 def test_sem_contexto_nao_extrai():
     assert _tc("O reclamante trabalhou por 3 anos na empresa.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — Prazo indeterminado (tipo mais comum no Brasil — faltava regex)
+# ---------------------------------------------------------------------------
+
+def test_contrato_prazo_indeterminado():
+    assert _tc("contrato por prazo indeterminado") == "Prazo indeterminado"
+
+def test_contrato_tempo_indeterminado():
+    assert _tc("contrato de trabalho por tempo indeterminado") == "Prazo indeterminado"
+
+def test_contrato_duracao_indeterminada():
+    assert _tc("contrato de duração indeterminada") == "Prazo indeterminado"
+
+def test_vinculo_prazo_indeterminado():
+    assert _tc("vínculo empregatício por prazo indeterminado") == "Prazo indeterminado"
+
+def test_vinculo_tempo_indeterminado():
+    assert _tc("vínculo de emprego por tempo indeterminado") == "Prazo indeterminado"
+
+
+# ---------------------------------------------------------------------------
+# GAP — Prazo determinado com vínculo/contrato de trabalho (antes não capturava)
+# ---------------------------------------------------------------------------
+
+def test_vinculo_prazo_determinado():
+    assert _tc("vínculo empregatício por prazo determinado") == "Prazo determinado"
+
+def test_contrato_trabalho_tempo_determinado():
+    assert _tc("contrato de trabalho por tempo determinado") == "Prazo determinado"

@@ -242,7 +242,16 @@ _RE_CONTRATO_EXPERIENCIA = re.compile(
 _RE_CONTRATO_PRAZO_DET = re.compile(
     r"(?i)\bcontrato\s+(?:por|a)\s+prazo\s+determinado\b"
     r"|\bprazo\s+determinado\b.{0,40}\bcontrato\b"
-    r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+)?prazo\s+determinado\b"
+    r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+|por\s+)?prazo\s+determinado\b"
+    r"|\bcontrato\s+(?:de\s+trabalho\s+)?por\s+tempo\s+determinado\b"
+    r"|\bv[íi]nculo\s+(?:empregatício\s+|de\s+emprego\s+)?por\s+(?:prazo|tempo)\s+determinado\b"
+)
+_RE_CONTRATO_PRAZO_INDET = re.compile(
+    r"(?i)\bcontrato\s+(?:por|a)\s+prazo\s+indeterminado\b"
+    r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+|por\s+)?prazo\s+indeterminado\b"
+    r"|\bcontrato\s+(?:de\s+trabalho\s+)?por\s+tempo\s+indeterminado\b"
+    r"|\bcontrato\s+de\s+dura[çc][aã]o\s+indeterminada\b"
+    r"|\bv[íi]nculo\s+(?:empregatício\s+|de\s+emprego\s+)?por\s+(?:prazo|tempo)\s+indeterminado\b"
 )
 _RE_CONTRATO_INTERMITENTE = re.compile(
     r"(?i)\bcontrato\s+intermitente\b"
@@ -835,6 +844,8 @@ class PreExtractor:
             self._set_high("tipo_contrato", "Experiência")
         elif _RE_CONTRATO_PRAZO_DET.search(self.texto):
             self._set_high("tipo_contrato", "Prazo determinado")
+        elif _RE_CONTRATO_PRAZO_INDET.search(self.texto):
+            self._set_high("tipo_contrato", "Prazo indeterminado")
         elif _RE_CONTRATO_INTERMITENTE.search(self.texto):
             self._set_high("tipo_contrato", "Intermitente")
         elif _RE_CONTRATO_APRENDIZ.search(self.texto):
