@@ -160,3 +160,23 @@ def test_recebia_mensalmente():
 def test_recebia_mensalmente_valor():
     v = _med("recebia mensalmente o valor de R$ 3.200,00 brutos")
     assert v == "R$ 3.200,00"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'salário bruto de R$ X' (modificador bruto sem mensal)
+# ---------------------------------------------------------------------------
+
+def test_salario_bruto():
+    """'salário bruto de R$ X' — 'bruto' não estava no rol de modificadores."""
+    v = _med("salário bruto de R$ 4.500,00")
+    assert v == "R$ 4.500,00"
+
+def test_salario_bruto_mensal():
+    """'salário bruto mensal de R$ X' — combinação de modificadores."""
+    v = _med("salário bruto mensal de R$ 5.000,00")
+    assert v == "R$ 5.000,00"
+
+def test_salario_mensal_bruto():
+    """'salário mensal bruto de R$ X' — ordem inversa dos modificadores."""
+    v = _med("salário mensal bruto de R$ 3.800,00")
+    assert v == "R$ 3.800,00"

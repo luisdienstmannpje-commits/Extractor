@@ -182,8 +182,8 @@ _RE_VALOR_CAUSA = re.compile(
 
 # Salário base — diversas formas de menção
 _RE_SALARIO = re.compile(
-    r"(?i)(?:sal[aá]rio\s+(?:(?:base|fixo|contratual|normativo)\s+)?de|"
-    r"sal[aá]rio(?:\s+(?:base|fixo|contratual|normativo))?\s*:\s*R\$|"
+    r"(?i)(?:sal[aá]rio\s+(?:(?:base|fixo|contratual|normativo|bruto)\s+)?de|"
+    r"sal[aá]rio(?:\s+(?:base|fixo|contratual|normativo|bruto))?\s*:\s*R\$|"
     r"remunera[çc][aã]o\s+(?:mensal\s+)?(?:bruta\s+)?de|"
     r"percebia\s+(?:o\s+sal[aá]rio\s+de|a\s+import[aâ]ncia\s+de)|"
     r"recebia\s+(?:o\s+sal[aá]rio|a\s+(?:import[aâ]ncia|quantia))\s+de|"
@@ -191,7 +191,7 @@ _RE_SALARIO = re.compile(
     r"[úu]ltima\s+remunera[çc][aã]o\s+(?:mensal\s+)?de|"
     r"piso\s+(?:salarial\s+)?de|"
     r"vencimentos?\s+de|"
-    r"sal[aá]rio\s+(?:mensal\s+)?(?:l[ií]quido\s+)?de\s+R\$)"
+    r"sal[aá]rio\s+(?:(?:bruto|l[ií]quido)\s+)?(?:mensal\s+)?(?:(?:bruto|l[ií]quido)\s+)?de\s+R\$)"
     r"\s*R?\$?\s*"
     r"([\d.,]+(?:\s*(?:reais|mil))?)(?:\s*(?:mensais?|brutos?|l[ií]quidos?))?",
     re.IGNORECASE,
