@@ -50,7 +50,10 @@ _RE_DATA_HIFEN = re.compile(r"\b(\d{2}-\d{2}-\d{4})\b")
 _RE_DATA_SENTENCA = re.compile(
     r"(?i)(?:senten[çc]a\s+(?:proferida\s+(?:em\s+)?|datada\s+de\s+|de\s+)|"
     r"data\s+d[ao]\s+senten[çc]a\s*[:\s]+|"
+    r"senten[çc]a\s*:\s*|"                    # "Sentença: DD/MM/AAAA"
     r"julgad[oa]\s+em\s+|"
+    r"prolatad[oa]\s+em\s+|"                  # "prolatada em DD/MM/AAAA"
+    r"decidid[oa]\s+em\s+|"                   # "decidida em DD/MM/AAAA"
     r"decis[aã]o\s+proferida\s+em\s+|"
     r"prola[çc][aã]o\s+d[ao]\s+senten[çc]a\s+em\s+|"
     r"sentenciad[oa]\s+em\s+)"
@@ -491,10 +494,10 @@ _RE_PROCESSO_CABECALHO = re.compile(
 # ^ com re.MULTILINE âncora ao início da linha — evita capturar
 # "Advogado do Reclamante:" como rótulo de parte.
 _RE_NOME_RECLAMANTE = re.compile(
-    r"(?im)^\s*(?:Reclamante|Autor[ao]?|Exequente)\s*:\s*([^\n\r]{3,100})"
+    r"(?im)^\s*(?:Reclamante|Autor[ao]?|Exequente|Parte\s+[Aa]utora|Empregad[oa])\s*:\s*([^\n\r]{3,100})"
 )
 _RE_NOME_RECLAMADA = re.compile(
-    r"(?im)^\s*(?:Reclamad[ao]|R[eé]u|Executad[ao])\s*:\s*([^\n\r]{3,100})"
+    r"(?im)^\s*(?:Reclamad[ao]|R[eé](?:u|a)?|Executad[ao]|RE|Parte\s+[Pp]assiva|Empregadora?)\s*:\s*([^\n\r]{3,100})"
 )
 # Remove sufixo "CPF/RG/CNPJ: ..." que aparece após vírgula na mesma linha
 _RE_SUFIXO_DOCUMENTO = re.compile(

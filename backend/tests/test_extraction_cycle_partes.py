@@ -116,3 +116,39 @@ def test_ambos_no_cabecalho():
     r = PreExtractor(txt).run()
     assert r["high"].get("reclamante") == "João da Silva"
     assert r["high"].get("reclamada") == "Comércio e Serviços Ltda"
+
+
+# ---------------------------------------------------------------------------
+# GAP — labels alternativos reclamante
+# ---------------------------------------------------------------------------
+
+def test_parte_autora_label():
+    txt = "Parte Autora: Carlos Braga\nReclamada: Empresa XYZ"
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamante') == 'Carlos Braga'
+
+def test_empregado_label():
+    txt = "Empregado: Paulo Ferreira\nEmpregadora: Banco ABC"
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamante') == 'Paulo Ferreira'
+
+
+# ---------------------------------------------------------------------------
+# GAP — labels alternativos reclamada
+# ---------------------------------------------------------------------------
+
+def test_re_label():
+    """RE: em cabeçalho estruturado = Reclamada"""
+    txt = "Reclamante: Joao Silva\nRE: Empresa ABC S/A"
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamada') == 'Empresa ABC S/A'
+
+def test_parte_passiva_label():
+    txt = 'Parte Passiva: XYZ Comercio LTDA'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamada') == 'XYZ Comercio LTDA'
+
+def test_empregadora_label():
+    txt = 'Empregadora: Banco ABC S.A.'
+    r = PreExtractor(txt).run()
+    assert r['high'].get('reclamada') == 'Banco ABC S.A'  # rstrip remove ponto final

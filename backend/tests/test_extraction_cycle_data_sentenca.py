@@ -70,3 +70,20 @@ def test_sentenca_datada_de():
 
 def test_sem_contexto_nao_extrai():
     assert _ds("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — prolatada em / sentenca label / decidida em
+# ---------------------------------------------------------------------------
+
+def test_prolatada_em():
+    assert _ds("prolatada em 15/03/2024") == "15/03/2024"
+
+def test_sentenca_label_colon():
+    assert _ds("Sentenca: 20/05/2023") == "20/05/2023"
+
+def test_decidida_em():
+    assert _ds("decidida em 22/11/2022") == "22/11/2022"
+
+def test_prolatado_em_masculino():
+    assert _ds("prolatado em 08/08/2023") == "08/08/2023"
