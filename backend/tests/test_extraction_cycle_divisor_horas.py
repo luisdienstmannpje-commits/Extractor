@@ -87,3 +87,22 @@ def test_sem_contexto_nao_extrai():
 def test_numero_isolado_nao_extrai():
     """Número avulso 220 sem prefixo de divisor."""
     assert _med("O processo nº 220 foi autuado.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 12x36 e jornada semanal invertida
+# ---------------------------------------------------------------------------
+
+def test_12x36_regime():
+    """jornada 12x36 -> divisor 220"""
+    assert _med("jornada de 12x36") == "220"
+
+def test_12_por_36():
+    assert _med("regime de 12 por 36 horas") == "220"
+
+def test_jornada_semanal_44h():
+    """jornada semanal de 44 horas (numero antes de horas)"""
+    assert _med("jornada semanal de 44 horas") == "220"
+
+def test_jornada_semanal_40h():
+    assert _med("jornada semanal de 40 horas") == "200"

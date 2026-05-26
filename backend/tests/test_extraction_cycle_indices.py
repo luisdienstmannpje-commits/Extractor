@@ -77,3 +77,21 @@ def test_jm_colon_um_porcento():
 def test_jm_mora_um_porcento_sem_de():
     """'juros mora de 1%' — sem 'de' entre 'juros' e 'mora'."""
     assert _med("juros mora de 1% ao mês", "juros_mora") == "1% ao mês"
+
+
+# ---------------------------------------------------------------------------
+# GAP — INPC e IPCA simples (sem -E)
+# ---------------------------------------------------------------------------
+
+def test_ic_inpc():
+    assert _med("correcao pelo INPC", "indice_correcao") == "INPC"
+
+def test_ic_inpc_atualizacao():
+    assert _med("atualizacao monetaria pelo INPC", "indice_correcao") == "INPC"
+
+def test_ic_ipca_simples():
+    """IPCA sem o sufixo -E deve ser reconhecido como IPCA-E"""
+    assert _med("correcao monetaria: IPCA", "indice_correcao") == "IPCA-E"
+
+def test_ic_ipca_label():
+    assert _med("indice: IPCA", "indice_correcao") == "IPCA-E"

@@ -107,3 +107,54 @@ def test_indireta_prevalece_sobre_jc():
 
 def test_sem_contexto_nao_extrai():
     assert _med("O processo foi distribuído em 2023.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — "por justa causa" (além de "com justa causa")
+# ---------------------------------------------------------------------------
+
+def test_jc_por_justa_causa():
+    assert _med("dispensado por justa causa") == "Com justa causa"
+
+def test_jc_motivada():
+    assert _med("dispensado por justa causa motivada em desídia") == "Com justa causa"
+
+def test_abandono_emprego():
+    """abandono de emprego → Com justa causa (falta grave do empregado)"""
+    assert _med("justa causa por abandono de emprego") == "Com justa causa"
+
+
+# ---------------------------------------------------------------------------
+# GAP — "culpa do empregador" → rescisão indireta
+# ---------------------------------------------------------------------------
+
+def test_culpa_empregador():
+    assert _med("rescindiu o contrato por culpa do empregador") == "Rescisão indireta"
+
+def test_falta_grave_empregador():
+    assert _med("rescisão por falta grave do empregador") == "Rescisão indireta"
+
+
+# ---------------------------------------------------------------------------
+# GAP — "exoneração a pedido" → pedido de demissão
+# ---------------------------------------------------------------------------
+
+def test_exoneracao_a_pedido():
+    assert _med("exoneração a pedido do servidor") == "Pedido de demissão"
+
+def test_exonerou_a_pedido():
+    assert _med("exonerou-se a pedido") == "Pedido de demissão"
+
+
+# ---------------------------------------------------------------------------
+# GAP — "encerramento da empresa" / "fim do prazo"
+# ---------------------------------------------------------------------------
+
+def test_encerramento_atividades():
+    assert _med("rescisão por encerramento das atividades da empresa") == "Término de contrato"
+
+def test_fim_prazo():
+    assert _med("contrato encerrou pelo fim do prazo") == "Término de contrato"
+
+def test_extincao_empresa():
+    assert _med("extinção do estabelecimento") == "Término de contrato"

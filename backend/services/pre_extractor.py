@@ -193,9 +193,10 @@ _RE_SALARIO = re.compile(
 )
 
 # Índice de correção monetária
-_RE_IPCA = re.compile(r"(?i)\bIPCA-?E\b")
+_RE_IPCA = re.compile(r"(?i)\bIPCA(?:-E)?\b")   # cobre IPCA-E e IPCA simples
 _RE_SELIC = re.compile(r"(?i)\bSELIC\b")
 _RE_TR = re.compile(r"(?i)\b(atualização\s+pela\s+)?TR\b")
+_RE_INPC = re.compile(r"(?i)\bINPC\b")
 _RE_ADC58 = re.compile(r"(?i)\bADC\s*58\b|\bADC[-\s]*58\b")
 
 # Juros de mora
@@ -214,13 +215,25 @@ _RE_RESCISAO_SJC = re.compile(
     r"|\bimotivadamente\b"
     r"|\bsem\s+justa\s+causa\b"          # padrão direto sem verbo antecedente
 )
-_RE_RESCISAO_JC = re.compile(r"(?i)\bcom\s+justa\s+causa\b")
-_RE_RESCISAO_INDIRETA = re.compile(r"(?i)\brescis[aã]o\s+indireta\b")
+_RE_RESCISAO_JC = re.compile(
+    r"(?i)\b(?:com|por)\s+justa\s+causa\b"
+    r"|\babandon[oa]\s+de\s+emprego\b"
+)
+_RE_RESCISAO_INDIRETA = re.compile(
+    r"(?i)\brescis[aã]o\s+indireta\b"
+    r"|\bpor\s+culpa\s+do\s+empregador\b"
+    r"|\bfalta\s+grave\s+do\s+empregador\b"
+)
 _RE_RESCISAO_PEDIDO = re.compile(
-    r"(?i)\b(?:pedido\s+de\s+demiss[aã]o|demitiu[-\s]+se|pediu\s+demiss[aã]o)\b"
+    r"(?i)\b(?:pedido\s+de\s+demiss[aã]o|demitiu[-\s]+se|pediu\s+demiss[aã]o"
+    r"|exonera[çc][aã]o\s+a\s+pedido|exonerou[-\s]+se\s+a\s+pedido)\b"
 )
 _RE_RESCISAO_TERMINO = re.compile(
     r"(?i)\bt[eé]rmino\s+do\s+(?:prazo\s+do\s+)?contrato\b"
+    r"|\bfim\s+do\s+prazo\b"
+    r"|\bencerramento\s+d[ao]s?\s+atividades\b"
+    r"|\bencerramento\s+d[ao]\s+estabelecimento\b"
+    r"|\bextin[çc][aã]o\s+d[ao]\s+estabelecimento\b"
 )
 _RE_RESCISAO_APOSENTADORIA = re.compile(
     r"(?i)\baposentadoria\b"
@@ -293,6 +306,14 @@ _RE_DIVISOR = re.compile(
 # sem \b...\b no número: "44h" tem h logo após, não haveria word boundary
 _RE_HORAS_SEMANAIS = re.compile(
     r"(?i)(?<!\d)(30|35|36|40|44)(?!\d)\s*(?:h(?:oras?)?\s*)?(?:semanais?|por\s+semana)\b"
+    r"|"  # forma invertida: "jornada semanal de N horas"
+    r"(?:jornada|carga\s+hor[aá]ria)\s+(?:semanal|semanais)\s+de\s+(?<!\d)(30|35|36|40|44)(?!\d)\s*h(?:oras?)?"
+)
+# Jornada 12x36 — divisor padrão 220
+_RE_JORNADA_12X36 = re.compile(
+    r"(?i)\b12\s*[xX×]\s*36\b"
+    r"|\b12\s+por\s+36\b"
+    r"|\bjornada\s+de\s+doze\s+por\s+trinta\s+e\s+seis\b"
 )
 
 # Aviso prévio — dias (forma direta e invertida)
@@ -835,6 +856,8 @@ class PreExtractor:
             self._set_medium("indice_correcao", "SELIC")
         elif _RE_TR.search(self.texto):
             self._set_medium("indice_correcao", "TR")
+        elif _RE_INPC.search(self.texto):
+            self._set_medium("indice_correcao", "INPC")
 
     def _extract_juros_mora(self):
         if _RE_JUROS_SELIC.search(self.texto):
@@ -890,14 +913,21 @@ class PreExtractor:
         if m:
             self._set_medium("divisor_horas", m.group(1))
             return
-        # Inferência pela jornada semanal
+        # Jornada 12x36 → divisor padrão 220
+        if _RE_JORNADA_12X36.search(self.texto):
+            self._set_medium("divisor_horas", "220")
+            return
+        # Inferência pela jornada semanal (forma direta ou invertida)
+        # _RE_HORAS_SEMANAIS tem 2 grupos alternativos (forma direta e invertida)
         m = _RE_HORAS_SEMANAIS.search(self.texto)
         if m:
-            h_sem = int(m.group(1))
-            mapa = {30: "150", 35: "175", 36: "180", 40: "200", 44: "220"}
-            div = mapa.get(h_sem)
-            if div:
-                self._set_medium("divisor_horas", div)
+            raw = next((g for g in m.groups() if g is not None), None)
+            if raw:
+                h_sem = int(raw)
+                mapa = {30: "150", 35: "175", 36: "180", 40: "200", 44: "220"}
+                div = mapa.get(h_sem)
+                if div:
+                    self._set_medium("divisor_horas", div)
 
     def _extract_funcao_reclamante(self):
         """Extrai cargo/função por frases-gatilho; texto livre — MEDIUM."""
