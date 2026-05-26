@@ -319,18 +319,36 @@ _RE_VARA_TRABALHO = re.compile(
     r"(?=[,\.;\n\(\)]|$)",
 )
 
-# Advogados — rótulo explícito no cabeçalho (HIGH: campo labelado com identificação de parte)
+# Advogados — rótulos explícitos e formas narrativas (HIGH)
+# Bloco de nome compartilhado: "(?:Dr(?:a)?\.?\s*)? + NOME_PRÓPRIO"
+_RE_ADV_NOME = r"(?:Dr(?:a)?\.?\s*)?([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;]{3,80}?)(?=\s*(?:OAB|CNA|\(|,|\n|;|$))"
+
 _RE_ADV_RECLAMANTE = re.compile(
     r"(?i)"
-    r"(?:Adv\.|Advogad[oa])\s*do\s+[Rr]eclamante\s*[:\-]\s*"
-    r"(?:Dr(?:a)?\.?\s*)?"
-    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;]{3,80}?)(?=\s*(?:OAB|CNA|\(|,|\n|;|$))"
+    r"(?:"
+    # Labels clássicos: "Adv. do Reclamante:" / "Advogado(a) do Reclamante:"
+    r"(?:Adv\.|Advogad[oa])\s*do\s+[Rr]eclamante\s*[:\-]\s*|"
+    # GAP 1: "Patrono do autor:" / "Patrono do reclamante:"
+    r"[Pp]atron[oa]\s+do\s+(?:autor|reclamante)\s*[:\-]\s*|"
+    # GAP 2: "representado pelo/pela advogado(a)" / "Autor representado pelo Dr."
+    r"(?:[Aa]utor\s+)?representad[oa]\s+pel[ao]\s+(?:Dr(?:a)?\.?\s*)?advogad[oa]\s+|"
+    r"(?:[Aa]utor\s+)representad[oa]\s+pel[ao]\s+Dr\.\s*"
+    r")"
+    + _RE_ADV_NOME
 )
+
 _RE_ADV_RECLAMADA = re.compile(
     r"(?i)"
-    r"(?:Adv\.|Advogad[oa])\s*da\s+[Rr]eclamad[ao]\s*[:\-]\s*"
-    r"(?:Dr(?:a)?\.?\s*)?"
-    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;]{3,80}?)(?=\s*(?:OAB|CNA|\(|,|\n|;|$))"
+    r"(?:"
+    # Labels clássicos: "Adv. da Reclamada:" / "Advogado(a) da Reclamada(o):"
+    r"(?:Adv\.|Advogad[oa])\s*d[ao]\s+[Rr]eclamad[ao]\s*[:\-]\s*|"
+    # GAP 3: "Patrono da ré:" / "Patrono da reclamada:" / "Patrono do réu:"
+    r"[Pp]atron[oa]\s+d[ao]\s+(?:r[eé](?:u)?|reclamad[ao])\s*[:\-]\s*|"
+    # GAP 4: "representada pelo/pela advogado(a)" / "Ré representada pelo Dr."
+    r"(?:R[eé](?:u)?\s+)?representad[ao]\s+pel[ao]\s+(?:Dr(?:a)?\.?\s*)?advogad[oa]\s+|"
+    r"(?:R[eé](?:u)?\s+)representad[ao]\s+pel[ao]\s+Dr\.\s*"
+    r")"
+    + _RE_ADV_NOME
 )
 
 # Juiz responsável — rótulo explícito no cabeçalho da peça (HIGH: campo labelado)
