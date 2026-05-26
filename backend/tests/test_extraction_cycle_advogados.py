@@ -121,3 +121,43 @@ class TestAdvReclamadaGap4Representada:
     def test_re_representada(self):
         r = _rec2("Re representada pelo Dr. Antonio Branco, OAB/RJ 34534")
         assert r == "Antonio Branco"
+
+
+# ── GAP 5: "Patrona da reclamante" — artigo feminino 'da' não coberto ───────
+
+class TestAdvReclamanteGap5PatronaDa:
+    def test_patrona_da_reclamante(self):
+        """'Patrona da reclamante:' — artigo 'da' não coberto (só 'do')."""
+        r = _rec("Patrona da reclamante: Dra. Beatriz Lima OAB/RJ 55555")
+        assert r == "Beatriz Lima"
+
+    def test_patrono_da_reclamante(self):
+        """'Patrono da reclamante:' — reclamante feminina, artigo 'da'."""
+        r = _rec("Patrono da reclamante: Carlos Pinto OAB/SP 11111")
+        assert r == "Carlos Pinto"
+
+    def test_patrona_da_autora(self):
+        """'Patrona da autora:' — variante com 'autora'."""
+        r = _rec("Patrona da autora: Ana Lima OAB/MG 88888")
+        assert r == "Ana Lima"
+
+
+# ── GAP 6: "Procurador da reclamante/reclamada" ──────────────────────────────
+
+class TestAdvGap6Procurador:
+    def test_procurador_da_reclamante(self):
+        """'Procurador da reclamante:' — label não coberto."""
+        r = _rec("Procurador da reclamante: Dr. Roberto Silva OAB/SP 22222")
+        assert r == "Roberto Silva"
+
+    def test_procurador_do_reclamante(self):
+        r = _rec("Procuradora do reclamante: Dra. Carla Rocha OAB/RJ 33333")
+        assert r == "Carla Rocha"
+
+    def test_procurador_da_reclamada(self):
+        r = _rec2("Procurador da reclamada: Dr. Marcos Dias OAB/SP 77777")
+        assert r == "Marcos Dias"
+
+    def test_procurador_do_reclamado(self):
+        r = _rec2("Procuradora do reclamado: Silvia Torres OAB/PR 44444")
+        assert r == "Silvia Torres"
