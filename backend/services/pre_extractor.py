@@ -336,10 +336,22 @@ _RE_HORARIO_ENTRADA_SAIDA = re.compile(
     r"(?i)entrada\s*:?\s*(\d{1,2}[h:]\d{2})\s+sa[íi]da\s*:?\s*(\d{1,2}[h:]\d{2})"
 )
 
-# Vara do Trabalho — "NNª Vara do Trabalho de [Cidade]" (HIGH: padrão jurídico muito específico)
+# Vara do Trabalho — padrão completo + sigla VT + Vara Trabalhista (HIGH)
 _RE_VARA_TRABALHO = re.compile(
-    r"(?i)((?:\d{1,2}[aªoº°]?\s*\.?\s*)?Vara\s+do\s+Trabalho\s+de\s+[^,\.;\n\(\)]{3,50}?)"
-    r"(?=[,\.;\n\(\)]|$)",
+    r"(?i)"
+    r"(?:J[uú][íi]zo\s+d[ao]\s+)??"  # prefixo "Juízo da/do" opcional (não-guloso)
+    r"("
+    r"(?:\d{1,2}[aªoº°]?\s*\.?\s*)?"  # ordinal opcional
+    r"(?:"
+    r"Vara\s+do\s+Trabalho|"          # "Vara do Trabalho"
+    r"Vara\s+Trabalhista|"             # "Vara Trabalhista"
+    r"VT|"                             # sigla VT
+    r"J[uú][íi]zo\s+Trabalhista"      # "Juízo Trabalhista" sem "da/do"
+    r")"
+    r"\s+de\s+[^,\.;\n\(\)]{3,50}?"
+    r")"
+    r"(?=[,\.;\n\(\)/\-]|$)",
+    re.IGNORECASE,
 )
 
 # Advogados — rótulos explícitos e formas narrativas (HIGH)
