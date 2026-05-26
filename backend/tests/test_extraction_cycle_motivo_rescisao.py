@@ -158,3 +158,38 @@ def test_fim_prazo():
 
 def test_extincao_empresa():
     assert _med("extinção do estabelecimento") == "Término de contrato"
+
+
+# ---------------------------------------------------------------------------
+# GAP — dispensa imotivada → SJC
+# ---------------------------------------------------------------------------
+
+def test_dispensa_imotivada():
+    """'dispensa imotivada' é sinônimo de sem justa causa."""
+    assert _med("dispensa imotivada do reclamante") == "Sem justa causa"
+
+def test_demissao_imotivada():
+    assert _med("demissão imotivada pelo empregador") == "Sem justa causa"
+
+
+# ---------------------------------------------------------------------------
+# GAP — rescisão a pedido → pedido de demissão
+# ---------------------------------------------------------------------------
+
+def test_rescisao_a_pedido():
+    assert _med("rescisão a pedido do empregado") == "Pedido de demissão"
+
+def test_iniciativa_do_empregado():
+    """'por iniciativa do empregado' → pedido de demissão."""
+    assert _med("rescisão por iniciativa do empregado") == "Pedido de demissão"
+
+
+# ---------------------------------------------------------------------------
+# GAP — extinção da empresa → término de contrato
+# ---------------------------------------------------------------------------
+
+def test_extincao_da_empresa():
+    assert _med("extinção da empresa empregadora") == "Término de contrato"
+
+def test_fechamento_empresa():
+    assert _med("fechamento da empresa") == "Término de contrato"

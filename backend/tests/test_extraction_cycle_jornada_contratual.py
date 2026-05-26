@@ -93,3 +93,31 @@ def test_trabalhou_diarias():
 
 def test_sem_contexto_nao_extrai():
     assert _jc("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'jornada diária de X horas' (adjetivo 'diária' entre trigger e valor)
+# ---------------------------------------------------------------------------
+
+def test_jornada_diaria_de_h():
+    """'jornada diária de 8 horas' — adjetivo 'diária' não coberto."""
+    v = _jc("jornada diária de 8 horas")
+    assert v is not None and "8" in v
+
+def test_jornada_diaria_sem_acento():
+    v = _jc("jornada diaria de 6h")
+    assert v is not None and "6" in v
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'jornada de trabalho: X' (colon antes do valor)
+# ---------------------------------------------------------------------------
+
+def test_jornada_trabalho_colon():
+    """'jornada de trabalho: 8h diárias' — colon separa trigger do valor."""
+    v = _jc("jornada de trabalho: 8h diárias")
+    assert v is not None and "8" in v
+
+def test_carga_horaria_colon():
+    v = _jc("carga horária: 44h semanais")
+    assert v is not None and "44" in v

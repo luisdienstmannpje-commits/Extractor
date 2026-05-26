@@ -220,6 +220,8 @@ _RE_RESCISAO_SJC = re.compile(
     r".{0,60}\bsem\s+justa\s+causa\b"
     r"|\bimotivadamente\b"
     r"|\bsem\s+justa\s+causa\b"          # padrão direto sem verbo antecedente
+    r"|\bdispensa\s+imotivada\b"         # sinônimo: dispensa sem motivação
+    r"|\bdemiss[aã]o\s+imotivada\b"      # demissão sem justa causa
 )
 _RE_RESCISAO_JC = re.compile(
     r"(?i)\b(?:com|por)\s+justa\s+causa\b"
@@ -232,7 +234,9 @@ _RE_RESCISAO_INDIRETA = re.compile(
 )
 _RE_RESCISAO_PEDIDO = re.compile(
     r"(?i)\b(?:pedido\s+de\s+demiss[aã]o|demitiu[-\s]+se|pediu\s+demiss[aã]o"
-    r"|exonera[çc][aã]o\s+a\s+pedido|exonerou[-\s]+se\s+a\s+pedido)\b"
+    r"|exonera[çc][aã]o\s+a\s+pedido|exonerou[-\s]+se\s+a\s+pedido"
+    r"|rescis[aã]o\s+a\s+pedido"          # 'rescisão a pedido do empregado'
+    r"|(?:por\s+)?iniciativa\s+do\s+empregado)\b"  # 'por iniciativa do empregado'
 )
 _RE_RESCISAO_TERMINO = re.compile(
     r"(?i)\bt[eé]rmino\s+do\s+(?:prazo\s+do\s+)?contrato\b"
@@ -240,6 +244,8 @@ _RE_RESCISAO_TERMINO = re.compile(
     r"|\bencerramento\s+d[ao]s?\s+atividades\b"
     r"|\bencerramento\s+d[ao]\s+estabelecimento\b"
     r"|\bextin[çc][aã]o\s+d[ao]\s+estabelecimento\b"
+    r"|\bextin[çc][aã]o\s+da\s+empresa\b"       # 'extinção da empresa empregadora'
+    r"|\bfechamento\s+da\s+empresa\b"            # 'fechamento da empresa'
 )
 _RE_RESCISAO_APOSENTADORIA = re.compile(
     r"(?i)\baposentadoria\b"
@@ -471,10 +477,11 @@ _RE_FUNCAO_RECLAMANTE = re.compile(
 # Triggers: jornada, carga horária, trabalha*/trabalhou
 _RE_JORNADA_CONTRATUAL = re.compile(
     r"(?i)"
-    r"(?:jornada\s+(?:de\s+trabalho\s+)?(?:de\s+)?"
-    r"|carga\s+hor[aá]ria\s+(?:de\s+)?"
+    r"(?:jornada\s+(?:di[aá]ria\s+)?(?:de\s+trabalho\s*)?:?\s*(?:de\s+)?"
+    r"|carga\s+hor[aá]ria\s*:?\s*(?:de\s+)?"
     r"|trabalh(?:ou|a(?:va|ndo|r)?)\s+)"
-    r"(\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:di[aá]rias?|semanais?|por\s+dia[s]?)"
+    r"(\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?"
+    r"(?:\s*(?:di[aá]rias?|semanais?|por\s+dia[s]?))?"    # qualificador opcional
     r"(?:\s*[e,]\s*\d+\s*(?:\([^)]{1,30}\)\s*)?h(?:oras?)?\s*(?:semanais?|por\s+semana))?)",
     re.IGNORECASE,
 )
