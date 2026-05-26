@@ -475,8 +475,13 @@ _RE_JORNADA_SEMANAL = re.compile(
 
 # Data de ajuizamento
 _RE_AJUIZAMENTO = re.compile(
-    r"(?i)(?:data\s+de\s+ajuizamento[:\s]+|protocolo(?:u\s+a\s+presente)?\s+em\s+|"
-    r"proposta\s+em\s+|distribu[íi]da\s+em\s+|"
+    r"(?i)(?:data\s+de\s+ajuizamento[:\s]+|"
+    r"ajuizamento\s*[:\-]\s*|"                              # "ajuizamento: DD/MM" (sem "data de")
+    r"protocolo(?:u\s+a\s+presente)?\s+em\s+|"
+    r"proposta\s+em\s+|distribu[íi]d[oa]\s+em\s+|"        # distribu[íi]d[oa]: masculino e feminino
+    r"distribu[íi]do\s+em\s+|"
+    r"autuad[oa]\s+em\s+|"                                 # "autuado em DD/MM"
+    r"peti[çc][aã]o\s+inicial\s+de\s+|"                   # "petição inicial de DD/MM"
     r"ajuizad[oa]\s+em\s+|recebida\s+em\s+)"
     r"(\d{2}/\d{2}/\d{4})"
 )
