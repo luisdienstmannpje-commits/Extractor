@@ -84,6 +84,22 @@ def test_sem_contexto_nao_extrai():
     assert _med("O reclamante trabalhou por 3 anos.") is None
 
 
+# ---------------------------------------------------------------------------
+# GAP — 'módulo de N horas' como sinônimo de divisor
+# ---------------------------------------------------------------------------
+
+def test_modulo_220():
+    """'módulo de 220 horas' — sinônimo de divisor usado em algumas sentenças."""
+    assert _med("adotar o módulo de 220 horas mensais") == "220"
+
+def test_modulo_200():
+    assert _med("módulo de 200 horas para o cálculo") == "200"
+
+def test_modulo_colon():
+    """'módulo: 220' — label com colon."""
+    assert _med("módulo: 220") == "220"
+
+
 def test_numero_isolado_nao_extrai():
     """Número avulso 220 sem prefixo de divisor."""
     assert _med("O processo nº 220 foi autuado.") is None

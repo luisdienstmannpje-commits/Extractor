@@ -95,3 +95,41 @@ def test_entrada_saida_sem_dois_pontos():
 
 def test_sem_contexto_nao_extrai():
     assert _ht("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'horário: HH às HH' (sem 'de trabalho', colon direto)
+# ---------------------------------------------------------------------------
+
+def test_horario_colon_direto():
+    """'horário: 07h30 às 17h30' — colon imediatamente após horário."""
+    v = _ht("horário: 07h30 às 17h30")
+    assert v is not None and "07" in v and "17" in v
+
+def test_horario_colon_sem_acento():
+    v = _ht("horario: 08:00 às 17:00")
+    assert v is not None and "08" in v and "17" in v
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'expediente das X às Y'
+# ---------------------------------------------------------------------------
+
+def test_expediente_das():
+    """'expediente' como trigger de horário."""
+    v = _ht("expediente das 8h às 18h")
+    assert v is not None and "8" in v and "18" in v
+
+def test_expediente_de():
+    v = _ht("expediente de 09h às 18h")
+    assert v is not None and "09" in v
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'Entrada: HH e Saída: HH' (com 'e' entre as partes)
+# ---------------------------------------------------------------------------
+
+def test_entrada_saida_com_e():
+    """'Entrada: 06h00 e Saída: 14h00' — 'e' entre entrada e saída."""
+    v = _ht("Entrada: 06h00 e Saída: 14h00")
+    assert v is not None and "06" in v and "14" in v
