@@ -117,23 +117,46 @@ _RE_ADMISSAO_EXTENSO = re.compile(
     r"\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})"
 )
 _RE_DEMISSAO = re.compile(
-    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|"
+    r"(?i)"
+    r"(?:"
+    # Triggers com frase opcional entre trigger e "em" (GAP 2: "dispensada da empresa em" / "sem justa causa em")
+    # (?:\s+(?!em\b)\S+){0,4} consome até 4 palavras sem consumir "em"
+    r"dispensad[oa](?:\s+(?!em\b)\S+){0,4}\s+em|"
+    r"demitid[oa](?:\s+(?!em\b)\S+){0,4}\s+em|"
     r"rescis[aã]o\s+(?:contratual\s+)?em|rescindid[oa]\s+em|"
-    r"saiu\s+em|desligad[oa]\s+em|desligamento\s+em|"
+    r"saiu\s+em|desligad[oa](?:\s+(?!em\b)\S+){0,3}\s+em|desligamento\s+em|"
     r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
     r"término\s+do\s+contrato\s+em|"
-    r"data\s+de\s+demiss[aã]o[:\s]+|"
-    r"data\s+d[ao]\s+rescis[aã]o[:\s]+)"
+    # GAP 4: novos triggers
+    r"encerrou\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
+    r"rompeu\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
+    r"extin[çc][aã]o\s+do\s+contrato\s+em|"
+    # Labels com data (GAP 1: dois-pontos/hífen)
+    r"(?:demiss[aã]o|rescis[aã]o|desligamento)\s*[:\-]|"
+    # Labels clássicos
+    r"data\s+de\s+demiss[aã]o[:\s]+|data\s+d[ao]\s+rescis[aã]o[:\s]+"
+    r")"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 # Extenso: "dispensado em 30 de junho de 2023"
 _RE_DEMISSAO_EXTENSO = re.compile(
-    r"(?i)(?:dispensad[oa]\s+em|demitid[oa]\s+em|"
-    r"rescindid[oa]\s+em|saiu\s+em|"
-    r"desligad[oa]\s+em|desligamento\s+em|"
-    r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
-    r"término\s+do\s+contrato\s+em)"
-    r"\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})"
+    r"(?i)"
+    r"(?:dispensad[oa](?:\s+(?!em\b)\S+){0,4}|"
+    r"demitid[oa](?:\s+(?!em\b)\S+){0,4}|"
+    r"rescindid[oa]|saiu|"
+    r"desligad[oa](?:\s+(?!em\b)\S+){0,3}|desligamento|"
+    r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?|"
+    r"término\s+do\s+contrato|"
+    r"encerrou\s+o\s+v[íi]nculo(?:\s+empregatício)?|"
+    r"rompeu\s+o\s+v[íi]nculo(?:\s+empregatício)?)"
+    r"\s+em\s+(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})"
+)
+# GAP 3: padrão invertido "Em DD/MM/AAAA, [frase] foi dispensado/demitido / ocorreu rescisão"
+_RE_DEMISSAO_INVERTIDA = re.compile(
+    r"(?i)\bem\s+(\d{2}/\d{2}/\d{4})\s*,?\s*"
+    r"(?:[^.;\n]{0,30}?\s+)?(?:foi\s+)?(?:dispensad[oa]|demitid[oa]|rescindid[oa]|desligad[oa])\b"
+    r"|"
+    r"\bem\s+(\d{2}/\d{2}/\d{4})\s*,?\s*ocorreu\s+a?\s*rescis[aã]o\b"
 )
 
 # Salário base — diversas formas de menção
@@ -668,13 +691,23 @@ class PreExtractor:
                 self._set_medium("data_admissao", norm)
 
     def _extract_data_demissao(self):
-        # Tenta formato slash primeiro (DD/MM/AAAA)
+        # Tenta formato slash primeiro (DD/MM/AAAA) — padrões diretos
         m = _RE_DEMISSAO.search(self.texto)
         if m:
             norm = self._normalizar_data(m.group(1))
             if norm:
                 self._set_medium("data_demissao", norm)
                 return
+        # Fallback: padrão invertido "Em DD/MM/AAAA, [frase] foi dispensado / ocorreu rescisão"
+        # _RE_DEMISSAO_INVERTIDA tem 2 grupos (alternativas)
+        m = _RE_DEMISSAO_INVERTIDA.search(self.texto)
+        if m:
+            captured = next((g for g in m.groups() if g), None)
+            if captured:
+                norm = self._normalizar_data(captured)
+                if norm:
+                    self._set_medium("data_demissao", norm)
+                    return
         # Fallback: data por extenso ("dispensado em 30 de junho de 2023")
         m = _RE_DEMISSAO_EXTENSO.search(self.texto)
         if m:
