@@ -75,3 +75,27 @@ def test_indenizado_prevalece():
 
 def test_sem_contexto_nao_extrai():
     assert _tipo("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — trabalhado: formas alternativas
+# ---------------------------------------------------------------------------
+
+def test_colon_trabalhado():
+    """'aviso prévio: trabalhado' — simetria com colon indenizado."""
+    assert _tipo("aviso prévio: trabalhado") == "trabalhado"
+
+def test_colon_trabalhado_sem_acento():
+    assert _tipo("aviso previo: trabalhado") == "trabalhado"
+
+def test_aviso_cumprido():
+    """'aviso prévio cumprido' — empregado trabalhou o aviso."""
+    assert _tipo("aviso prévio cumprido pelo empregado") == "trabalhado"
+
+def test_aviso_substituido_em_dinheiro():
+    """'substituído em dinheiro' equivale a indenizado."""
+    assert _tipo("aviso prévio substituído em dinheiro") == "indenizado"
+
+def test_aviso_convertido_em_pecunia():
+    """'convertido em pecúnia' — outra forma de indenizado."""
+    assert _tipo("aviso prévio convertido em pecúnia") == "indenizado"

@@ -257,6 +257,7 @@ _RE_CONTRATO_EXPERIENCIA = re.compile(
     r"(?i)\bcontrato\s+de\s+experi[eê]ncia\b"
     r"|\bper[íi]odo\s+de\s+experi[eê]ncia\b"
     r"|\badmitido[oa]?\s+(?:para\s+)?per[íi]odo\s+de\s+experi[eê]ncia\b"
+    r"|\bregime\s+de\s+experi[eê]ncia\b"
 )
 _RE_CONTRATO_PRAZO_DET = re.compile(
     r"(?i)\bcontrato\s+(?:por|a)\s+prazo\s+determinado\b"
@@ -264,6 +265,7 @@ _RE_CONTRATO_PRAZO_DET = re.compile(
     r"|\bcontrato\s+(?:de\s+trabalho\s+)?(?:com\s+|por\s+)?prazo\s+determinado\b"
     r"|\bcontrato\s+(?:de\s+trabalho\s+)?por\s+tempo\s+determinado\b"
     r"|\bv[íi]nculo\s+(?:empregatício\s+|de\s+emprego\s+)?por\s+(?:prazo|tempo)\s+determinado\b"
+    r"|\bcontrato\s+a\s+termo\b"
 )
 _RE_CONTRATO_PRAZO_INDET = re.compile(
     r"(?i)\bcontrato\s+(?:por|a)\s+prazo\s+indeterminado\b"
@@ -342,13 +344,16 @@ _RE_AVISO_MESES = re.compile(
 # Aviso prévio — tipo (trabalhado vs indenizado)
 _RE_AVISO_TRABALHADO = re.compile(
     r"(?i)\baviso\s+pr[eé]vio\s+trabalhado\b"
+    r"|\baviso\s+pr[eé]vio\s*:\s*trabalhado\b"
+    r"|\baviso\s+pr[eé]vio\s+cumprido\b"
 )
 _RE_AVISO_INDENIZADO = re.compile(
     r"(?i)\b(?:aviso\s+pr[eé]vio\s+indenizado"
     r"|indeniza[çc][aã]o\s+substitutiva\s+do\s+aviso\s+pr[eé]vio"
-    r"|aviso\s+pr[eé]vio\s+convertido\s+em\s+indeniza[çc][aã]o"
+    r"|aviso\s+pr[eé]vio\s+convertido\s+em\s+(?:indeniza[çc][aã]o|pec[uú]nia)"
     r"|aviso\s+pr[eé]vio\s*:\s*indenizado"
     r"|aviso\s+pr[eé]vio.{0,40}pago\s+em\s+dinheiro"
+    r"|aviso\s+pr[eé]vio.{0,40}substitu[íi]do\s+em\s+dinheiro"
     r"|aviso\s+pr[eé]vio.{0,40}dispensado\s+de\s+cumprir)\b"
 )
 

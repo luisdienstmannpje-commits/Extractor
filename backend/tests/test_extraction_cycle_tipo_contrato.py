@@ -147,3 +147,27 @@ def test_vinculo_prazo_determinado():
 
 def test_contrato_trabalho_tempo_determinado():
     assert _tc("contrato de trabalho por tempo determinado") == "Prazo determinado"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'contrato a termo' (sinônimo de prazo determinado)
+# ---------------------------------------------------------------------------
+
+def test_contrato_a_termo():
+    """'contrato a termo' é sinônimo legal de prazo determinado."""
+    assert _tc("contrato a termo nos termos do art. 443 CLT") == "Prazo determinado"
+
+def test_contrato_a_termo_simples():
+    assert _tc("rescisão de contrato a termo") == "Prazo determinado"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'regime de experiência' (sem 'contrato de' ou 'período de')
+# ---------------------------------------------------------------------------
+
+def test_regime_experiencia():
+    """'regime de experiência' não tem 'contrato de' nem 'período de'."""
+    assert _tc("admitido em regime de experiência") == "Experiência"
+
+def test_regime_experiencia_sem_acento():
+    assert _tc("regime de experiencia de 90 dias") == "Experiência"
