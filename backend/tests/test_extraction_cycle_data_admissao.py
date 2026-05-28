@@ -116,3 +116,15 @@ def test_integrou_quadros_em():
 
 def test_passou_a_integrar_em():
     assert _da("passou a integrar o quadro em 01/06/2021") == "01/06/2021"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'admitida nos quadros da empresa em' (múltiplas palavras entre trigger e 'em')
+# ---------------------------------------------------------------------------
+
+def test_admitida_nos_quadros_da_empresa_em():
+    """'admitida nos quadros da empresa em' — 4 palavras entre trigger e 'em'."""
+    assert _da("admitida nos quadros da empresa em 01/03/2019") == "01/03/2019"
+
+def test_admitido_no_quadro_de_pessoal_em():
+    assert _da("admitido no quadro de pessoal em 15/06/2020") == "15/06/2020"

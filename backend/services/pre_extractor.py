@@ -56,6 +56,7 @@ _RE_DATA_SENTENCA = re.compile(
     r"decidid[oa]\s+em\s+|"                   # "decidida em DD/MM/AAAA"
     r"decis[aã]o\s+proferida\s+em\s+|"
     r"prola[çc][aã]o\s+d[ao]\s+senten[çc]a\s+em\s+|"
+    r"data\s+d[ao]\s+prola[çc][aã]o\s*[:\s]+|"
     r"sentenciad[oa]\s+em\s+|"
     r"julgou[-\s]+se\s+(?:[^.;\n]{0,30}?\s+)?em\s+)"
     r"(\d{2}/\d{2}/\d{4})"
@@ -103,7 +104,7 @@ _RE_RITO_ORDINARIO = re.compile(
 
 # Datas contratuais (admissão/demissão)
 _RE_ADMISSAO = re.compile(
-    r"(?i)(?:admitid[oa](?:\s+n[ao]\s+\w+)?\s+em|"
+    r"(?i)(?:admitid[oa](?:\s+(?:n[ao]s?\s+)?(?:\w+\s+){0,3})?em|"
     r"admiss[aã]o\s+em|admiss[aã]o\s*[:\-]\s*|"
     r"empregad[oa]\s+em|com\s+in[íi]cio\s+em|"
     r"ingressou\s+em|iniciou\s+(?:atividades?\s+|o\s+trabalho\s+)?em|"
@@ -462,10 +463,10 @@ _RE_JUIZ_LABEL = re.compile(
     r"(?:pel[ao]|perante\s+[oa])\s+(?:MM\.?\s*)?Ju[íi]z[ao]?\s+"
     r"|"
     # Forma 3: 'Exmo. Sr. Juiz do Trabalho Dr.' — prefixo de tratamento
-    r"Exm[oa]\.\s*Sr[ao]?\.?\s*Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho\s*)?"
+    r"Exm[oa]\.\s*Sr[ao]?\.?\s*Ju[íi]z[ao]?\s*(?:(?:do|da)\s+Trabalho\s*)?[:\-]?\s*"
     r")"
     r"(?:Dr(?:a)?\.?\s*)?"
-    r"([A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ][^,\n;(]{3,60}?)(?=[,;\n(]|$)"
+    r"((?-i:[A-ZÁÉÍÓÚÂÊÎÔÛÃÕÇÀÜ])[^,\n;(]{3,60}?)(?=[,;\n(]|$)"
 )
 
 # Função/cargo do reclamante — frases-gatilho específicas (texto livre: captura até stop char)

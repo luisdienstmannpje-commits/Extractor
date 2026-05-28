@@ -90,6 +90,18 @@ def test_prolatado_em_masculino():
 
 
 # ---------------------------------------------------------------------------
+# GAP — 'Data da prolação: DD/MM/AAAA' (rótulo com substantivo)
+# ---------------------------------------------------------------------------
+
+def test_data_da_prolacao_colon():
+    """'Data da prolação: DD/MM' — label com substantivo 'prolação'."""
+    assert _ds("Data da prolacao: 10/03/2024") == "10/03/2024"
+
+def test_data_do_prolacao_label():
+    assert _ds("data do prolacao: 15/08/2023") == "15/08/2023"
+
+
+# ---------------------------------------------------------------------------
 # GAP — 'julgou-se em' (voz reflexiva — comum em sentenças trabalhistas)
 # ---------------------------------------------------------------------------
 

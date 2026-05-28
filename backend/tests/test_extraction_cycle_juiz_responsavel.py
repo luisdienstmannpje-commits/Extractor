@@ -112,6 +112,18 @@ def test_perante_a_juiza():
 
 
 # ---------------------------------------------------------------------------
+# BUG FIX — Forma 3 capturava 'do Trabalho: Dra. Nome' por backtracking (?i)
+# ---------------------------------------------------------------------------
+
+def test_exma_sra_juiza_colon_dra():
+    """'Exma. Sra. Juíza do Trabalho: Dra. Paula' — bug: capturava 'do Trabalho:...'"""
+    assert _juiz("Exma. Sra. Juiza do Trabalho: Dra. Paula Mendes") == "Paula Mendes"
+
+def test_exma_sra_juiza_sem_colon():
+    assert _juiz("Exma. Sra. Juiza do Trabalho Dra. Carla Nogueira") == "Carla Nogueira"
+
+
+# ---------------------------------------------------------------------------
 # GAP — 'pelo MM Juiz' (MM entre 'pelo' e 'Juiz' em forma narrativa)
 # ---------------------------------------------------------------------------
 
