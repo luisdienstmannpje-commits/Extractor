@@ -109,7 +109,10 @@ _RE_ADMISSAO = re.compile(
     r"contratad[oa]\s+em|"
     r"contrata[çc][aã]o\s+em|"
     r"in[íi]cio\s+do\s+(?:contrato|v[íi]nculo)\s+(?:empregatício\s+)?em|"
-    r"data\s+de\s+(?:admiss[aã]o|contrata[çc][aã]o)[:\s]+)"
+    r"data\s+de\s+(?:admiss[aã]o|contrata[çc][aã]o)[:\s]+|"
+    r"(?:empregad[oa]|v[íi]nculo(?:\s+empreg[aá]t[íi]ci[oó])?)\s+desde\s+|"
+    r"integrou\s+(?:os\s+quadros\s+(?:da\s+empresa\s+)?|o\s+quadro\s+)?em|"
+    r"passou\s+a\s+integrar\s+(?:o\s+quadro\s+(?:da\s+empresa\s+)?)?em)"
     r"\s*(\d{2}/\d{2}/\d{4})"
 )
 # Extenso: "admitido em 15 de janeiro de 2020"
@@ -506,7 +509,9 @@ _RE_AJUIZAMENTO = re.compile(
     r"distribu[íi]do\s+em\s+|"
     r"autuad[oa]\s+em\s+|"                                 # "autuado em DD/MM"
     r"peti[çc][aã]o\s+inicial\s+de\s+|"                   # "petição inicial de DD/MM"
-    r"ajuizad[oa]\s+em\s+|recebida\s+em\s+)"
+    r"ajuizad[oa]\s+em\s+|recebida\s+em\s+|"
+    r"data\s+de\s+distribui[çc][aã]o[:\s]+|"              # "data de distribuição: DD/MM"
+    r"distribui[çc][aã]o\s*[:\-]\s*)"                     # "distribuição: DD/MM"
     r"(\d{2}/\d{2}/\d{4})"
 )
 

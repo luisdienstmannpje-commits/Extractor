@@ -61,3 +61,16 @@ def test_recebida_em():
 
 def test_sem_contexto_nao_extrai():
     assert _aj("O reclamante trabalhou por 3 anos.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'data de distribuição: DD/MM/AAAA' / 'distribuição: DD/MM/AAAA'
+# ---------------------------------------------------------------------------
+
+def test_data_de_distribuicao_colon():
+    """'data de distribuição: DD/MM/AAAA' — substantivo, não particípio."""
+    assert _aj("data de distribuição: 15/03/2023") == "15/03/2023"
+
+def test_distribuicao_colon():
+    """'distribuição: DD/MM/AAAA' — rótulo direto."""
+    assert _aj("distribuição: 10/04/2022") == "10/04/2022"

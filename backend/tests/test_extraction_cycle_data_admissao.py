@@ -92,3 +92,27 @@ def test_sem_contexto_nao_extrai():
 def test_data_incompleta_nao_extrai():
     """Ano apenas — não deve extrair."""
     assert _da("admitido em janeiro de 2020 sem data exata") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'vínculo desde' / 'empregado desde'
+# ---------------------------------------------------------------------------
+
+def test_vinculo_desde():
+    """'vínculo empregatício desde DD/MM/AAAA' — 'desde' como trigger."""
+    assert _da("vínculo empregatício desde 10/05/2018") == "10/05/2018"
+
+def test_empregado_desde():
+    assert _da("empregado desde 01/02/2019") == "01/02/2019"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'integrou os quadros em' / 'passou a integrar em'
+# ---------------------------------------------------------------------------
+
+def test_integrou_quadros_em():
+    """'integrou os quadros da empresa em' — trigger de ingresso."""
+    assert _da("integrou os quadros da empresa em 01/07/2020") == "01/07/2020"
+
+def test_passou_a_integrar_em():
+    assert _da("passou a integrar o quadro em 01/06/2021") == "01/06/2021"
