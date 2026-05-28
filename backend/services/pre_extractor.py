@@ -70,13 +70,13 @@ _RE_ASSINADO = re.compile(
 # Justiça gratuita
 _RE_JG_TRUE = re.compile(
     r"(?i)(\bdefiro\b.*?\bjusti[çc]a\s+gratuita\b"
-    r"|\bjusti[çc]a\s+gratuita\b.*?\bdeferida\b"
+    r"|\bjusti[çc]a\s+gratuita\b.*?\bdeferid[ao]s?\b"          # deferido/a/os
     r"|\bbenef[ií]cios\s+da\s+assist[eê]ncia\s+judici[aá]ria\b"
-    r"|\bbenef[ií]cios\s+da\s+justi[çc]a\s+gratuita\b.*?\bdeferidos?\b"
+    r"|\bbenef[ií]cios?\s+d[ae]\s+justi[çc]a\s+gratuita\b.*?\bdeferid[ao]s?\b"  # singular/plural, da/de
     r"|\bgratuidade\s+d[ae]\s+justi[çc]a\b.*?\bdefiro\b"
     r"|\bdefiro\b.*?\bgratuidade\b"
     r"|\bconcedo\b.*?\bgratuidade\b"
-    r"|\bgratuidade\s+de\s+justi[çc]a\b.*?\bdeferida?\b"
+    r"|\bgratuidade\s+d[ae]\s+justi[çc]a\b.*?\b(?:deferida?|concedid[ao]s?)\b"  # deferida/concedido/a
     r"|\bbenefici[aá]rio\b.*?\bjusti[çc]a\s+gratuita\b)"
 )
 _RE_JG_FALSE = re.compile(

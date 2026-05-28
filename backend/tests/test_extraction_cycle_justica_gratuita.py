@@ -100,3 +100,28 @@ def test_revogo_justica_gratuita():
 
 def test_sem_contexto_nao_extrai():
     assert _jg("O processo foi distribuído em 2023.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'benefício de justiça gratuita deferido' (singular + de + masculino)
+# ---------------------------------------------------------------------------
+
+def test_beneficio_de_jg_deferido():
+    """'benefício de justiça gratuita deferido' — singular, 'de', masculino."""
+    assert _jg("benefício de justiça gratuita deferido") is True
+
+def test_beneficio_da_jg_deferido():
+    """'benefício da justiça gratuita deferido' — masculino."""
+    assert _jg("benefício da justiça gratuita deferido") is True
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'gratuidade de justiça concedida' (particípio de conceder)
+# ---------------------------------------------------------------------------
+
+def test_gratuidade_de_justica_concedida():
+    """'gratuidade de justiça concedida'."""
+    assert _jg("gratuidade de justiça concedida ao autor") is True
+
+def test_gratuidade_de_justica_concedido():
+    assert _jg("benefício de gratuidade de justiça concedido") is True
