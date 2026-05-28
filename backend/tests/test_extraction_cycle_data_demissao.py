@@ -139,3 +139,15 @@ class TestDataDemissaoGap5NovosTriggers:
 
     def test_data_saida_sem_acento(self):
         assert _run("data de saida: 01/07/2022") == "01/07/2022"
+
+
+# ── GAP 6: rompeu vínculo sem acento + data da rescisão contratual ──────────
+
+class TestDataDemissaoGap6:
+    def test_rompeu_vinculo_sem_acento(self):
+        """'rompeu o vinculo empregaticio em' — sem acento em 'empregatício'."""
+        assert _run("rompeu o vinculo empregaticio em 30/06/2023") == "30/06/2023"
+
+    def test_data_da_rescisao_contratual(self):
+        """'data da rescisão contratual: DD/MM' — 'contratual' entre label e data."""
+        assert _run("data da rescisao contratual: 30/06/2023") == "30/06/2023"

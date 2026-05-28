@@ -134,15 +134,15 @@ _RE_DEMISSAO = re.compile(
     r"rescis[aã]o\s+(?:contratual\s+)?em|rescindid[oa]\s+em|"
     r"saiu\s+em|desligad[oa](?:\s+(?!em\b)\S+){0,3}\s+em|desligamento\s+em|"
     r"demiss[aã]o\s+(?:sem\s+justa\s+causa\s+)?em|"
-    r"término\s+do\s+(?:contrato|v[íi]nculo(?:\s+empregatício)?)\s+em|"
+    r"término\s+do\s+(?:contrato|v[íi]nculo(?:\s+empreg[aá]t[íi]ci[oó])?)\s+em|"
     # GAP 4: novos triggers
-    r"encerrou\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
-    r"rompeu\s+o\s+v[íi]nculo(?:\s+empregatício)?\s+em|"
+    r"encerrou\s+o\s+v[íi]nculo(?:\s+empreg[aá]t[íi]ci[oó])?\s+em|"
+    r"rompeu\s+o\s+v[íi]nculo(?:\s+empreg[aá]t[íi]ci[oó])?\s+em|"
     r"extin[çc][aã]o\s+do\s+contrato\s+em|"
     # Labels com data (GAP 1: dois-pontos/hífen)
     r"(?:demiss[aã]o|rescis[aã]o|desligamento)\s*[:\-]|"
     # Labels clássicos
-    r"data\s+de\s+demiss[aã]o[:\s]+|data\s+d[ao]\s+rescis[aã]o[:\s]+|"
+    r"data\s+de\s+demiss[aã]o[:\s]+|data\s+d[ao]\s+rescis[aã]o(?:\s+\w+)?[:\s]+|"
     # GAP 5: 'data de saída'
     r"data\s+de\s+sa[íi]da[:\s]+"
     r")"
