@@ -106,3 +106,29 @@ class TestValorCausaNegativo:
 
     def test_dano_moral_nao_captura(self):
         assert _run("dano moral no valor de R$ 10.000,00") is None
+
+
+# ── GAP — 'deu/atribuiu à causa' (pretérito perfeito) ───────────────────────
+
+class TestValorCausaPreterito:
+    def test_deu_a_causa(self):
+        """'deu à causa o valor de' — pretérito perfeito de 'dou'."""
+        assert _run("deu a causa o valor de R$ 12.000,00") == "R$ 12.000,00"
+
+    def test_deu_a_presente_causa(self):
+        assert _run("deu a presente causa o valor de R$ 45.000,00") == "R$ 45.000,00"
+
+    def test_atribuiu_a_causa(self):
+        """'atribuiu à causa o valor de' — pretérito perfeito de 'atribuo'."""
+        assert _run("atribuiu a causa o valor de R$ 9.000,00") == "R$ 9.000,00"
+
+
+# ── GAP — 'causa: R$ X' (label direto) ──────────────────────────────────────
+
+class TestValorCausaLabelDireto:
+    def test_causa_colon_rs(self):
+        """'causa: R$ X' — rótulo direto sem 'valor da'."""
+        assert _run("causa: R$ 7.500,00") == "R$ 7.500,00"
+
+    def test_causa_hifen_rs(self):
+        assert _run("causa - R$ 15.000,00") == "R$ 15.000,00"

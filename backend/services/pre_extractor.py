@@ -174,7 +174,10 @@ _RE_VALOR_CAUSA = re.compile(
     r"valor\s+atribu[ií]do\s+[aà]\s+causa\s*[-:]?\s*|"
     r"causa\s+no\s+valor\s+de\s+|"
     r"dou\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+|"
-    r"atribuo\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+"
+    r"deu\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+|"
+    r"atribuo\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+|"
+    r"atribuiu\s+[aà]\s+(?:presente\s+)?causa\s+o\s+valor\s+de\s+|"
+    r"(?<!\w)causa\s*[-:]\s*(?=R\$)"
     r")"
     r"R?\$?\s*([\d.,]+(?:\s*(?:reais|mil))?)",
     re.IGNORECASE,
@@ -459,13 +462,14 @@ _RE_JUIZ_LABEL = re.compile(
 # Função/cargo do reclamante — frases-gatilho específicas (texto livre: captura até stop char)
 _RE_FUNCAO_RECLAMANTE = re.compile(
     r"(?i)"
-    r"(?:exercia\s+(?:(?:a\s+)?fun[çc][aã]o|(?:o\s+)?cargo)\s+de\s+|"
+    r"(?:exerc(?:ia|eu)\s+(?:(?:a\s+)?fun[çc][aã]o|(?:o\s+)?cargo)\s+de\s+|"
     r"desempenh(?:ava|a)\s+(?:a\s+)?fun[çc][aã]o\s+de\s+|"
     r"(?:foi\s+)?contratad[oa]\s+como\s+|"
     r"admitid[oa]\s+como\s+|"
     r"trabalh(?:ou|a(?:va)?)\s+como\s+|"
-    r"labora(?:va)?\s+como\s+|"
-    r"atua(?:va)?\s+como\s+|"
+    r"labor(?:ou|a(?:va|ndo|r)?)\s+como\s+|"
+    r"atu(?:ou|a(?:va|ndo|r)?)\s+como\s+|"
+    r"serviu\s+como\s+|"
     r"ocupa(?:va)?\s+(?:o\s+)?cargo\s+de\s+|"
     r"na\s+fun[çc][aã]o\s+de\s+|"
     r"cargo\s*[:\-]\s*|"

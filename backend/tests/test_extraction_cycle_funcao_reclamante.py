@@ -109,3 +109,31 @@ def test_label_funcao():
 
 def test_sem_contexto_nao_extrai():
     assert _fn("O reclamante foi admitido em 2020.") is None
+
+
+# ---------------------------------------------------------------------------
+# GAP — pretérito perfeito: 'laborou', 'atuou', 'exerceu', 'serviu'
+# ---------------------------------------------------------------------------
+
+def test_laborou_como():
+    """'laborou como' — pretérito perfeito de laborar."""
+    v = _fn("laborou como auxiliar de produção na reclamada")
+    assert v is not None and "auxiliar" in v
+
+
+def test_atuou_como():
+    """'atuou como' — pretérito perfeito de atuar."""
+    v = _fn("atuou como vendedor externo por 3 anos")
+    assert v is not None and "vendedor" in v
+
+
+def test_exerceu_cargo():
+    """'exerceu o cargo de' — pretérito perfeito de exercer."""
+    v = _fn("exerceu o cargo de supervisor de produção")
+    assert v is not None and "supervisor" in v
+
+
+def test_serviu_como():
+    """'serviu como' — verbo servir como trigger de cargo."""
+    v = _fn("serviu como vigilante durante todo o contrato")
+    assert v is not None and "vigilante" in v
