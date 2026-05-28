@@ -102,3 +102,15 @@ def test_rito_label_colon_sumarissimo():
 
 def test_rito_label_hifen_ordinario():
     assert _rito("Rito - Ordinario") == "Ordinário"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'sumariissimo' (OCR sem acento: ii em vez de í)
+# ---------------------------------------------------------------------------
+
+def test_sumariissimo_ocr():
+    """'sumariissimo' — OCR às vezes duplica o i onde deveria ter í."""
+    assert _rito("sumariissimo") == "Sumaríssimo"
+
+def test_rito_sumariissimo_ocr():
+    assert _rito("rito sumariissimo") == "Sumaríssimo"

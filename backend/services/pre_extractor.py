@@ -90,9 +90,9 @@ _RE_JG_FALSE = re.compile(
 
 # Rito processual
 _RE_RITO_SUMARIO = re.compile(
-    r"(?i)\b(?:rito\s+sumar[ií]ssimo|procedimento\s+sumar[ií]ssimo|sumar[ií]ssimo"
+    r"(?i)\b(?:rito\s+sumar[ií]{1,2}ssimo|procedimento\s+sumar[ií]{1,2}ssimo|sumar[ií]{1,2}ssimo"
     r"|rito\s+sum[aá]r[ií]o|procedimento\s+sum[aá]r[ií]o"
-    r"|rito\s*[:\-]\s*sumar[ií]ssimo|rito\s*[:\-]\s*sum[aá]r[ií]o)\b"
+    r"|rito\s*[:\-]\s*sumar[ií]{1,2}ssimo|rito\s*[:\-]\s*sum[aá]r[ií]o)\b"
 )
 _RE_RITO_ORDINARIO = re.compile(
     r"(?i)\b(?:rito\s+(?:comum\s+)?ordin[aá]rio"
@@ -233,6 +233,11 @@ _RE_RESCISAO_SJC = re.compile(
 _RE_RESCISAO_JC = re.compile(
     r"(?i)\b(?:com|por)\s+justa\s+causa\b"
     r"|\babandon[oa]\s+de\s+emprego\b"
+    r"|\bjusta\s+causa\s+(?:configurad[ao]?|reconhecid[ao]?|comprovad[ao]?)\b"
+    r"|\bfalta\s+grave\b"
+)
+_RE_RESCISAO_CULPA_RECIPROCA = re.compile(
+    r"(?i)\bculpa\s+rec[íi]proca\b"
 )
 _RE_RESCISAO_INDIRETA = re.compile(
     r"(?i)\brescis[aã]o\s+indireta\b"
@@ -910,6 +915,8 @@ class PreExtractor:
     def _extract_motivo_rescisao(self):
         if _RE_RESCISAO_INDIRETA.search(self.texto):
             self._set_medium("motivo_rescisao", "Rescisão indireta")
+        elif _RE_RESCISAO_CULPA_RECIPROCA.search(self.texto):
+            self._set_medium("motivo_rescisao", "Culpa recíproca")
         elif _RE_RESCISAO_SJC.search(self.texto):
             self._set_medium("motivo_rescisao", "Sem justa causa")
         elif _RE_RESCISAO_JC.search(self.texto):

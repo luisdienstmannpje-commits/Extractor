@@ -193,3 +193,39 @@ def test_extincao_da_empresa():
 
 def test_fechamento_empresa():
     assert _med("fechamento da empresa") == "Término de contrato"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'falta grave' (do empregado) → Com justa causa
+# ---------------------------------------------------------------------------
+
+def test_falta_grave_empregado():
+    """'falta grave' sem especificação de autor → justa causa do empregado."""
+    assert _med("desligado por motivo de falta grave") == "Com justa causa"
+
+def test_falta_grave_direta():
+    assert _med("a demissão foi motivada por falta grave") == "Com justa causa"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'justa causa configurada/reconhecida' (sem 'com/por' antes)
+# ---------------------------------------------------------------------------
+
+def test_justa_causa_configurada():
+    """'justa causa configurada' — sem preposição antecedente."""
+    assert _med("justa causa configurada pelo tribunal") == "Com justa causa"
+
+def test_justa_causa_reconhecida():
+    assert _med("justa causa reconhecida") == "Com justa causa"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'culpa recíproca' (art. 484 CLT)
+# ---------------------------------------------------------------------------
+
+def test_culpa_reciproca():
+    """'culpa recíproca' é modalidade própria — art. 484 CLT."""
+    assert _med("rescisão por culpa recíproca") == "Culpa recíproca"
+
+def test_culpa_reciproca_sem_acento():
+    assert _med("rescisao por culpa reciproca") == "Culpa recíproca"
