@@ -56,7 +56,8 @@ _RE_DATA_SENTENCA = re.compile(
     r"decidid[oa]\s+em\s+|"                   # "decidida em DD/MM/AAAA"
     r"decis[aã]o\s+proferida\s+em\s+|"
     r"prola[çc][aã]o\s+d[ao]\s+senten[çc]a\s+em\s+|"
-    r"sentenciad[oa]\s+em\s+)"
+    r"sentenciad[oa]\s+em\s+|"
+    r"julgou[-\s]+se\s+(?:[^.;\n]{0,30}?\s+)?em\s+)"
     r"(\d{2}/\d{2}/\d{4})"
 )
 
@@ -307,7 +308,7 @@ _RE_CONTRATO_TEMPORARIO = re.compile(
 )
 
 # Tipo de contrato — natureza jurídica (MEDIUM: dependem de contexto)
-_RE_CONTRATO_CLT = re.compile(r"(?i)\bv[íi]nculo\s+(?:de\s+)?emprego\b|\bCLT\b")
+_RE_CONTRATO_CLT = re.compile(r"(?i)\bv[íi]nculo\s+(?:de\s+)?emprego\b|\bCLT\b|\bceletista\b")
 _RE_CONTRATO_PEJOTA = re.compile(
     r"(?i)(pejotiza[çc][aã]o|contrato\s+de\s+pessoa\s+jur[ií]dica|CNPJ|MEI\b)"
     r".{0,60}(reconhec|fraude|simula[çc][aã]o|disfarc)",

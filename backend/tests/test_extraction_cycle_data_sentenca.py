@@ -87,3 +87,15 @@ def test_decidida_em():
 
 def test_prolatado_em_masculino():
     assert _ds("prolatado em 08/08/2023") == "08/08/2023"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'julgou-se em' (voz reflexiva — comum em sentenças trabalhistas)
+# ---------------------------------------------------------------------------
+
+def test_julgou_se_em():
+    """'julgou-se em' — forma reflexiva não coberta por 'julgado/a em'."""
+    assert _ds("julgou-se o feito em 10/05/2024") == "10/05/2024"
+
+def test_julgou_se_em_direto():
+    assert _ds("julgou-se em 15/03/2023") == "15/03/2023"

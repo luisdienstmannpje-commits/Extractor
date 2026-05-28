@@ -171,3 +171,19 @@ def test_regime_experiencia():
 
 def test_regime_experiencia_sem_acento():
     assert _tc("regime de experiencia de 90 dias") == "Experiência"
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'celetista' (sinônimo de vínculo CLT)
+# ---------------------------------------------------------------------------
+
+def test_vinculo_celetista():
+    """'vínculo celetista' — forma adjetivada comum em sentenças."""
+    assert _tc("vínculo celetista reconhecido") == "CLT"
+
+def test_contratado_como_celetista():
+    """'contratado como celetista'."""
+    assert _tc("foi contratado como celetista em 2019") == "CLT"
+
+def test_empregado_celetista():
+    assert _tc("empregado celetista da empresa") == "CLT"
