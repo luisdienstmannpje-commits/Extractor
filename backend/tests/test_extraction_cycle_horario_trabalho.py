@@ -133,3 +133,17 @@ def test_entrada_saida_com_e():
     """'Entrada: 06h00 e Saída: 14h00' — 'e' entre entrada e saída."""
     v = _ht("Entrada: 06h00 e Saída: 14h00")
     assert v is not None and "06" in v and "14" in v
+
+
+# ---------------------------------------------------------------------------
+# GAP — 'jornada: HH às HH' (colon direto após 'jornada')
+# ---------------------------------------------------------------------------
+
+def test_jornada_colon_direto():
+    """'jornada: 07h30 as 16h30' — colon logo após 'jornada'."""
+    v = _ht("jornada: 07h30 as 16h30")
+    assert v is not None and "07" in v and "16" in v
+
+def test_jornada_colon_formato_hhmm():
+    v = _ht("jornada: 08:00 às 17:00")
+    assert v is not None and "08" in v and "17" in v

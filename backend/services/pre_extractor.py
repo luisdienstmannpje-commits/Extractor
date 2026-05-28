@@ -384,7 +384,7 @@ _RE_HORARIO_TRABALHO = re.compile(
     r"(?i)"
     r"(?:hor[aá]rio\s*(?:de\s+trabalho\s*)?[:\-]?\s*|"   # 'horário:' ou 'horário de trabalho:'
     r"trabalha(?:va|ndo|r)?\s+|labora(?:va|ndo|r)?\s+|"
-    r"jornada\s+(?:de\s+trabalho\s*)?|"
+    r"jornada\s*(?:de\s+trabalho\s*)?[:\-]?\s*|"
     r"expediente\s+)"                                      # 'expediente das X às Y'
     r"((?:das?\s+|de\s+)?\d{1,2}[h:]\d{0,2}\s*[àa][s]?\s*\d{1,2}[h:]\d{0,2}"
     r"(?:[^.;:\n]{0,60}(?:intervalo|almo[çc]o|refei[çc][aã]o)[^.;:\n]{0,20})?)",
